@@ -36,7 +36,7 @@ export function useRevenueData(range: "7d" | "30d" | "90d" = "30d") {
 export function useTopDishes() {
   return useQuery({
     queryKey: [...queryKeys.analytics.dashboard, "top-items"],
-    queryFn: createMockQueryFn(mockDashboardReport.topItems.slice(0, 4), 450),
+    queryFn: createMockQueryFn(mockDashboardReport.topItems.slice(0, 10), 450),
     staleTime: Infinity,
     gcTime: Infinity,
   });
@@ -55,6 +55,15 @@ export function useTableOccupancy() {
   return useQuery({
     queryKey: queryKeys.tables.all,
     queryFn: createMockQueryFn(mockTables, 300),
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+}
+
+export function useOrderTypeBreakdown() {
+  return useQuery({
+    queryKey: [...queryKeys.analytics.dashboard, "order-type-breakdown"],
+    queryFn: createMockQueryFn(mockDashboardReport.orderTypeBreakdown, 420),
     staleTime: Infinity,
     gcTime: Infinity,
   });

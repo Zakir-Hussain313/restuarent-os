@@ -37,12 +37,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     set((state) => ({
       orders: state.orders.map((o) =>
         o.id === orderId
-          ? {
-              ...o,
-              status,
-              updatedAt: new Date().toISOString(),
-              completedAt: status === "completed" ? new Date().toISOString() : o.completedAt,
-            }
+          ? { ...o, status, updatedAt: new Date().toISOString() }
           : o
       ),
     }));

@@ -4,3 +4,4 @@ export { RecentOrdersWidget } from "./components/RecentOrdersWidget";
 export { TopDishesWidget } from "./components/TopDishesWidget";
 export { TableOccupancyWidget } from "./components/TableOccupancyWidget";
 export { QuickActionsBar } from "./components/QuickActionsBar";
+export { OrderTypeBreakdownWidget } from "./components/OrderTypeBreakdownWidget";

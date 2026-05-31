@@ -41,12 +41,6 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: "ClipboardList",
         permission: "manage_orders",
       },
-      {
-        label: "Tables",
-        href: "/tables",
-        icon: "UtensilsCrossed",
-        permission: "manage_tables",
-      },
     ],
   },
   {
@@ -59,38 +53,10 @@ export const NAV_GROUPS: NavGroup[] = [
         permission: "manage_menu",
       },
       {
-        label: "Customers",
-        href: "/customers",
-        icon: "Users",
-        permission: "view_dashboard",
-      },
-      {
         label: "Staff",
         href: "/staff",
         icon: "UserCog",
         permission: "manage_staff",
-      },
-    ],
-  },
-  {
-    label: "Insights",
-    items: [
-      {
-        label: "Analytics",
-        href: "/analytics",
-        icon: "BarChart3",
-        permission: "view_analytics",
-      },
-    ],
-  },
-  {
-    label: "System",
-    items: [
-      {
-        label: "Settings",
-        href: "/settings",
-        icon: "Settings2",
-        permission: "manage_settings",
       },
     ],
   },

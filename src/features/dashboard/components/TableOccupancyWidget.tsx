@@ -1,83 +1,38 @@
 "use client";
 
-import Link from "next/link";
-import { ArrowRight, Users } from "lucide-react";
+import { Users } from "lucide-react";
 import { useTableOccupancy } from "../hooks/useDashboardData";
 import { TableStatus } from "@/types/table";
 
 const STATUS_STYLES: Record<TableStatus, { bg: string; border: string; dot: string; label: string }> = {
-  available: {
-    bg: "bg-emerald-50",
-    border: "border-emerald-200",
-    dot: "bg-emerald-500",
-    label: "Available",
-  },
-  occupied: {
-    bg: "bg-orange-50",
-    border: "border-orange-200",
-    dot: "bg-[#e8570e]",
-    label: "Occupied",
-  },
-  reserved: {
-    bg: "bg-blue-50",
-    border: "border-blue-200",
-    dot: "bg-blue-500",
-    label: "Reserved",
-  },
-  cleaning: {
-    bg: "bg-yellow-50",
-    border: "border-yellow-200",
-    dot: "bg-yellow-500",
-    label: "Cleaning",
-  },
-  inactive: {
-    bg: "bg-[#f4f2ef]",
-    border: "border-[#ebe9e4]",
-    dot: "bg-[#8a8680]",
-    label: "Inactive",
-  },
+  available: { bg: "bg-emerald-50", border: "border-emerald-200", dot: "bg-emerald-500", label: "Available" },
+  occupied:  { bg: "bg-orange-50",  border: "border-orange-200",  dot: "bg-[#e8570e]",   label: "Occupied"  },
+  reserved:  { bg: "bg-blue-50",    border: "border-blue-200",    dot: "bg-blue-500",     label: "Reserved"  },
+  cleaning:  { bg: "bg-yellow-50",  border: "border-yellow-200",  dot: "bg-yellow-500",   label: "Cleaning"  },
+  inactive:  { bg: "bg-[#f4f2ef]",  border: "border-[#ebe9e4]",   dot: "bg-[#8a8680]",   label: "Inactive"  },
 };
 
 export function TableOccupancyWidget() {
   const { data: tables, isLoading } = useTableOccupancy();
 
-  const counts = tables?.reduce(
-    (acc, t) => {
-      acc[t.status] = (acc[t.status] ?? 0) + 1;
-      return acc;
-    },
-    {} as Record<TableStatus, number>
-  );
-
-  const occupiedCount = counts?.occupied ?? 0;
-  const totalCount = tables?.length ?? 0;
-  const occupancyPct = totalCount > 0 ? Math.round((occupiedCount / totalCount) * 100) : 0;
+  const counts = tables?.reduce((acc, t) => {
+    acc[t.status] = (acc[t.status] ?? 0) + 1;
+    return acc;
+  }, {} as Record<TableStatus, number>);
 
   return (
     <div className="bg-white rounded-xl border border-[#ebe9e4] flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-[#ebe9e4]">
-        <div>
-          <h3 className="text-sm font-semibold text-[#1a1815]">Table Status</h3>
-          <p className="text-xs text-[#8a8680] mt-0.5">
-            {occupiedCount}/{totalCount} tables occupied · {occupancyPct}%
-          </p>
-        </div>
-        <Link
-          href="/tables"
-          className="flex items-center gap-1 text-xs font-medium text-[#e8570e] hover:text-[#c44a0c] transition-colors"
-        >
-          Manage
-          <ArrowRight className="w-3.5 h-3.5" />
-        </Link>
+      <div className="px-5 py-4 border-b border-[#ebe9e4]">
+        <h3 className="text-sm font-semibold text-[#1a1815]">Table Status</h3>
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-4 px-5 py-3 border-b border-[#f4f2ef]">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-5 py-3 border-b border-[#f4f2ef]">
         {Object.entries(STATUS_STYLES).map(([status, style]) => (
           <div key={status} className="flex items-center gap-1.5">
             <div className={`w-2 h-2 rounded-full ${style.dot}`} />
-            <span className="text-xs text-[#8a8680]">
+            <span className="text-[11px] text-[#8a8680]">
               {style.label} ({counts?.[status as TableStatus] ?? 0})
             </span>
           </div>

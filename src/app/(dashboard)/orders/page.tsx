@@ -1,4 +1,15 @@
+import type { Metadata } from "next";
+import { OrdersLayout } from "@/features/orders";
+
+export const metadata: Metadata = {
+  title: "Orders | Rice n Spice",
+  description: "Manage and track all restaurant orders",
+};
 
 export default function OrdersPage() {
-  return <div className="p-8 text-[#8a8680]">Orders — Coming soon</div>;
+  return (
+    <div className="h-screen flex flex-col overflow-hidden">
+      <OrdersLayout />
+    </div>
+  );
 }

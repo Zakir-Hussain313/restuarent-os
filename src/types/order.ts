@@ -1,15 +1,7 @@
 import type { CustomerType } from "./customer";
 import type { SelectedModifier, SelectedVariant } from "./menu";
 
-export type OrderStatus =
-  | "pending"
-  | "confirmed"
-  | "preparing"
-  | "ready"
-  | "served"
-  | "completed"
-  | "cancelled"
-  | "refunded";
+export type OrderStatus = "confirmed" | "cancelled";
 
 export type OrderType = CustomerType;
 
@@ -29,26 +21,26 @@ export interface AppliedDiscount {
   id: string;
   name: string;
   type: DiscountType;
-  value: number; // percentage or fixed amount
-  appliedAmount: number; // actual amount deducted
-  appliedBy: string; // staffId
+  value: number;
+  appliedAmount: number;
+  appliedBy: string;
 }
 
 export interface OrderItem {
   id: string;
   orderId: string;
   menuItemId: string;
-  menuItemName: string; // denormalized for history
+  menuItemName: string;
   menuItemImage?: string;
   categoryId: string;
   categoryName: string;
   quantity: number;
-  unitPrice: number; // base price at time of order
+  unitPrice: number;
   selectedVariant?: SelectedVariant;
   selectedModifiers: SelectedModifier[];
-  itemTotal: number; // (unitPrice + variant + modifiers) * quantity
-  notes?: string; // e.g. "no onions"
-  status: "pending" | "preparing" | "ready" | "served" | "cancelled";
+  itemTotal: number;
+  notes?: string;
+  status: "pending" | "cancelled";
   createdAt: string;
 }
 
@@ -57,14 +49,14 @@ export interface Payment {
   orderId: string;
   method: PaymentMethod;
   amount: number;
-  reference?: string; // card last 4, transaction ID, etc.
+  reference?: string;
   processedAt: string;
-  processedBy: string; // staffId
+  processedBy: string;
 }
 
 export interface Order {
   id: string;
-  orderNumber: string; // human-readable: "ORD-0042"
+  orderNumber: string;
   restaurantId: string;
   branchId: string;
   tableId?: string;
@@ -75,8 +67,6 @@ export interface Order {
   orderType: OrderType;
   status: OrderStatus;
   items: OrderItem[];
-
-  // Financials
   subtotal: number;
   discounts: AppliedDiscount[];
   totalDiscount: number;
@@ -86,28 +76,20 @@ export interface Order {
   serviceChargeAmount: number;
   deliveryFee: number;
   total: number;
-
-  // Payment
   paymentStatus: PaymentStatus;
   payments: Payment[];
   totalPaid: number;
-  balance: number; // total - totalPaid
-
-  // Delivery
+  balance: number;
   deliveryAddress?: string;
   estimatedDeliveryMinutes?: number;
-
-  // Meta
   notes?: string;
-  staffId: string; // who took/created the order
+  staffId: string;
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
 }
 
-// Lightweight version for lists/tables
-export type OrderSummary = Pick<
-  Order,
+export type OrderSummary = Pick<Order,
   | "id"
   | "orderNumber"
   | "orderType"

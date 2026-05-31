@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Plus, ClipboardList, BarChart3, Utensils } from "lucide-react";
+import { Plus, ClipboardList, Utensils } from "lucide-react";
 
 const ACTIONS = [
   {
@@ -25,14 +25,7 @@ const ACTIONS = [
     icon: Utensils,
     accent: false,
   },
-  {
-    label: "Analytics",
-    description: "Full report",
-    href: "/analytics",
-    icon: BarChart3,
-    accent: false,
-  },
-];
+] as const;
 
 export function QuickActionsBar() {
   return (
@@ -50,7 +43,11 @@ export function QuickActionsBar() {
           <Icon className="w-4 h-4" />
           <div className="flex flex-col leading-tight">
             <span>{label}</span>
-            <span className={`text-[10px] font-normal ${accent ? "text-orange-100" : "text-[#8a8680]"}`}>
+            <span
+              className={`text-[10px] font-normal ${
+                accent ? "text-orange-100" : "text-[#8a8680]"
+              }`}
+            >
               {description}
             </span>
           </div>

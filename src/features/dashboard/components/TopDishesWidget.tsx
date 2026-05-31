@@ -13,13 +13,11 @@ const RANK_COLORS = [
 
 export function TopDishesWidget() {
   const { data: dishes, isLoading } = useTopDishes();
-
   const maxOrders = dishes?.[0]?.quantitySold ?? 1;
 
   return (
-    <div className="bg-white rounded-xl border border-[#ebe9e4] flex flex-col">
-      {/* Header */}
-      <div className="flex items-center gap-2 px-5 py-4 border-b border-[#ebe9e4]">
+    <div className="bg-white rounded-xl border border-[#ebe9e4] flex flex-col h-86">
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-[#ebe9e4] shrink-0">
         <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
           <Trophy className="w-3.5 h-3.5 text-amber-500" />
         </div>
@@ -29,8 +27,7 @@ export function TopDishesWidget() {
         </div>
       </div>
 
-      {/* List */}
-      <div className="flex flex-col divide-y divide-[#f4f2ef]">
+      <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-[#f4f2ef]">
         {isLoading ? (
           <div className="p-5">
             <ChartSkeleton />
@@ -39,9 +36,11 @@ export function TopDishesWidget() {
           dishes?.map((dish, index) => {
             const pct = Math.round((dish.quantitySold / maxOrders) * 100);
             return (
-              <div key={dish.menuItemId} className="px-5 py-3.5 hover:bg-[#faf9f7] transition-colors">
+              <div
+                key={dish.menuItemId}
+                className="px-5 py-3.5 hover:bg-[#faf9f7] transition-colors"
+              >
                 <div className="flex items-center gap-3 mb-2">
-                  {/* Rank badge */}
                   <span
                     className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
                       RANK_COLORS[index] ?? "bg-[#f0ede8] text-[#8a8680]"
@@ -49,8 +48,6 @@ export function TopDishesWidget() {
                   >
                     {index + 1}
                   </span>
-
-                  {/* Name + revenue */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-medium text-[#1a1815] truncate">
@@ -61,7 +58,6 @@ export function TopDishesWidget() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2 mt-1">
-                      {/* Progress bar */}
                       <div className="flex-1 h-1.5 bg-[#f0ede8] rounded-full overflow-hidden">
                         <div
                           className="h-full bg-[#e8570e] rounded-full transition-all duration-500"

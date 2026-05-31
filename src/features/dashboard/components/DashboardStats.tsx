@@ -15,6 +15,8 @@ interface StatConfig {
   bg: string;
 }
 
+
+
 const STAT_CONFIG: StatConfig[] = [
   {
     label: "Monthly Revenue",
@@ -103,3 +105,7 @@ export function DashboardStats() {
     </div>
   );
 }
+
+
+
+
