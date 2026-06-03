@@ -1,9 +1,9 @@
 import type { CustomerType } from "./customer";
 import type { SelectedModifier, SelectedVariant } from "./menu";
 
-export type OrderStatus = "confirmed" | "cancelled";
+export type OrderStatus = "pending" | "confirmed" | "completed" | "cancelled";
 
-export type OrderType = CustomerType;
+export type OrderType = Exclude<CustomerType, "walk_in">;
 
 export type PaymentMethod =
   | "cash"
@@ -59,14 +59,18 @@ export interface Order {
   orderNumber: string;
   restaurantId: string;
   branchId: string;
+
   tableId?: string;
   tableNumber?: string;
+
   customerId?: string;
   customerName?: string;
   customerPhone?: string;
+
   orderType: OrderType;
   status: OrderStatus;
   items: OrderItem[];
+
   subtotal: number;
   discounts: AppliedDiscount[];
   totalDiscount: number;
@@ -76,29 +80,21 @@ export interface Order {
   serviceChargeAmount: number;
   deliveryFee: number;
   total: number;
+
   paymentStatus: PaymentStatus;
   payments: Payment[];
   totalPaid: number;
   balance: number;
+
   deliveryAddress?: string;
   estimatedDeliveryMinutes?: number;
+
   notes?: string;
   staffId: string;
+
   createdAt: string;
   updatedAt: string;
-  completedAt?: string;
+  completedAt?: string; 
 }
 
-export type OrderSummary = Pick<Order,
-  | "id"
-  | "orderNumber"
-  | "orderType"
-  | "status"
-  | "paymentStatus"
-  | "total"
-  | "tableNumber"
-  | "customerName"
-  | "items"
-  | "staffId"
-  | "createdAt"
->;
+export type OrderSummary = Pick<Order, "id" | "orderNumber" | "orderType" | "status" | "paymentStatus" | "total" | "tableNumber" | "customerName" | "items" | "staffId" | "createdAt">;

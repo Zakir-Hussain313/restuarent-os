@@ -1,22 +1,22 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useActiveOrders } from "@/features/orders/hooks/useActiveOrders";
+import { useDeliveryOrders } from "@/features/orders/hooks/useDeliveryOrders";
 import { OrderDetail } from "@/features/orders/components/OrderDetail/OrderDetail";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
-import { ClipboardList, Search, Utensils } from "lucide-react";
+import { Bike, Search, Utensils } from "lucide-react";
 import { OrderListSkeleton } from "@/features/orders/shared/OrderListSkeleton";
 import { OrderCard } from "@/features/orders/shared/OrderCard";
 
-export default function ActiveOrdersPage() {
+export default function DeliveryOrdersPage() {
   const {
     filteredOrders,
     filters,
     setSearch,
     isLoading,
     filteredCount,
-  } = useActiveOrders();
+  } = useDeliveryOrders();
 
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
@@ -31,7 +31,7 @@ export default function ActiveOrdersPage() {
       <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold text-foreground">
-            Active Orders
+            Delivery Orders
           </h1>
           <div className="flex items-center gap-1.5">
             <span className="relative flex h-2 w-2">
@@ -43,7 +43,7 @@ export default function ActiveOrdersPage() {
         </div>
         {!isLoading && (
           <span className="text-sm text-muted-foreground">
-            {filteredCount} active
+            {filteredCount} on the way
           </span>
         )}
       </div>
@@ -54,7 +54,7 @@ export default function ActiveOrdersPage() {
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <Input
-                placeholder="Search orders…"
+                placeholder="Search deliveries…"
                 value={filters.search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-8 h-8 text-xs"
@@ -67,8 +67,8 @@ export default function ActiveOrdersPage() {
               <OrderListSkeleton />
             ) : filteredOrders.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground px-4">
-                <ClipboardList className="w-8 h-8 opacity-30" />
-                <p className="text-xs text-center">No active orders right now</p>
+                <Bike className="w-8 h-8 opacity-30" />
+                <p className="text-xs text-center">No delivery orders right now</p>
               </div>
             ) : (
               <div className="flex flex-col">
@@ -95,7 +95,7 @@ export default function ActiveOrdersPage() {
           ) : (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
               <Utensils className="w-10 h-10 opacity-20" />
-              <p className="text-sm">Select an order to view details</p>
+              <p className="text-sm">Select a delivery to view details</p>
             </div>
           )}
         </div>

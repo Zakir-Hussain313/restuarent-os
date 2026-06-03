@@ -17,9 +17,13 @@ import {
   X,
   Flame,
   Circle,
+  Bike,
+  History,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NAV_GROUPS } from "@/config/nav";
+import type { NavItem, NavChild } from "@/config/nav";
 import { mockCurrentStaff } from "@/mock-data";
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -32,7 +36,158 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   UserCog,
   BarChart3,
   Settings2,
+  Bike,
+  History,
 };
+
+function isChildActive(children: NavChild[], pathname: string): boolean {
+  return children.some(
+    (child) =>
+      pathname === child.href || pathname.startsWith(child.href + "/")
+  );
+}
+
+interface SidebarChildItemProps {
+  child: NavChild;
+  isActive: boolean;
+}
+
+function SidebarChildItem({ child, isActive }: SidebarChildItemProps) {
+  const Icon = ICON_MAP[child.icon];
+
+  return (
+    <li>
+      <Link
+        href={child.href}
+        className={cn(
+          "flex items-center h-9 rounded-lg text-sm font-medium transition-all duration-150 gap-2.5 pl-8 pr-2.5",
+          isActive
+            ? "bg-[#fef3ed] text-[#e8570e]"
+            : "text-[#6b6966] hover:bg-[#f4f3f0] hover:text-[#1a1814]"
+        )}
+      >
+        {Icon && (
+          <Icon
+            className={cn(
+              "w-3.5 h-3.5 shrink-0",
+              isActive ? "text-[#e8570e]" : "text-[#a09d99]"
+            )}
+          />
+        )}
+        <span className="flex-1 truncate">{child.label}</span>
+      </Link>
+    </li>
+  );
+}
+
+interface SidebarNavItemProps {
+  item: NavItem;
+  sidebarOpen: boolean;
+  pathname: string;
+}
+
+function SidebarNavItem({ item, sidebarOpen, pathname }: SidebarNavItemProps) {
+  const Icon = ICON_MAP[item.icon];
+  const hasChildren = !!item.children?.length;
+
+  const isDirectlyActive =
+    !hasChildren &&
+    (pathname === item.href || pathname.startsWith(item.href + "/"));
+
+  const isChildrenActive =
+    hasChildren && isChildActive(item.children!, pathname);
+
+  const isActive = isDirectlyActive || isChildrenActive;
+
+  const [expanded, setExpanded] = useState<boolean>(isChildrenActive);
+
+  if (hasChildren) {
+    return (
+      <li>
+        <button
+          onClick={() => {
+            if (sidebarOpen) setExpanded((prev) => !prev);
+          }}
+          title={!sidebarOpen ? item.label : undefined}
+          className={cn(
+            "w-full flex items-center h-10 rounded-lg text-sm font-medium transition-all duration-150",
+            isActive
+              ? "bg-[#fef3ed] text-[#e8570e]"
+              : "text-[#4a4744] hover:bg-[#f4f3f0] hover:text-[#1a1814]",
+            sidebarOpen ? "gap-3 px-2.5" : "justify-center w-10 mx-auto"
+          )}
+        >
+          <Icon
+            className={cn(
+              "w-4 h-4 shrink-0",
+              isActive ? "text-[#e8570e]" : "text-[#8a8680]"
+            )}
+          />
+          {sidebarOpen && (
+            <>
+              <span className="flex-1 truncate text-left">{item.label}</span>
+              <ChevronDown
+                className={cn(
+                  "w-3.5 h-3.5 shrink-0 transition-transform duration-200",
+                  isActive ? "text-[#e8570e]" : "text-[#8a8680]",
+                  expanded && "rotate-180"
+                )}
+              />
+            </>
+          )}
+        </button>
+
+        {sidebarOpen && expanded && (
+          <ul className="mt-0.5 space-y-0.5">
+            {item.children!.map((child) => (
+              <SidebarChildItem
+                key={child.href}
+                child={child}
+                isActive={
+                  child.href === "/orders"
+                    ? pathname === "/orders"
+                    : pathname === child.href ||
+                      pathname.startsWith(child.href + "/")
+                }
+              />
+            ))}
+          </ul>
+        )}
+      </li>
+    );
+  }
+
+  return (
+    <li>
+      <Link
+        href={item.href}
+        title={!sidebarOpen ? item.label : undefined}
+        className={cn(
+          "flex items-center h-10 rounded-lg text-sm font-medium transition-all duration-150",
+          isActive
+            ? "bg-[#fef3ed] text-[#e8570e]"
+            : "text-[#4a4744] hover:bg-[#f4f3f0] hover:text-[#1a1814]",
+          sidebarOpen ? "gap-3 px-2.5" : "justify-center w-10 mx-auto"
+        )}
+      >
+        <Icon
+          className={cn(
+            "w-4 h-4 shrink-0",
+            isActive ? "text-[#e8570e]" : "text-[#8a8680]"
+          )}
+        />
+        {sidebarOpen && (
+          <>
+            <span className="flex-1 truncate">{item.label}</span>
+            {item.badge === "live" && (
+              <Circle className="w-1.5 h-1.5 fill-emerald-400 text-emerald-400 animate-pulse shrink-0" />
+            )}
+          </>
+        )}
+      </Link>
+    </li>
+  );
+}
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -45,7 +200,6 @@ export function Sidebar() {
         open ? "w-56" : "w-14"
       )}
     >
-      {/* Header: burger + logo */}
       <div className="h-14 flex items-center shrink-0 border-b border-[#ebe9e4]">
         <button
           onClick={() => setOpen(!open)}
@@ -70,7 +224,6 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-2 space-y-4">
         {NAV_GROUPS.map((group) => (
           <div key={group.label}>
@@ -80,48 +233,19 @@ export function Sidebar() {
               </p>
             )}
             <ul className="space-y-0.5 px-2">
-              {group.items.map((item) => {
-                const Icon = ICON_MAP[item.icon];
-                const isActive =
-                  pathname === item.href || pathname.startsWith(item.href + "/");
-
-                return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      title={!open ? item.label : undefined}
-                      className={cn(
-                        "flex items-center h-10 rounded-lg text-sm font-medium transition-all duration-150",
-                        isActive
-                          ? "bg-[#fef3ed] text-[#e8570e]"
-                          : "text-[#4a4744] hover:bg-[#f4f3f0] hover:text-[#1a1814]",
-                        open ? "gap-3 px-2.5" : "justify-center w-10 mx-auto"
-                      )}
-                    >
-                      <Icon
-                        className={cn(
-                          "w-4 h-4 shrink-0",
-                          isActive ? "text-[#e8570e]" : "text-[#8a8680]"
-                        )}
-                      />
-                      {open && (
-                        <>
-                          <span className="flex-1 truncate">{item.label}</span>
-                          {item.badge === "live" && (
-                            <Circle className="w-1.5 h-1.5 fill-emerald-400 text-emerald-400 animate-pulse shrink-0" />
-                          )}
-                        </>
-                      )}
-                    </Link>
-                  </li>
-                );
-              })}
+              {group.items.map((item) => (
+                <SidebarNavItem
+                  key={item.href}
+                  item={item}
+                  sidebarOpen={open}
+                  pathname={pathname}
+                />
+              ))}
             </ul>
           </div>
         ))}
       </nav>
 
-      {/* Staff info */}
       <div className="border-t border-[#ebe9e4] p-2 shrink-0">
         <div
           className={cn(

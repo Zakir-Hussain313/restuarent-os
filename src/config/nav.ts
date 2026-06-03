@@ -1,11 +1,19 @@
 import type { Permission } from "@/types";
 
+export interface NavChild {
+  label: string;
+  href: string;
+  icon: string;
+  permission: Permission;
+}
+
 export interface NavItem {
   label: string;
   href: string;
-  icon: string; // lucide icon name
+  icon: string;
   permission: Permission;
   badge?: "live" | "new";
+  children?: NavChild[];
 }
 
 export interface NavGroup {
@@ -40,6 +48,26 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/orders",
         icon: "ClipboardList",
         permission: "manage_orders",
+        children: [
+          {
+            label: "Active Orders",
+            href: "/orders",
+            icon: "UtensilsCrossed",
+            permission: "manage_orders",
+          },
+          {
+            label: "Delivery",
+            href: "/orders/delivery",
+            icon: "Bike",
+            permission: "manage_orders",
+          },
+          {
+            label: "History",
+            href: "/orders/history",
+            icon: "History",
+            permission: "manage_orders",
+          },
+        ],
       },
     ],
   },

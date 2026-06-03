@@ -9,8 +9,22 @@ interface OrderStatusBadgeProps {
 }
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; className: string }> = {
-  confirmed: { label: "Confirmed", className: "bg-green-100 text-green-800 border-green-200" },
-  cancelled: { label: "Cancelled", className: "bg-red-100 text-red-700 border-red-200" },
+  pending: {
+    label: "Pending",
+    className: "bg-yellow-50 text-yellow-800 border-yellow-200",
+  },
+  confirmed: {
+    label: "Confirmed",
+    className: "bg-green-50 text-green-800 border-green-200",
+  },
+  completed: {
+    label: "Completed",
+    className: "bg-blue-50 text-blue-700 border-blue-200",
+  },
+  cancelled: {
+    label: "Cancelled",
+    className: "bg-red-50 text-red-700 border-red-200",
+  },
 };
 
 export function OrderStatusBadge({ status, size = "md" }: OrderStatusBadgeProps) {

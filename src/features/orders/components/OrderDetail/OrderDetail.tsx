@@ -1,154 +1,312 @@
 "use client";
 
-import { Loader2, XCircle, ClipboardList } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/utils";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import { useOrderDetail } from "../../hooks/useOrderDetail";
 import { OrderStatusBadge } from "./OrderStatusBadge";
-import { OrderItemsTable } from "./OrderItemsTable";
-import { OrderFinancials } from "./OrderFinancials";
+import { OrderActions } from "./OrderActions";
+import {
+  Clock,
+  MapPin,
+  User,
+  UtensilsCrossed,
+  Hash,
+  Phone,
+} from "lucide-react";
 
 interface OrderDetailProps {
-  orderId: string | null;
+  orderId: string;
 }
 
-const ORDER_TYPE_LABELS: Record<string, string> = {
-  dine_in:  "🍽️ Dine In",
-  takeaway: "🥡 Takeaway",
-  delivery: "🛵 Delivery",
-  walk_in:  "🚶 Walk-in",
+function getRelativeTime(dateString: string): string {
+  const diff = Date.now() - new Date(dateString).getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+const ORDER_TYPE_LABEL: Record<string, string> = {
+  dine_in: "Dine In",
+  takeaway: "Takeaway",
+  delivery: "Delivery",
 };
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-        {title}
-      </h3>
-      {children}
-    </div>
-  );
-}
-
 export function OrderDetail({ orderId }: OrderDetailProps) {
-  const { order, isLoading, canCancel, cancelOrder, isCancelling } =
-    useOrderDetail(orderId);
-
-  if (!orderId) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full text-center px-8">
-        <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-4">
-          <ClipboardList className="w-6 h-6 text-muted-foreground" />
-        </div>
-        <p className="text-sm font-medium text-muted-foreground">Select an order to view details</p>
-        <p className="text-xs text-muted-foreground mt-1">Click any order from the list</p>
-      </div>
-    );
-  }
+  const {
+    order,
+    isLoading,
+    canPrintKitchenTicket,
+    canPrintBill,
+    canCancel,
+    printKitchenTicket,
+    isPrintingKitchenTicket,
+    completeBill,
+    isCompletingBill,
+    cancelOrder,
+    isCancelling,
+  } = useOrderDetail(orderId);
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <OrderDetailSkeleton />;
   }
 
   if (!order) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-sm text-muted-foreground">Order not found.</p>
+      <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+        <UtensilsCrossed className="w-10 h-10 opacity-30" />
+        <p className="text-sm">Order not found</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-
-      {/* ── Header ──────────────────────────────────────────────── */}
-      <div className="shrink-0 px-6 py-4 border-b">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold">{order.orderNumber}</h2>
-              <OrderStatusBadge status={order.status} />
-            </div>
-            <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-              <span>{ORDER_TYPE_LABELS[order.orderType] ?? order.orderType}</span>
-              {order.tableNumber && (
-                <>
-                  <span>·</span>
-                  <span>Table {order.tableNumber}</span>
-                </>
-              )}
-            </div>
-            {order.deliveryAddress && (
-              <p className="text-xs text-muted-foreground mt-1">
-                📍 {order.deliveryAddress}
-              </p>
-            )}
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="px-5 py-4 border-b shrink-0 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-0.5">
+            <span className="text-xs font-mono text-muted-foreground flex items-center gap-1">
+              <Hash className="w-3 h-3" />
+              {order.orderNumber}
+            </span>
+            <h2 className="text-base font-semibold leading-tight">
+              {order.customerName ?? "Guest"}
+            </h2>
           </div>
+          <OrderStatusBadge status={order.status} />
+        </div>
 
-          {/* Total + Cancel */}
-          <div className="flex flex-col items-end gap-2 shrink-0">
-            <p className="text-xl font-bold tabular-nums">{formatCurrency(order.total)}</p>
-            <p className="text-xs text-muted-foreground">
-              {order.items.reduce((s, i) => s + i.quantity, 0)} items
-            </p>
-            {canCancel && (
-              <button
-                onClick={cancelOrder}
-                disabled={isCancelling}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors",
-                  "border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 cursor-pointer"
-                )}
-              >
-                {isCancelling ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <XCircle className="w-3.5 h-3.5" />
-                )}
-                Cancel Order
-              </button>
-            )}
-          </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5" />
+            {getRelativeTime(order.createdAt)}
+          </span>
+
+          <span className="flex items-center gap-1.5">
+            <User className="w-3.5 h-3.5" />
+            {ORDER_TYPE_LABEL[order.orderType]}
+          </span>
+
+          {order.tableNumber && (
+            <span className="flex items-center gap-1.5">
+              <UtensilsCrossed className="w-3.5 h-3.5" />
+              Table {order.tableNumber}
+            </span>
+          )}
+
+          {order.deliveryAddress && (
+            <span className="flex items-center gap-1.5 max-w-50 truncate">
+              <MapPin className="w-3.5 h-3.5 shrink-0" />
+              {order.deliveryAddress}
+            </span>
+          )}
+
+          {order.customerPhone && (
+            <span className="flex items-center gap-1.5">
+              <Phone className="w-3.5 h-3.5" />
+              {order.customerPhone}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* ── Scrollable body ──────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto min-h-0 px-6 py-5 space-y-6">
+      {/* Scrollable body */}
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="px-5 pt-4 pb-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+            Items
+          </p>
 
-        <Section title="Order Items">
-          <OrderItemsTable items={order.items} />
-        </Section>
+          <div className="space-y-1">
+            {order.items.map((item) => {
+              const isCancelled = item.status === "cancelled";
+              return (
+                <div
+                  key={item.id}
+                  className={`flex items-start justify-between gap-3 py-2 transition-opacity ${
+                    isCancelled ? "opacity-40" : ""
+                  }`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span
+                        className={`text-sm font-medium leading-tight ${
+                          isCancelled ? "line-through" : ""
+                        }`}
+                      >
+                        {item.menuItemName}
+                      </span>
 
-        <Section title="Financials">
-          <OrderFinancials order={order} />
-        </Section>
+                      {item.selectedVariant && (
+                        <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                          {item.selectedVariant.variantName}
+                        </span>
+                      )}
 
-        {(order.customerPhone || order.notes) && (
-          <Section title="Details">
-            <div className="space-y-1.5 text-sm">
-              {order.customerPhone && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Phone</span>
-                  <span>{order.customerPhone}</span>
+                      {isCancelled && (
+                        <span className="text-[10px] bg-destructive/10 text-destructive px-1.5 py-0.5 rounded font-medium">
+                          Removed
+                        </span>
+                      )}
+                    </div>
+
+                    {item.selectedModifiers.length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {item.selectedModifiers
+                          .map((m) => m.optionName)
+                          .join(", ")}
+                      </p>
+                    )}
+
+                    {item.notes && (
+                      <p className="text-xs text-muted-foreground mt-0.5 italic">
+                        {item.notes}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-medium">
+                      Rs. {item.itemTotal.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {item.quantity} × Rs.{" "}
+                      {item.unitPrice.toLocaleString()}
+                    </p>
+                  </div>
                 </div>
-              )}
-              {order.notes && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Notes</span>
-                  <span className="italic">{order.notes}</span>
-                </div>
-              )}
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Created</span>
-                <span>{new Date(order.createdAt).toLocaleString()}</span>
-              </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <Separator className="mx-5 my-2" />
+
+        {/* Financials */}
+        <div className="px-5 py-3 space-y-2">
+          <div className="flex justify-between text-sm text-muted-foreground">
+            <span>Subtotal</span>
+            <span>Rs. {order.subtotal.toLocaleString()}</span>
+          </div>
+
+          {order.totalDiscount > 0 && (
+            <div className="flex justify-between text-sm text-emerald-600">
+              <span>
+                Discount
+                {order.discounts.length === 1
+                  ? ` — ${order.discounts[0].name}`
+                  : ""}
+              </span>
+              <span>− Rs. {order.totalDiscount.toLocaleString()}</span>
             </div>
-          </Section>
+          )}
+
+          <div className="flex justify-between text-sm text-muted-foreground">
+            <span>Tax ({order.taxRate}%)</span>
+            <span>Rs. {order.taxAmount.toLocaleString()}</span>
+          </div>
+
+          {order.serviceChargeRate > 0 && (
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>Service Charge ({order.serviceChargeRate}%)</span>
+              <span>Rs. {order.serviceChargeAmount.toLocaleString()}</span>
+            </div>
+          )}
+
+          {order.deliveryFee > 0 && (
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>Delivery Fee</span>
+              <span>Rs. {order.deliveryFee.toLocaleString()}</span>
+            </div>
+          )}
+
+          <Separator />
+
+          <div className="flex justify-between text-base font-semibold">
+            <span>Total</span>
+            <span>Rs. {order.total.toLocaleString()}</span>
+          </div>
+
+          {order.paymentStatus === "paid" && (
+            <div className="flex justify-between text-sm text-emerald-600 font-medium">
+              <span>Paid</span>
+              <span>Rs. {order.totalPaid.toLocaleString()}</span>
+            </div>
+          )}
+        </div>
+
+        {order.notes && (
+          <>
+            <Separator className="mx-5" />
+            <div className="px-5 py-4">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                Notes
+              </p>
+              <p className="text-sm text-muted-foreground">{order.notes}</p>
+            </div>
+          </>
         )}
+
+        <div className="h-4" />
+      </ScrollArea>
+
+      {/* Actions */}
+      <div className="px-5 py-4 border-t shrink-0">
+        <OrderActions
+          order={order}
+          canPrintKitchenTicket={canPrintKitchenTicket}
+          canPrintBill={canPrintBill}
+          canCancel={canCancel}
+          onPrintKitchenTicket={printKitchenTicket}
+          isPrintingKitchenTicket={isPrintingKitchenTicket}
+          onCompleteBill={completeBill}
+          isCompletingBill={isCompletingBill}
+          onCancelOrder={cancelOrder}
+          isCancelling={isCancelling}
+        />
+      </div>
+    </div>
+  );
+}
+
+function OrderDetailSkeleton() {
+  return (
+    <div className="flex flex-col h-full animate-pulse">
+      <div className="px-5 py-4 border-b space-y-3 shrink-0">
+        <div className="flex justify-between items-start">
+          <div className="space-y-2">
+            <div className="h-3 w-20 bg-muted rounded" />
+            <div className="h-5 w-32 bg-muted rounded" />
+          </div>
+          <div className="h-6 w-20 bg-muted rounded-full" />
+        </div>
+        <div className="flex gap-3">
+          <div className="h-3 w-24 bg-muted rounded" />
+          <div className="h-3 w-20 bg-muted rounded" />
+        </div>
+      </div>
+
+      <div className="flex-1 px-5 py-4 space-y-4">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="flex justify-between items-start">
+            <div className="space-y-1.5">
+              <div className="h-4 w-28 bg-muted rounded" />
+              <div className="h-3 w-20 bg-muted rounded" />
+            </div>
+            <div className="h-4 w-16 bg-muted rounded" />
+          </div>
+        ))}
+      </div>
+
+      <div className="px-5 py-4 border-t space-y-2 shrink-0">
+        <div className="h-9 w-full bg-muted rounded" />
+        <div className="flex gap-2">
+          <div className="h-9 flex-1 bg-muted rounded" />
+          <div className="h-9 flex-1 bg-muted rounded" />
+        </div>
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import { useOrders } from "../hooks/useOrders";
 import { OrderStatsBar } from "./OrderList/OrderStatsBar";
 import { OrderList } from "./OrderList/OrderList";
 import { OrderDetail } from "./OrderDetail/OrderDetail";
+import { Utensils } from "lucide-react";
 
 export function OrdersLayout() {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -28,13 +29,10 @@ export function OrdersLayout() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
 
-      {/* ── Stats topbar — full width ────────────────────────── */}
       <OrderStatsBar orders={orders} />
 
-      {/* ── Split panel ─────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* Left panel */}
         <div className="w-95 shrink-0 flex flex-col overflow-hidden">
           <OrderList
             orders={filteredOrders}
@@ -53,10 +51,17 @@ export function OrdersLayout() {
           />
         </div>
 
-        {/* Right panel */}
         <div className="flex-1 overflow-hidden bg-background">
-          <OrderDetail orderId={selectedOrderId} />
+          {selectedOrderId ? (
+            <OrderDetail orderId={selectedOrderId} />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+              <Utensils className="w-10 h-10 opacity-20" />
+              <p className="text-sm">Select an order to view details</p>
+            </div>
+          )}
         </div>
+
       </div>
     </div>
   );

@@ -16,16 +16,18 @@ interface OrderListHeaderProps {
 }
 
 const STATUS_OPTIONS: { value: OrderStatusFilter; label: string }[] = [
-  { value: "all",       label: "All" },
+  { value: "all",       label: "All"       },
+  { value: "pending",   label: "Pending"   },
   { value: "confirmed", label: "Confirmed" },
+  { value: "completed", label: "Completed" },
   { value: "cancelled", label: "Cancelled" },
 ];
 
 const TYPE_OPTIONS: { value: OrderTypeFilter; label: string }[] = [
   { value: "all",      label: "All Types" },
-  { value: "dine_in",  label: "Dine In" },
-  { value: "takeaway", label: "Takeaway" },
-  { value: "delivery", label: "Delivery" },
+  { value: "dine_in",  label: "Dine In"   },
+  { value: "takeaway", label: "Takeaway"  },
+  { value: "delivery", label: "Delivery"  },
 ];
 
 export function OrderListHeader({
@@ -40,7 +42,6 @@ export function OrderListHeader({
 }: OrderListHeaderProps) {
   return (
     <div className="px-3 py-3 space-y-2 border-b">
-      {/* Search */}
       <div className="relative">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
         <input
@@ -60,7 +61,6 @@ export function OrderListHeader({
         )}
       </div>
 
-      {/* Status filter — scrollable pill row */}
       <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-none">
         {STATUS_OPTIONS.map((opt) => (
           <button
@@ -78,7 +78,6 @@ export function OrderListHeader({
         ))}
       </div>
 
-      {/* Order type filter + clear */}
       <div className="flex items-center gap-1">
         {TYPE_OPTIONS.map((opt) => (
           <button

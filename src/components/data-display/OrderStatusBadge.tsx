@@ -2,18 +2,24 @@ import { cn } from "@/lib/utils";
 import type { OrderStatus } from "@/types";
 
 const STATUS_STYLES: Record<OrderStatus, string> = {
+  pending: "bg-yellow-500/10 text-yellow-700 border-yellow-200",
   confirmed: "bg-blue-500/10 text-blue-700 border-blue-200",
-  cancelled:  "bg-red-500/10 text-red-700 border-red-200",
+  completed: "bg-emerald-500/10 text-emerald-700 border-emerald-200",
+  cancelled: "bg-red-500/10 text-red-700 border-red-200",
 };
 
 const STATUS_DOTS: Record<OrderStatus, string> = {
+  pending: "bg-yellow-500",
   confirmed: "bg-blue-500",
-  cancelled:  "bg-red-500",
+  completed: "bg-emerald-500",
+  cancelled: "bg-red-500",
 };
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
+  pending: "Pending",
   confirmed: "Confirmed",
-  cancelled:  "Cancelled",
+  completed: "Completed",
+  cancelled: "Cancelled",
 };
 
 interface OrderStatusBadgeProps {

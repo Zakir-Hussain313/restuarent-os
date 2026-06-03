@@ -17,10 +17,9 @@ function useIsMounted() {
 }
 
 const ORDER_TYPE_META: Record<OrderType, { label: string; icon: React.ElementType; className: string }> = {
-  dine_in:  { label: "Dine-in",  icon: UtensilsCrossed, className: "bg-orange-50 text-[#e8570e]"      },
-  walk_in:  { label: "Walk-in",  icon: UtensilsCrossed, className: "bg-orange-50 text-[#e8570e]"      },
-  takeaway: { label: "Takeaway", icon: ShoppingBag,     className: "bg-blue-50 text-blue-600"         },
-  delivery: { label: "Delivery", icon: Bike,            className: "bg-emerald-50 text-emerald-600"   },
+  dine_in:  { label: "Dine-in",  icon: UtensilsCrossed, className: "bg-orange-50 text-[#e8570e]"    },
+  takeaway: { label: "Takeaway", icon: ShoppingBag,     className: "bg-blue-50 text-blue-600"       },
+  delivery: { label: "Delivery", icon: Bike,            className: "bg-emerald-50 text-emerald-600" },
 };
 
 function OrderTypePill({ type }: { type: OrderType }) {
@@ -59,7 +58,6 @@ export function RecentOrdersWidget() {
 
   return (
     <div className="bg-white rounded-xl border border-[#ebe9e4] flex flex-col h-full">
-      {/* Header — pinned */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-[#ebe9e4] shrink-0">
         <div>
           <h3 className="text-sm font-semibold text-[#1a1815]">Recent Orders</h3>
@@ -74,7 +72,6 @@ export function RecentOrdersWidget() {
         </Link>
       </div>
 
-      {/* List — fills card, scrolls if orders overflow */}
       <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-[#f4f2ef]">
         {!mounted || isLoading
           ? Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
