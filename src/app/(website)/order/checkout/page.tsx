@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, MapPin, Phone, User, Loader2 } from "lucide-react";
 import Link from "next/link";
@@ -17,15 +17,12 @@ export default function CheckoutPage() {
   const clearCart = useCustomerCartStore((s) => s.clearCart);
   const addOrder = useOrderStore((s) => s.addOrder);
 
-  const [form, setForm] = useState({
-    name: "",
-    phone: "",
-    address: "",
-  });
+  const [form, setForm] = useState({ name: "", phone: "", address: "" });
   const [isPlacing, setIsPlacing] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const orderPlaced = useRef(false);
 
-  if (items.length === 0) {
+  if (items.length === 0 && !orderPlaced.current) {
     router.replace("/order");
     return null;
   }
@@ -92,9 +89,9 @@ export default function CheckoutPage() {
       updatedAt: now,
     };
 
+    orderPlaced.current = true;
     addOrder(order);
     clearCart();
-
     router.push(`/order/confirmed?order=${order.orderNumber}`);
   }
 
@@ -112,78 +109,52 @@ export default function CheckoutPage() {
         <h1 className="text-2xl font-bold text-[#1a1815] mb-8">Checkout</h1>
 
         <div className="flex flex-col gap-6">
-          {/* Customer details */}
           <div className="bg-white rounded-2xl border border-[#ebe9e4] p-6">
             <h2 className="text-sm font-semibold text-[#1a1815] mb-4">
               Your Details
             </h2>
             <div className="flex flex-col gap-4">
-              <Field
-                label="Full Name"
-                icon={<User className="w-4 h-4" />}
-                error={errors.name}
-              >
+              <Field label="Full Name" icon={<User className="w-4 h-4" />} error={errors.name}>
                 <input
                   type="text"
                   placeholder="Ahmed Raza"
                   value={form.name}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, name: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                   className="w-full px-3 py-2.5 text-sm border border-[#ebe9e4] rounded-xl bg-[#faf9f7] focus:outline-none focus:border-[#e8570e] focus:ring-1 focus:ring-[#e8570e]/20 placeholder:text-[#c4c0ba] text-[#1a1815]"
                 />
               </Field>
-              <Field
-                label="Phone Number"
-                icon={<Phone className="w-4 h-4" />}
-                error={errors.phone}
-              >
+              <Field label="Phone Number" icon={<Phone className="w-4 h-4" />} error={errors.phone}>
                 <input
                   type="tel"
                   placeholder="+92 300 0000000"
                   value={form.phone}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, phone: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
                   className="w-full px-3 py-2.5 text-sm border border-[#ebe9e4] rounded-xl bg-[#faf9f7] focus:outline-none focus:border-[#e8570e] focus:ring-1 focus:ring-[#e8570e]/20 placeholder:text-[#c4c0ba] text-[#1a1815]"
                 />
               </Field>
-              <Field
-                label="Delivery Address"
-                icon={<MapPin className="w-4 h-4" />}
-                error={errors.address}
-              >
+              <Field label="Delivery Address" icon={<MapPin className="w-4 h-4" />} error={errors.address}>
                 <textarea
                   rows={3}
                   placeholder="House 12, Block A, Gulshan-e-Iqbal, Karachi"
                   value={form.address}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, address: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
                   className="w-full px-3 py-2.5 text-sm border border-[#ebe9e4] rounded-xl bg-[#faf9f7] focus:outline-none focus:border-[#e8570e] focus:ring-1 focus:ring-[#e8570e]/20 placeholder:text-[#c4c0ba] text-[#1a1815] resize-none"
                 />
               </Field>
             </div>
           </div>
 
-          {/* Order summary */}
           <div className="bg-white rounded-2xl border border-[#ebe9e4] p-6">
             <h2 className="text-sm font-semibold text-[#1a1815] mb-4">
               Order Summary
             </h2>
             <div className="divide-y divide-[#f4f2ef]">
               {items.map((ci) => (
-                <div
-                  key={ci.cartItemId}
-                  className="flex justify-between py-2.5 text-sm"
-                >
+                <div key={ci.cartItemId} className="flex justify-between py-2.5 text-sm">
                   <span className="text-[#4a4744]">
                     {ci.quantity}× {ci.menuItem.name}
                     {ci.selectedVariant && (
-                      <span className="text-[#8a8680]">
-                        {" "}
-                        ({ci.selectedVariant.variantName})
-                      </span>
+                      <span className="text-[#8a8680]"> ({ci.selectedVariant.variantName})</span>
                     )}
                   </span>
                   <span className="font-medium text-[#1a1815]">
@@ -208,12 +179,10 @@ export default function CheckoutPage() {
             </div>
           </div>
 
-          {/* Payment note */}
           <p className="text-xs text-[#8a8680] text-center">
             💵 Cash on delivery — pay when your order arrives.
           </p>
 
-          {/* Confirm button */}
           <button
             onClick={handleConfirm}
             disabled={isPlacing}
