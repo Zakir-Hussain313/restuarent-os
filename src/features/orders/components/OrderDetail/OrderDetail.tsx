@@ -217,7 +217,7 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
             "flex justify-between text-sm font-medium px-3 py-2 rounded-lg border",
             order.paymentStatus === "paid"
               ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600"
-              : "bg-red-300 border-red-800 text-red-800"
+              : "bg-red-100 border-red-800 text-red-800"
           )}>
             <span>
               {order.paymentStatus === "paid" ? "Paid" : "Unpaid"}
