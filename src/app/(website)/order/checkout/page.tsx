@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, MapPin, Phone, User, Loader2 } from "lucide-react";
 import Link from "next/link";
@@ -20,9 +20,9 @@ export default function CheckoutPage() {
   const [form, setForm] = useState({ name: "", phone: "", address: "" });
   const [isPlacing, setIsPlacing] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const orderPlaced = useRef(false);
+  const [orderPlaced, setOrderPlaced] = useState(false);
 
-  if (items.length === 0 && !orderPlaced.current) {
+  if (items.length === 0 && !orderPlaced) {
     router.replace("/order");
     return null;
   }
@@ -89,10 +89,10 @@ export default function CheckoutPage() {
       updatedAt: now,
     };
 
-    orderPlaced.current = true;
+    setOrderPlaced(true);
     addOrder(order);
     clearCart();
-    router.push(`/order/confirmed?order=${order.orderNumber}`);
+    router.push(`/order/confirmed?order=${order.orderNumber}&phone=${encodeURIComponent(form.phone)}`);
   }
 
   return (
