@@ -149,12 +149,6 @@ export function KitchenTicketModal({
                   <span>{order.tableNumber}</span>
                 </div>
               )}
-              {order.customerName && (
-                <div className="meta-row flex justify-between text-xs">
-                  <span className="font-bold">Customer</span>
-                  <span>{order.customerName}</span>
-                </div>
-              )}
               <div className="meta-row flex justify-between text-xs">
                 <span className="font-bold">Date</span>
                 <span>{formatDate(order.createdAt)}</span>

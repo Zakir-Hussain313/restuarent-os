@@ -1,9 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { queryKeys, createMockQueryFn } from "@/hooks/useMockQuery";
-import { mockOrders } from "@/mock-data";
+import { useOrderStore } from "@/store/useOrderStore";
 import type { Order, OrderStatus, OrderType } from "@/types";
 
 export type OrderStatusFilter = OrderStatus | "all";
@@ -41,14 +39,10 @@ const DEFAULT_FILTERS: OrderFilters = {
 
 export function useOrders(options: UseOrdersOptions = {}): UseOrdersReturn {
   const { scopeTypes, scopeStatuses } = options;
-
   const [filters, setFilters] = useState<OrderFilters>(DEFAULT_FILTERS);
 
-  const { data: allOrders = [], isLoading } = useQuery<Order[]>({
-    queryKey: queryKeys.orders.all,
-    queryFn: createMockQueryFn(mockOrders, 400),
-    staleTime: Infinity,
-  });
+  // Read directly from Zustand store — reactive, no async needed
+  const allOrders = useOrderStore((s) => s.orders);
 
   const scopedOrders = useMemo(() => {
     let result = [...allOrders];
@@ -83,8 +77,7 @@ export function useOrders(options: UseOrdersOptions = {}): UseOrdersReturn {
       const q = filters.search.toLowerCase().trim();
       result = result.filter(
         (o) =>
-          o.orderNumber.toLowerCase().includes(q) ||
-          (o.customerName ?? "").toLowerCase().includes(q)
+          o.orderNumber.toLowerCase().includes(q) 
       );
     }
 
@@ -99,7 +92,7 @@ export function useOrders(options: UseOrdersOptions = {}): UseOrdersReturn {
     setOrderTypeFilter: (orderType) => setFilters((f) => ({ ...f, orderType })),
     setSearch: (search) => setFilters((f) => ({ ...f, search })),
     clearFilters: () => setFilters(DEFAULT_FILTERS),
-    isLoading,
+    isLoading: false, // Zustand is synchronous — no loading state needed
     totalCount: scopedOrders.length,
     filteredCount: filteredOrders.length,
   };

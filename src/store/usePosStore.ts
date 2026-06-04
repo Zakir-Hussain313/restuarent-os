@@ -20,7 +20,6 @@ interface PosState {
   tableId?: string;
   tableNumber?: string;
   customerId?: string;
-  customerName?: string;
   customerPhone?: string;
   discountType?: "percentage" | "fixed";
   discountValue: number;
@@ -53,8 +52,6 @@ interface PosState {
   getTotals: () => {
     subtotal: number;
     discountAmount: number;
-    taxAmount: number;
-    serviceChargeAmount: number;
     deliveryFee: number;
     total: number;
   };
@@ -125,7 +122,6 @@ export const usePosStore = create<PosState>((set, get) => ({
       tableId: undefined,
       tableNumber: undefined,
       customerId: undefined,
-      customerName: undefined,
       customerPhone: undefined,
       discountValue: 0,
       discountType: undefined,
@@ -135,10 +131,10 @@ export const usePosStore = create<PosState>((set, get) => ({
   setOrderType: (orderType) => set({ orderType }),
   setTable: (tableId, tableNumber) => set({ tableId, tableNumber }),
   clearTable: () => set({ tableId: undefined, tableNumber: undefined }),
-  setCustomer: (customerId, customerName, customerPhone) =>
-    set({ customerId, customerName, customerPhone }),
+  setCustomer: (customerId, customerPhone) =>
+    set({ customerId, customerPhone }),
   clearCustomer: () =>
-    set({ customerId: undefined, customerName: undefined, customerPhone: undefined }),
+    set({ customerId: undefined, customerPhone: undefined }),
   setDiscount: (discountType, discountValue) => set({ discountType, discountValue }),
   clearDiscount: () => set({ discountType: undefined, discountValue: 0 }),
   setNotes: (notes) => set({ notes }),
@@ -159,17 +155,14 @@ export const usePosStore = create<PosState>((set, get) => ({
     const discountAmount = get().getDiscountAmount();
     const isDelivery = get().orderType === "delivery";
     const deliveryFee = isDelivery ? RESTAURANT_CONFIG.defaultDeliveryFee : 0;
-    const serviceChargeRate = isDelivery ? 0 : RESTAURANT_CONFIG.serviceChargeRate;
 
-    const { taxAmount, serviceChargeAmount, total } = calculateOrderTotals(
+    const { total } = calculateOrderTotals(
       subtotal,
       discountAmount,
-      RESTAURANT_CONFIG.taxRate,
-      serviceChargeRate,
       deliveryFee
     );
 
-    return { subtotal, discountAmount, taxAmount, serviceChargeAmount, deliveryFee, total };
+    return { subtotal, discountAmount, deliveryFee, total };
   },
 
   getItemCount: () => get().cartItems.reduce((sum, ci) => sum + ci.quantity, 0),

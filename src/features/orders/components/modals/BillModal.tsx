@@ -162,12 +162,6 @@ export function BillModal({
                   <span>{order.tableNumber}</span>
                 </div>
               )}
-              {order.customerName && (
-                <div className="flex justify-between text-xs">
-                  <span className="font-bold">Customer</span>
-                  <span>{order.customerName}</span>
-                </div>
-              )}
               {order.customerPhone && (
                 <div className="flex justify-between text-xs">
                   <span className="font-bold">Phone</span>
@@ -246,20 +240,6 @@ export function BillModal({
                   </span>
                 </div>
               ))}
-
-              {order.serviceChargeAmount > 0 && (
-                <div className="flex justify-between text-xs text-gray-600">
-                  <span>Service Charge ({order.serviceChargeRate}%)</span>
-                  <span className="tabular-nums">
-                    {formatCurrency(order.serviceChargeAmount)}
-                  </span>
-                </div>
-              )}
-
-              <div className="flex justify-between text-xs text-gray-600">
-                <span>GST ({order.taxRate}%)</span>
-                <span className="tabular-nums">{formatCurrency(order.taxAmount)}</span>
-              </div>
 
               {order.deliveryFee > 0 && (
                 <div className="flex justify-between text-xs text-gray-600">

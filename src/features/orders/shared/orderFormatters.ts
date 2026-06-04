@@ -6,8 +6,11 @@ export function formatOrderAge(createdAt: Date | string): string {
   if (diffMins < 1) return "Just now";
   if (diffMins < 60) return `${diffMins}m ago`;
   const diffHrs = Math.floor(diffMins / 60);
-  return `${diffHrs}h ${diffMins % 60}m ago`;
+  if (diffHrs < 24) return `${diffHrs}h ago`;
+  const diffDays = Math.floor(diffHrs / 24);
+  return `${diffDays}d ago`;
 }
+
 
 export function formatOrderType(type: Order["orderType"]): string {
   switch (type) {

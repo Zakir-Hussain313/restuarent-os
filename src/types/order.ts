@@ -64,7 +64,6 @@ export interface Order {
   tableNumber?: string;
 
   customerId?: string;
-  customerName?: string;
   customerPhone?: string;
 
   orderType: OrderType;
@@ -74,10 +73,6 @@ export interface Order {
   subtotal: number;
   discounts: AppliedDiscount[];
   totalDiscount: number;
-  taxRate: number;
-  taxAmount: number;
-  serviceChargeRate: number;
-  serviceChargeAmount: number;
   deliveryFee: number;
   total: number;
 
@@ -97,4 +92,4 @@ export interface Order {
   completedAt?: string; 
 }
 
-export type OrderSummary = Pick<Order, "id" | "orderNumber" | "orderType" | "status" | "paymentStatus" | "total" | "tableNumber" | "customerName" | "items" | "staffId" | "createdAt">;
+export type OrderSummary = Pick<Order, "id" | "orderNumber" | "orderType" | "status" | "paymentStatus" | "total" | "tableNumber" | "items" | "staffId" | "createdAt">;

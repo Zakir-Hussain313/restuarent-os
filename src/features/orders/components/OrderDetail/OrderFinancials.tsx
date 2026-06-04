@@ -47,20 +47,6 @@ export function OrderFinancials({ order }: OrderFinancialsProps) {
         />
       ))}
 
-      {order.serviceChargeAmount > 0 && (
-        <Row
-          label={`Service Charge (${order.serviceChargeRate}%)`}
-          value={formatCurrency(order.serviceChargeAmount)}
-          muted
-        />
-      )}
-
-      <Row
-        label={`GST (${order.taxRate}%)`}
-        value={formatCurrency(order.taxAmount)}
-        muted
-      />
-
       {order.deliveryFee > 0 && (
         <Row label="Delivery Fee" value={formatCurrency(order.deliveryFee)} muted />
       )}

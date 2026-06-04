@@ -3,8 +3,6 @@ export const RESTAURANT_CONFIG = {
   tagline: "Taste the Tradition",
   currency: "PKR",
   currencySymbol: "Rs.",
-  taxRate: 17,
-  serviceChargeRate: 5,
   defaultDeliveryFee: 150,
   freeDeliveryThreshold: 2000,
   maxTableCapacity: 20,

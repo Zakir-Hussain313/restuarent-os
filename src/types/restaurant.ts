@@ -42,8 +42,6 @@ export interface Restaurant {
   address: Address;
   currencyCode: CurrencyCode;
   currencySymbol: string;
-  taxRate: number; // percentage e.g. 17
-  serviceChargeRate: number; // percentage
   operatingHours: OperatingHours[];
   isActive: boolean;
   createdAt: string;

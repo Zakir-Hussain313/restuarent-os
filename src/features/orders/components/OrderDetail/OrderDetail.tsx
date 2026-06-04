@@ -13,6 +13,7 @@ import {
   Hash,
   Phone,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface OrderDetailProps {
   orderId: string;
@@ -68,13 +69,10 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
       <div className="px-5 py-4 border-b shrink-0 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-0.5">
-            <span className="text-xs font-mono text-muted-foreground flex items-center gap-1">
+            <span className="text-base font-semibold leading-tight flex items-center gap-1">
               <Hash className="w-3 h-3" />
               {order.orderNumber}
             </span>
-            <h2 className="text-base font-semibold leading-tight">
-              {order.customerName ?? "Guest"}
-            </h2>
           </div>
           <OrderStatusBadge status={order.status} />
         </div>
@@ -113,7 +111,6 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
         </div>
       </div>
 
-      {/* Scrollable body */}
       <ScrollArea className="flex-1 min-h-0">
         <div className="px-5 pt-4 pb-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
@@ -126,16 +123,14 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
               return (
                 <div
                   key={item.id}
-                  className={`flex items-start justify-between gap-3 py-2 transition-opacity ${
-                    isCancelled ? "opacity-40" : ""
-                  }`}
+                  className={`flex items-start justify-between gap-3 py-2 transition-opacity ${isCancelled ? "opacity-40" : ""
+                    }`}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span
-                        className={`text-sm font-medium leading-tight ${
-                          isCancelled ? "line-through" : ""
-                        }`}
+                        className={`text-sm font-medium leading-tight ${isCancelled ? "line-through" : ""
+                          }`}
                       >
                         {item.menuItemName}
                       </span>
@@ -204,18 +199,6 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
             </div>
           )}
 
-          <div className="flex justify-between text-sm text-muted-foreground">
-            <span>Tax ({order.taxRate}%)</span>
-            <span>Rs. {order.taxAmount.toLocaleString()}</span>
-          </div>
-
-          {order.serviceChargeRate > 0 && (
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>Service Charge ({order.serviceChargeRate}%)</span>
-              <span>Rs. {order.serviceChargeAmount.toLocaleString()}</span>
-            </div>
-          )}
-
           {order.deliveryFee > 0 && (
             <div className="flex justify-between text-sm text-muted-foreground">
               <span>Delivery Fee</span>
@@ -230,12 +213,21 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
             <span>Rs. {order.total.toLocaleString()}</span>
           </div>
 
-          {order.paymentStatus === "paid" && (
-            <div className="flex justify-between text-sm text-emerald-600 font-medium">
-              <span>Paid</span>
-              <span>Rs. {order.totalPaid.toLocaleString()}</span>
-            </div>
-          )}
+          <div className={cn(
+            "flex justify-between text-sm font-medium px-3 py-2 rounded-lg border",
+            order.paymentStatus === "paid"
+              ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600"
+              : "bg-red-300 border-red-800 text-red-800"
+          )}>
+            <span>
+              {order.paymentStatus === "paid" ? "Paid" : "Unpaid"}
+            </span>
+            <span>
+              {order.paymentStatus === "paid"
+                ? `Rs. ${order.totalPaid.toLocaleString()}`
+                : `Rs. ${order.total.toLocaleString()} due`}
+            </span>
+          </div>
         </div>
 
         {order.notes && (

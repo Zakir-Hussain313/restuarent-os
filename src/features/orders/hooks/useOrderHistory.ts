@@ -3,6 +3,7 @@ import { useOrders } from "./useOrders";
 import type { Order } from "@/types";
 
 export type DatePreset = "today" | "this_week" | "this_month" | null;
+export type OrderTypeFilter = "dine_in" | "takeaway" | "delivery" | null;
 
 export interface DateRange {
   from: Date | null;
@@ -13,6 +14,7 @@ export interface HistoryDateFilters {
   datePreset: DatePreset;
   dateRange: DateRange;
   dishId: string | null;
+  orderType: OrderTypeFilter;
 }
 
 export interface DishOption {
@@ -24,6 +26,7 @@ const DEFAULT_DATE_FILTERS: HistoryDateFilters = {
   datePreset: null,
   dateRange: { from: null, to: null },
   dishId: null,
+  orderType: null,
 };
 
 function isWithinPreset(dateString: string, preset: DatePreset): boolean {
@@ -69,17 +72,24 @@ function applyDateAndDishFilters(
   dateFilters: HistoryDateFilters
 ): Order[] {
   return orders.filter((order) => {
+    // Date preset or range
     if (dateFilters.datePreset) {
       if (!isWithinPreset(order.createdAt, dateFilters.datePreset)) return false;
     } else {
       if (!isWithinRange(order.createdAt, dateFilters.dateRange)) return false;
     }
 
+    // Dish filter
     if (dateFilters.dishId) {
       const hasDish = order.items.some(
         (item) => item.menuItemId === dateFilters.dishId
       );
       if (!hasDish) return false;
+    }
+
+    // Order type filter
+    if (dateFilters.orderType) {
+      if (order.orderType !== dateFilters.orderType) return false;
     }
 
     return true;
@@ -120,8 +130,9 @@ export function useOrderHistory() {
     dateFilters.dateRange.to !== null;
 
   const isDishFiltered = dateFilters.dishId !== null;
+  const isOrderTypeFiltered = dateFilters.orderType !== null;
 
-  const isFiltered = isDateFiltered || isDishFiltered;
+  const isFiltered = isDateFiltered || isDishFiltered || isOrderTypeFiltered;
 
   function setDatePreset(preset: DatePreset) {
     setDateFilters((prev) => ({
@@ -143,6 +154,10 @@ export function useOrderHistory() {
     setDateFilters((prev) => ({ ...prev, dishId }));
   }
 
+  function setOrderType(orderType: OrderTypeFilter) {
+    setDateFilters((prev) => ({ ...prev, orderType }));
+  }
+
   function resetDateFilters() {
     setDateFilters(DEFAULT_DATE_FILTERS);
   }
@@ -161,10 +176,12 @@ export function useOrderHistory() {
     setDatePreset,
     setDateRange,
     setDishId,
+    setOrderType,
     resetDateFilters,
     isFiltered,
     isDateFiltered,
     isDishFiltered,
+    isOrderTypeFiltered,
     dishOptions,
   };
 }

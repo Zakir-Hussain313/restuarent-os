@@ -28,7 +28,6 @@ export const createOrderSchema = z.object({
   orderType: z.enum(["dine_in", "takeaway", "delivery", "walk_in"]),
   tableId: z.string().optional(),
   customerId: z.string().optional(),
-  customerName: z.string().optional(),
   customerPhone: z
     .string()
     .regex(/^[0-9+\-\s]{10,15}$/, "Invalid phone number")

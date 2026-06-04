@@ -22,8 +22,6 @@ export const mockRestaurant: Restaurant = {
   },
   currencyCode: "PKR",
   currencySymbol: "Rs.",
-  taxRate: 17,
-  serviceChargeRate: 5,
   operatingHours: [
     { day: "monday", isOpen: true, openTime: "11:00", closeTime: "23:30" },
     { day: "tuesday", isOpen: true, openTime: "11:00", closeTime: "23:30" },

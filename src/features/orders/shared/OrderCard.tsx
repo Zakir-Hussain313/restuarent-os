@@ -47,7 +47,7 @@ export function OrderCard({ order, isSelected, onClick }: OrderCardProps) {
 
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">
-          {order.customerName ?? "Guest"} · {order.items.length}{" "}
+          {order.items.length}{" "}
           {order.items.length === 1 ? "item" : "items"}
         </span>
         <div className="flex items-center gap-2">

@@ -15,6 +15,7 @@ import type {
   DatePreset,
   DateRange,
   DishOption,
+  OrderTypeFilter,
 } from "@/features/orders/hooks/useOrderHistory";
 import type { Order } from "@/types/order";
 
@@ -25,12 +26,14 @@ interface OrderHistoryLayoutProps {
     datePreset: DatePreset;
     dateRange: DateRange;
     dishId: string | null;
+    orderType: OrderTypeFilter;
   };
   dishOptions: DishOption[];
   isFiltered: boolean;
   setDatePreset: (preset: DatePreset) => void;
   setDateRange: (range: DateRange) => void;
   setDishId: (id: string | null) => void;
+  setOrderType: (type: OrderTypeFilter) => void;
   resetDateFilters: () => void;
 }
 
@@ -43,6 +46,7 @@ export function OrderHistoryLayout({
   setDatePreset,
   setDateRange,
   setDishId,
+  setOrderType,
   resetDateFilters,
 }: OrderHistoryLayoutProps) {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -67,16 +71,15 @@ export function OrderHistoryLayout({
         setDatePreset={setDatePreset}
         setDateRange={setDateRange}
         setDishId={setDishId}
+        setOrderType={setOrderType}
         resetDateFilters={resetDateFilters}
       />
-
       <OrderHistoryTable
         orders={orders}
         isLoading={isLoading}
         selectedOrderId={selectedOrderId}
         onSelectOrder={handleSelectOrder}
       />
-
       <Sheet open={sheetOpen} onOpenChange={handleSheetOpenChange}>
         <SheetContent
           side="right"

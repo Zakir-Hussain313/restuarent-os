@@ -6,6 +6,7 @@ import type {
   DatePreset,
   DateRange,
   DishOption,
+  OrderTypeFilter,
 } from "../../hooks/useOrderHistory";
 
 interface OrderHistoryFiltersProps {
@@ -13,12 +14,14 @@ interface OrderHistoryFiltersProps {
     datePreset: DatePreset;
     dateRange: DateRange;
     dishId: string | null;
+    orderType: OrderTypeFilter;
   };
   dishOptions: DishOption[];
   isFiltered: boolean;
   setDatePreset: (preset: DatePreset) => void;
   setDateRange: (range: DateRange) => void;
   setDishId: (id: string | null) => void;
+  setOrderType: (type: OrderTypeFilter) => void;
   resetDateFilters: () => void;
 }
 
@@ -26,6 +29,12 @@ const DATE_PRESETS: { label: string; value: DatePreset }[] = [
   { label: "Today", value: "today" },
   { label: "This Week", value: "this_week" },
   { label: "This Month", value: "this_month" },
+];
+
+const ORDER_TYPE_OPTIONS: { label: string; value: NonNullable<OrderTypeFilter> }[] = [
+  { label: "Dine In", value: "dine_in" },
+  { label: "Takeaway", value: "takeaway" },
+  { label: "Delivery", value: "delivery" },
 ];
 
 function toInputValue(date: Date | null): string {
@@ -49,6 +58,7 @@ export function OrderHistoryFilters({
   setDatePreset,
   setDateRange,
   setDishId,
+  setOrderType,
   resetDateFilters,
 }: OrderHistoryFiltersProps) {
   return (
@@ -114,6 +124,31 @@ export function OrderHistoryFilters({
             "cursor-pointer"
           )}
         />
+      </div>
+
+      {/* Divider */}
+      <div className="h-5 w-px bg-border" />
+
+      {/* Order type pills */}
+      <div className="flex items-center gap-1.5">
+        {ORDER_TYPE_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            onClick={() =>
+              setOrderType(
+                dateFilters.orderType === option.value ? null : option.value
+              )
+            }
+            className={cn(
+              "px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer",
+              dateFilters.orderType === option.value
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-background text-muted-foreground border-border hover:bg-muted"
+            )}
+          >
+            {option.label}
+          </button>
+        ))}
       </div>
 
       {/* Divider */}

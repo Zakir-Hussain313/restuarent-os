@@ -37,7 +37,6 @@ export interface Reservation {
   restaurantId: string;
   tableId: string;
   customerId?: string;
-  customerName: string;
   customerPhone: string;
   partySize: number;
   reservedAt: string; // ISO datetime

@@ -54,12 +54,6 @@ const columns = [
       </span>
     ),
   }),
-  columnHelper.accessor("customerName", {
-    header: "Customer",
-    cell: (info) => (
-      <span className="text-sm">{info.getValue() ?? "Guest"}</span>
-    ),
-  }),
   columnHelper.accessor("orderType", {
     header: "Type",
     cell: (info) => (

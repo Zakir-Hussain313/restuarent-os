@@ -1,8 +1,9 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { queryKeys, createMockQueryFn } from "@/hooks/useMockQuery";
-import { mockOrders } from "@/mock-data";
+import { useMemo } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useOrderStore } from "@/store/useOrderStore";
+import { queryKeys } from "@/hooks/useMockQuery";
 import type { Order, OrderStatus } from "@/types";
 
 interface UseOrderDetailReturn {
@@ -19,49 +20,32 @@ interface UseOrderDetailReturn {
   isCancelling: boolean;
 }
 
-function updateOrderInCache(
-  queryClient: ReturnType<typeof useQueryClient>,
-  id: string,
-  patch: Partial<Order>
-) {
-  const now = new Date().toISOString();
-
-  queryClient.setQueryData<Order>(
-    queryKeys.orders.detail(id),
-    (old) => (old ? { ...old, ...patch, updatedAt: now } : old)
-  );
-
-  queryClient.setQueryData<Order[]>(
-    queryKeys.orders.all,
-    (old) =>
-      old?.map((o) =>
-        o.id === id ? { ...o, ...patch, updatedAt: now } : o
-      ) ?? []
-  );
-}
-
 export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
   const queryClient = useQueryClient();
+  const orders = useOrderStore((s) => s.orders);
+  const updateOrder = useOrderStore((s) => s.updateOrder);
 
-  const { data: order, isLoading } = useQuery<Order | undefined>({
-    queryKey: queryKeys.orders.detail(orderId ?? ""),
-    queryFn: createMockQueryFn(
-      mockOrders.find((o) => o.id === orderId),
-      200
-    ),
-    enabled: !!orderId,
-    staleTime: Infinity,
-  });
+  const order = useMemo(
+    () => (orderId ? orders.find((o) => o.id === orderId) : undefined),
+    [orders, orderId]
+  );
+
+  function patchOrder(id: string, patch: Partial<Order>) {
+    const now = new Date().toISOString();
+    updateOrder(id, { ...patch, updatedAt: now });
+    // Keep TanStack Query cache in sync for any components still reading from it
+    queryClient.setQueryData<Order>(
+      queryKeys.orders.detail(id),
+      (old) => (old ? { ...old, ...patch, updatedAt: now } : old)
+    );
+  }
 
   const { mutate: mutateKitchenTicket, isPending: isPrintingKitchenTicket } =
     useMutation({
       mutationFn: (id: string): Promise<string> =>
         new Promise((resolve) => setTimeout(() => resolve(id), 400)),
       onSuccess: (id) => {
-        updateOrderInCache(queryClient, id, {
-          status: "confirmed" as OrderStatus,
-          paymentStatus: "unpaid",
-        });
+        patchOrder(id, { status: "confirmed" as OrderStatus, paymentStatus: "unpaid" });
       },
     });
 
@@ -71,7 +55,7 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
         new Promise((resolve) => setTimeout(() => resolve(id), 400)),
       onSuccess: (id) => {
         const now = new Date().toISOString();
-        updateOrderInCache(queryClient, id, {
+        patchOrder(id, {
           status: "completed" as OrderStatus,
           paymentStatus: "paid",
           completedAt: now,
@@ -96,21 +80,18 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
     mutationFn: (id: string): Promise<string> =>
       new Promise((resolve) => setTimeout(() => resolve(id), 400)),
     onSuccess: (id) => {
-      updateOrderInCache(queryClient, id, {
-        status: "cancelled" as OrderStatus,
-      });
+      patchOrder(id, { status: "cancelled" as OrderStatus });
     },
   });
 
   const canPrintKitchenTicket = !!order && order.status === "pending";
   const canPrintBill = !!order && order.status === "confirmed";
   const canCancel =
-    !!order &&
-    (order.status === "pending" || order.status === "confirmed");
+    !!order && (order.status === "pending" || order.status === "confirmed");
 
   return {
     order,
-    isLoading,
+    isLoading: false,
     canPrintKitchenTicket,
     canPrintBill,
     canCancel,

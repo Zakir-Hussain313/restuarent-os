@@ -1,5 +1,4 @@
 "use client";
-
 import { OrderHistoryLayout } from "@/features/orders/components/history/OrderHistoryLayout";
 import { useOrderHistory } from "@/features/orders/hooks/useOrderHistory";
 
@@ -13,6 +12,7 @@ export default function OrderHistoryPage() {
     setDatePreset,
     setDateRange,
     setDishId,
+    setOrderType,
     resetDateFilters,
   } = useOrderHistory();
 
@@ -26,7 +26,6 @@ export default function OrderHistoryPage() {
             : `${orders.length} ${orders.length === 1 ? "order" : "orders"} found`}
         </p>
       </div>
-
       <OrderHistoryLayout
         orders={orders}
         isLoading={isLoading}
@@ -36,6 +35,7 @@ export default function OrderHistoryPage() {
         setDatePreset={setDatePreset}
         setDateRange={setDateRange}
         setDishId={setDishId}
+        setOrderType={setOrderType}
         resetDateFilters={resetDateFilters}
       />
     </div>

@@ -64,16 +64,12 @@ export function calculateItemTotal(
 export function calculateOrderTotals(
   subtotal: number,
   discountAmount: number,
-  taxRate: number,
-  serviceChargeRate: number,
   deliveryFee = 0
 ) {
   const afterDiscount = subtotal - discountAmount;
-  const taxAmount = Math.round(afterDiscount * (taxRate / 100));
-  const serviceChargeAmount = Math.round(afterDiscount * (serviceChargeRate / 100));
-  const total = afterDiscount + taxAmount + serviceChargeAmount + deliveryFee;
+  const total = afterDiscount + deliveryFee;
 
-  return { taxAmount, serviceChargeAmount, total };
+  return { total };
 }
 
 export function slugify(text: string): string {
