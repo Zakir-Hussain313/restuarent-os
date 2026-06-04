@@ -82,7 +82,7 @@ export function WebsiteFooter() {
             <div className="flex items-start gap-2.5">
               <MapPin className="w-3.5 h-3.5 text-[#e8570e] mt-0.5 shrink-0" />
               <p className="text-sm text-white/60 leading-relaxed">
-                Block 7, Clifton<br />Karachi, Sindh
+                behind Mashallah Shadi Hall<br />Hazara Town, Quetta
               </p>
             </div>
             <div className="flex items-center gap-2.5">
