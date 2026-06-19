@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   LayoutDashboard,
@@ -20,11 +20,13 @@ import {
   Bike,
   History,
   ChevronDown,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NAV_GROUPS } from "@/config/nav";
 import type { NavItem, NavChild } from "@/config/nav";
-import { mockCurrentStaff } from "@/mock-data";
+import { useAuthStore } from "@/store/useAuthStore";
+import { logoutAction } from "@/features/auth/actions";
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard,
@@ -147,7 +149,7 @@ function SidebarNavItem({ item, sidebarOpen, pathname }: SidebarNavItemProps) {
                   child.href === "/orders"
                     ? pathname === "/orders"
                     : pathname === child.href ||
-                      pathname.startsWith(child.href + "/")
+                    pathname.startsWith(child.href + "/")
                 }
               />
             ))}
@@ -193,6 +195,14 @@ export function Sidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(true);
 
+  const router = useRouter();
+  const currentStaff = useAuthStore((s) => s.currentStaff);
+
+  async function handleLogout() {
+    await logoutAction();
+    router.push("/auth/login");
+  }
+
   return (
     <aside
       className={cn(
@@ -219,7 +229,7 @@ export function Sidebar() {
             <Flame className="w-3.5 h-3.5 text-white" />
           </div>
           <span className="text-[#1a1814] font-semibold text-sm tracking-tight whitespace-nowrap">
-            Rice n Spice
+            Restaurant OS
           </span>
         </div>
       </div>
@@ -255,19 +265,30 @@ export function Sidebar() {
         >
           <div className="w-7 h-7 rounded-full bg-[#fef3ed] border border-[#fde0cc] flex items-center justify-center shrink-0">
             <span className="text-[#e8570e] text-[11px] font-bold">
-              {mockCurrentStaff.firstName[0]}
-              {mockCurrentStaff.lastName[0]}
+              {currentStaff?.firstName?.[0]}
+              {currentStaff?.lastName?.[0]}
             </span>
           </div>
           {open && (
-            <div className="flex-1 min-w-0">
-              <p className="text-[#1a1814] text-xs font-medium truncate">
-                {mockCurrentStaff.fullName}
-              </p>
-              <p className="text-[#b0ada8] text-[10px] capitalize truncate">
-                {mockCurrentStaff.role}
-              </p>
-            </div>
+            <>
+              <div className="flex-1 min-w-0">
+                <p className="text-[#1a1814] text-xs font-medium truncate">
+                  {currentStaff
+                    ? `${currentStaff.firstName} ${currentStaff.lastName}`
+                    : ""}
+                </p>
+                <p className="text-[#b0ada8] text-[10px] capitalize truncate">
+                  {currentStaff?.role}
+                </p>
+              </div>
+              <button
+                onClick={handleLogout}
+                title="Sign out"
+                className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-[#8a8680] hover:text-[#e8570e] hover:bg-[#fef3ed] transition-colors"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </>
           )}
         </div>
       </div>

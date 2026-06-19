@@ -1,23 +1,46 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import type { Staff } from "@/types";
-import { mockCurrentStaff } from "@/mock-data";
+import type { staff } from "@/db/schema";
+
+// Real staff row shape, inferred directly from the Drizzle schema —
+// no more mock Staff type from @/types, no more mock-data import.
+export type AuthStaff = typeof staff.$inferSelect;
 
 interface AuthState {
-  currentStaff: Staff | null;
+  currentStaff: AuthStaff | null;
   isAuthenticated: boolean;
-  login: (staff: Staff) => void;
+  isHydrated: boolean;
+
+  // Called once by a client wrapper on mount, fed by a server-fetched
+  // staff row (see DashboardShell change below). NOT a login action —
+  // this just syncs client state to what the server already knows.
+  hydrate: (staff: AuthStaff | null) => void;
+
+  // Called after a successful loginAction() server call succeeds and
+  // the page has the resulting staff row available.
+  login: (staff: AuthStaff) => void;
+
+  // Called after logoutAction() server call succeeds.
   logout: () => void;
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      currentStaff: mockCurrentStaff, // auto-logged in for demo
-      isAuthenticated: true,
-      login: (staff) => set({ currentStaff: staff, isAuthenticated: true }),
-      logout: () => set({ currentStaff: null, isAuthenticated: false }),
+// No persist() middleware — Supabase's session cookie is the actual
+// source of truth and already survives refreshes. Persisting a second
+// copy to localStorage risks it outliving a real logout (stale auth
+// state visible in the UI after the server-side session is gone).
+export const useAuthStore = create<AuthState>((set) => ({
+  currentStaff: null,
+  isAuthenticated: false,
+  isHydrated: false,
+
+  hydrate: (staff) =>
+    set({
+      currentStaff: staff,
+      isAuthenticated: staff !== null,
+      isHydrated: true,
     }),
-    { name: "zaiqa-auth" }
-  )
-);
+
+  login: (staff) => set({ currentStaff: staff, isAuthenticated: true }),
+
+  logout: () =>
+    set({ currentStaff: null, isAuthenticated: false }),
+}));
