@@ -3,6 +3,7 @@ import { createMockQueryFn, queryKeys } from "@/hooks/useMockQuery";
 import { mockDashboardReport, mockRevenueChart } from "@/mock-data/analytics";
 import { mockOrders } from "@/mock-data/orders";
 import { mockTables } from "@/mock-data/tables";
+import { getDashboardStatsAction } from "../actions";
 
 // Computed once at module level — stable references
 const RECENT_ORDERS = [...mockOrders]
@@ -18,9 +19,15 @@ const REVENUE_SLICES = {
 export function useDashboardStats() {
   return useQuery({
     queryKey: queryKeys.analytics.dashboard,
-    queryFn: createMockQueryFn(mockDashboardReport.stats, 400),
-    staleTime: Infinity,
-    gcTime: Infinity,
+    queryFn: async () => {
+      const result = await getDashboardStatsAction();
+      if (result.error || !result.stats) {
+        throw new Error(result.error ?? "Failed to load dashboard stats.");
+      }
+      return result.stats;
+    },
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
   });
 }
 
