@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { ProfileModal } from "./ProfileModal";
 import { useState } from "react";
 import {
   LayoutDashboard,
@@ -21,12 +22,14 @@ import {
   History,
   ChevronDown,
   LogOut,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NAV_GROUPS } from "@/config/nav";
 import type { NavItem, NavChild } from "@/config/nav";
 import { useAuthStore } from "@/store/useAuthStore";
 import { logoutAction } from "@/features/auth/actions";
+import { hasPermission } from "@/types/staff";
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard,
@@ -40,6 +43,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Settings2,
   Bike,
   History,
+  Building2
 };
 
 function isChildActive(children: NavChild[], pathname: string): boolean {
@@ -194,9 +198,25 @@ function SidebarNavItem({ item, sidebarOpen, pathname }: SidebarNavItemProps) {
 export function Sidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(true);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const router = useRouter();
   const currentStaff = useAuthStore((s) => s.currentStaff);
+  const role = currentStaff?.role;
+
+  const visibleGroups = NAV_GROUPS
+    .map((group) => ({
+      ...group,
+      items: group.items
+        .filter((item) => !role || hasPermission(role, item.permission))
+        .map((item) => ({
+          ...item,
+          children: item.children?.filter(
+            (child) => !role || hasPermission(role, child.permission)
+          ),
+        })),
+    }))
+    .filter((group) => group.items.length > 0);
 
   async function handleLogout() {
     await logoutAction();
@@ -235,7 +255,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto py-2 space-y-4">
-        {NAV_GROUPS.map((group) => (
+        {visibleGroups.map((group) => (
           <div key={group.label}>
             {open && (
               <p className="px-4 mb-1 text-[10px] font-semibold uppercase tracking-widest text-[#b0ada8]">
@@ -263,14 +283,20 @@ export function Sidebar() {
             !open && "justify-center px-0"
           )}
         >
-          <div className="w-7 h-7 rounded-full bg-[#fef3ed] border border-[#fde0cc] flex items-center justify-center shrink-0">
-            <span className="text-[#e8570e] text-[11px] font-bold">
-              {currentStaff?.firstName?.[0]}
-              {currentStaff?.lastName?.[0]}
-            </span>
-          </div>
-          {open && (
-            <>
+          <button
+            onClick={() => setProfileOpen(true)}
+            className={cn(
+              "flex items-center gap-2.5 min-w-0 rounded-lg hover:bg-[#f4f3f0] transition-colors",
+              open ? "flex-1 text-left" : ""
+            )}
+          >
+            <div className="w-7 h-7 rounded-full bg-[#fef3ed] border border-[#fde0cc] flex items-center justify-center shrink-0">
+              <span className="text-[#e8570e] text-[11px] font-bold">
+                {currentStaff?.firstName?.[0]}
+                {currentStaff?.lastName?.[0]}
+              </span>
+            </div>
+            {open && (
               <div className="flex-1 min-w-0">
                 <p className="text-[#1a1814] text-xs font-medium truncate">
                   {currentStaff
@@ -281,17 +307,21 @@ export function Sidebar() {
                   {currentStaff?.role}
                 </p>
               </div>
-              <button
-                onClick={handleLogout}
-                title="Sign out"
-                className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-[#8a8680] hover:text-[#e8570e] hover:bg-[#fef3ed] transition-colors"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-              </button>
-            </>
+            )}
+          </button>
+          {open && (
+            <button
+              onClick={handleLogout}
+              title="Sign out"
+              className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-[#8a8680] hover:text-[#e8570e] hover:bg-[#fef3ed] transition-colors"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
           )}
         </div>
       </div>
+
+      <ProfileModal open={profileOpen} onOpenChange={setProfileOpen} />
     </aside>
   );
 }
