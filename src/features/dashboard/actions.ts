@@ -5,7 +5,8 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { db } from "@/db";
 import { staff, orders, restaurantTables } from "@/db/schema";
 import { eq, and, gte, lt, ne, sql } from "drizzle-orm";
-import type { DashboardStats } from "@/types/analytics";
+import type { DashboardStats, RevenueDataPoint } from "@/types/analytics";
+
 
 function getMonthRange(offsetMonths: number) {
   const now = new Date();
@@ -19,7 +20,7 @@ function pctChange(current: number, previous: number): number {
   return Math.round(((current - previous) / previous) * 100);
 }
 
-export async function getDashboardStatsAction(): Promise <
+export async function getDashboardStatsAction(): Promise<
   { stats: DashboardStats; error?: undefined } | { stats: null; error: string }
 > {
   const supabase = await getSupabaseServerClient();
@@ -110,4 +111,90 @@ export async function getDashboardStatsAction(): Promise <
   };
 
   return { stats };
+}
+
+
+const RANGE_DAYS: Record<"7d" | "30d" | "90d", number> = {
+  "7d": 7,
+  "30d": 30,
+  "90d": 90,
+};
+
+function toDateKey(d: Date): string {
+  return d.toISOString().slice(0, 10); // "YYYY-MM-DD"
+}
+
+export async function getRevenueDataAction(
+  range: "7d" | "30d" | "90d" = "30d"
+): Promise <{ data: RevenueDataPoint[]; error ?: undefined } | { data: null; error: string }
+  > {
+  const supabase = await getSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if(!user) return { data: null, error: "Not authenticated." };
+
+  const currentStaffRow = await db.query.staff.findFirst({
+    where: eq(staff.id, user.id),
+  });
+  if(!currentStaffRow) return { data: null, error: "Staff record not found." };
+
+  const isAdmin = currentStaffRow.role === "ADMIN";
+  if(isAdmin && !currentStaffRow.branchId) {
+  return { data: null, error: "Your account has no branch assigned." };
+}
+
+const tenantId = currentStaffRow.tenantId;
+const branchId = isAdmin ? currentStaffRow.branchId! : undefined;
+
+const days = RANGE_DAYS[range];
+const now = new Date();
+// UTC midnight for "today", then step back (days - 1) days — matches
+// Postgres's date_trunc('day', ...), which operates in the session
+// timezone (UTC on Supabase). Using local setHours/setDate here would
+// silently shift every bucket by the server's UTC offset.
+const todayUTC = new Date(
+  Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+);
+const rangeStart = new Date(todayUTC);
+rangeStart.setUTCDate(rangeStart.getUTCDate() - (days - 1));
+
+const rows = await db
+  .select({
+    day: sql<string>`to_char(date_trunc('day', ${orders.createdAt}), 'YYYY-MM-DD')`,
+    revenue: sql<number>`coalesce(sum(${orders.total}), 0)`,
+    orderCount: sql<number>`count(*)`,
+  })
+  .from(orders)
+  .where(
+    and(
+      eq(orders.tenantId, tenantId),
+      ne(orders.status, "cancelled"),
+      gte(orders.createdAt, rangeStart),
+      branchId ? eq(orders.branchId, branchId) : undefined
+    )
+  )
+  .groupBy(sql`date_trunc('day', ${orders.createdAt})`);
+
+const byDay = new Map(rows.map((r) => [r.day, r]));
+
+const result: RevenueDataPoint[] = [];
+for (let i = 0; i < days; i++) {
+  const d = new Date(rangeStart);
+  d.setUTCDate(d.getUTCDate() + i);
+  const key = toDateKey(d);
+  const row = byDay.get(key);
+
+  const revenue = row ? Number(row.revenue) : 0;
+  const orderCount = row ? Number(row.orderCount) : 0;
+
+  result.push({
+    date: key,
+    revenue,
+    orders: orderCount,
+    averageOrderValue: orderCount > 0 ? Math.round(revenue / orderCount) : 0,
+  });
+}
+
+return { data: result };
 }

@@ -1,20 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { createMockQueryFn, queryKeys } from "@/hooks/useMockQuery";
-import { mockDashboardReport, mockRevenueChart } from "@/mock-data/analytics";
+import { mockDashboardReport } from "@/mock-data/analytics";
 import { mockOrders } from "@/mock-data/orders";
 import { mockTables } from "@/mock-data/tables";
-import { getDashboardStatsAction } from "../actions";
+import { getDashboardStatsAction, getRevenueDataAction } from "../actions";
 
 // Computed once at module level — stable references
 const RECENT_ORDERS = [...mockOrders]
   .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
   .slice(0, 6);
 
-const REVENUE_SLICES = {
-  "7d": mockRevenueChart.slice(-7),
-  "30d": mockRevenueChart.slice(-30),
-  "90d": mockRevenueChart.slice(-90),
-} as const;
 
 export function useDashboardStats() {
   return useQuery({
@@ -34,9 +29,15 @@ export function useDashboardStats() {
 export function useRevenueData(range: "7d" | "30d" | "90d" = "30d") {
   return useQuery({
     queryKey: [...queryKeys.analytics.dashboard, "revenue", range],
-    queryFn: createMockQueryFn(REVENUE_SLICES[range], 500),
-    staleTime: Infinity,
-    gcTime: Infinity,
+    queryFn: async () => {
+      const result = await getRevenueDataAction(range);
+      if (result.error || !result.data) {
+        throw new Error(result.error ?? "Failed to load revenue data.");
+      }
+      return result.data;
+    },
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
   });
 }
 
