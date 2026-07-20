@@ -3,7 +3,7 @@ import { createMockQueryFn, queryKeys } from "@/hooks/useMockQuery";
 import { mockDashboardReport } from "@/mock-data/analytics";
 import { mockOrders } from "@/mock-data/orders";
 import { mockTables } from "@/mock-data/tables";
-import { getDashboardStatsAction, getRevenueDataAction } from "../actions";
+import { getDashboardStatsAction, getRevenueDataAction, getTopDishesAction } from "../actions";
 
 // Computed once at module level — stable references
 const RECENT_ORDERS = [...mockOrders]
@@ -44,9 +44,15 @@ export function useRevenueData(range: "7d" | "30d" | "90d" = "30d") {
 export function useTopDishes() {
   return useQuery({
     queryKey: [...queryKeys.analytics.dashboard, "top-items"],
-    queryFn: createMockQueryFn(mockDashboardReport.topItems.slice(0, 10), 450),
-    staleTime: Infinity,
-    gcTime: Infinity,
+    queryFn: async () => {
+      const result = await getTopDishesAction();
+      if (result.error || !result.data) {
+        throw new Error(result.error ?? "Failed to load top dishes.");
+      }
+      return result.data;
+    },
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
   });
 }
 
