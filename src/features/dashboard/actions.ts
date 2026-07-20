@@ -7,6 +7,7 @@ import { eq, and, gte, lt, ne, sql , desc } from "drizzle-orm";
 import type { DashboardStats, RevenueDataPoint, TopMenuItem } from "@/types/analytics";
 import { staff, orders, orderItems, restaurantTables } from "@/db/schema";
 import type { OrderStatus, OrderType } from "@/types";
+import type { Table } from "@/types/table";
 
 export interface RecentOrder {
   id: string;
@@ -329,6 +330,82 @@ export async function getRecentOrdersAction(): Promise <{ data: RecentOrder[]; e
     createdAt: r.createdAt.toISOString(),
     tableNumber: r.tableNumber ?? null,
     itemsCount: Number(r.itemsCount),
+  }));
+
+  return { data };
+}
+
+
+export async function getTableOccupancyAction(): Promise <{ data: Table[]; error?: undefined } | { data: null; error: string }
+> {
+  const supabase = await getSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { data: null, error: "Not authenticated." };
+
+  const currentStaffRow = await db.query.staff.findFirst({
+    where: eq(staff.id, user.id),
+  });
+  if (!currentStaffRow) return { data: null, error: "Staff record not found." };
+
+  const isAdmin = currentStaffRow.role === "ADMIN";
+  if (isAdmin && !currentStaffRow.branchId) {
+    return { data: null, error: "Your account has no branch assigned." };
+  }
+
+  const tenantId = currentStaffRow.tenantId;
+  const branchId = isAdmin ? currentStaffRow.branchId! : undefined;
+
+  const rows = await db
+    .select({
+      id: restaurantTables.id,
+      branchId: restaurantTables.branchId,
+      sectionId: restaurantTables.sectionId,
+      tableNumber: restaurantTables.tableNumber,
+      capacity: restaurantTables.capacity,
+      shape: restaurantTables.shape,
+      status: restaurantTables.status,
+      positionX: restaurantTables.positionX,
+      positionY: restaurantTables.positionY,
+      isActive: restaurantTables.isActive,
+      createdAt: restaurantTables.createdAt,
+      updatedAt: restaurantTables.updatedAt,
+      // currentOrderId is intentionally not a stored column (per schema
+      // comment, avoids a circular FK with orders.tableId) — derive it
+      // here as the most recent non-final order still open on this table.
+      currentOrderId: sql<string | null>`(
+        select ${orders.id} from ${orders}
+        where ${orders.tableId} = ${restaurantTables.id}
+          and ${orders.status} not in ('completed', 'cancelled')
+        order by ${orders.createdAt} desc
+        limit 1
+      )`,
+    })
+    .from(restaurantTables)
+    .where(
+      and(
+        eq(restaurantTables.tenantId, tenantId),
+        eq(restaurantTables.isActive, true),
+        branchId ? eq(restaurantTables.branchId, branchId) : undefined
+      )
+    );
+
+  const data: Table[] = rows.map((r) => ({
+    id: r.id,
+    restaurantId: r.branchId, // widget/type uses "restaurantId" as the scoping key; branchId is the closest real equivalent here
+    sectionId: r.sectionId,
+    tableNumber: r.tableNumber,
+    capacity: r.capacity,
+    shape: r.shape,
+    status: r.status,
+    currentOrderId: r.currentOrderId ?? undefined,
+    currentReservationId: undefined, // no reservations table exists yet in the schema
+    positionX: r.positionX ?? undefined,
+    positionY: r.positionY ?? undefined,
+    isActive: r.isActive,
+    createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
   }));
 
   return { data };

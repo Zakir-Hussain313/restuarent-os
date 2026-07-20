@@ -1,8 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createMockQueryFn, queryKeys } from "@/hooks/useMockQuery";
 import { mockDashboardReport } from "@/mock-data/analytics";
-import { mockTables } from "@/mock-data/tables";
-import { getDashboardStatsAction, getRecentOrdersAction, getRevenueDataAction, getTopDishesAction } from "../actions";
+import { getDashboardStatsAction, getRecentOrdersAction, getRevenueDataAction, getTableOccupancyAction, getTopDishesAction } from "../actions";
 
 export function useDashboardStats() {
   return useQuery({
@@ -67,9 +66,15 @@ export function useRecentOrders() {
 export function useTableOccupancy() {
   return useQuery({
     queryKey: queryKeys.tables.all,
-    queryFn: createMockQueryFn(mockTables, 300),
-    staleTime: Infinity,
-    gcTime: Infinity,
+    queryFn: async () => {
+      const result = await getTableOccupancyAction();
+      if (result.error || !result.data) {
+        throw new Error(result.error ?? "Failed to load table occupancy.");
+      }
+      return result.data;
+    },
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
   });
 }
 
