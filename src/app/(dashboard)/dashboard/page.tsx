@@ -1,5 +1,10 @@
 import { Suspense } from "react";
 import { PageShell } from "@/components/layout/PageShell";
+import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { db } from "@/db";
+import { staff } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { getBranchListAction } from "@/features/branches/actions";
 import {
   DashboardStats,
   RevenueChart,
@@ -9,20 +14,37 @@ import {
   OrderTypeBreakdownWidget,
   QuickActionsBar,
 } from "@/features/dashboard";
+import { DashboardBranchFilter } from "@/features/dashboard/components/DashboardBranchFilter";
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const supabase = await getSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const currentStaffRow = user
+    ? await db.query.staff.findFirst({ where: eq(staff.id, user.id) })
+    : null;
+
+  const isSuperAdmin = currentStaffRow?.role === "SUPER_ADMIN";
+
+  const { branches } = isSuperAdmin
+    ? await getBranchListAction()
+    : { branches: [] };
+
   return (
     <PageShell
       title="Dashboard"
       description="Welcome back. Here's what's happening at Rice n Spice today."
-      actions={<QuickActionsBar />}
+      actions={
+        <div className="flex items-center gap-3">
+          {isSuperAdmin && <DashboardBranchFilter branches={branches ?? []} />}
+          <QuickActionsBar />
+        </div>
+      }
     >
       <Suspense fallback={null}>
         <div className="flex flex-col gap-6 min-w-0">
-          {/* KPI Row */}
           <DashboardStats />
 
-          {/* Row 2: Revenue (col-3) + Top Dishes (col-2) — equal height */}
           <div className="grid grid-cols-5 gap-6">
             <div className="col-span-3">
               <RevenueChart />
