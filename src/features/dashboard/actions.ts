@@ -3,11 +3,21 @@
 
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { db } from "@/db";
-import { staff, orders, restaurantTables } from "@/db/schema";
-import { eq, and, gte, lt, ne, sql } from "drizzle-orm";
+import { eq, and, gte, lt, ne, sql , desc } from "drizzle-orm";
 import type { DashboardStats, RevenueDataPoint, TopMenuItem } from "@/types/analytics";
-import { orderItems } from "@/db/schema";
+import { staff, orders, orderItems, restaurantTables } from "@/db/schema";
+import type { OrderStatus, OrderType } from "@/types";
 
+export interface RecentOrder {
+  id: string;
+  orderNumber: string;
+  orderType: OrderType;
+  status: OrderStatus;
+  total: number;
+  createdAt: string;
+  itemsCount: number;
+  tableNumber: string | null;
+}
 
 function getMonthRange(offsetMonths: number) {
   const now = new Date();
@@ -259,6 +269,66 @@ export async function getTopDishesAction(): Promise<{ data: TopMenuItem[]; error
     quantitySold: Number(r.quantitySold),
     revenue: Number(r.revenue),
     rank: i + 1,
+  }));
+
+  return { data };
+}
+
+
+export async function getRecentOrdersAction(): Promise <{ data: RecentOrder[]; error?: undefined } | { data: null; error: string }
+> {
+  const supabase = await getSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { data: null, error: "Not authenticated." };
+
+  const currentStaffRow = await db.query.staff.findFirst({
+    where: eq(staff.id, user.id),
+  });
+  if (!currentStaffRow) return { data: null, error: "Staff record not found." };
+
+  const isAdmin = currentStaffRow.role === "ADMIN";
+  if (isAdmin && !currentStaffRow.branchId) {
+    return { data: null, error: "Your account has no branch assigned." };
+  }
+
+  const tenantId = currentStaffRow.tenantId;
+  const branchId = isAdmin ? currentStaffRow.branchId! : undefined;
+
+  const rows = await db
+    .select({
+      id: orders.id,
+      orderNumber: orders.orderNumber,
+      orderType: orders.orderType,
+      status: orders.status,
+      total: orders.total,
+      createdAt: orders.createdAt,
+      tableNumber: restaurantTables.tableNumber,
+      itemsCount: sql<number>`(
+        select count(*) from ${orderItems} where ${orderItems.orderId} = ${orders.id}
+      )`,
+    })
+    .from(orders)
+    .leftJoin(restaurantTables, eq(orders.tableId, restaurantTables.id))
+    .where(
+      and(
+        eq(orders.tenantId, tenantId),
+        branchId ? eq(orders.branchId, branchId) : undefined
+      )
+    )
+    .orderBy(desc(orders.createdAt))
+    .limit(6);
+
+  const data: RecentOrder[] = rows.map((r) => ({
+    id: r.id,
+    orderNumber: r.orderNumber,
+    orderType: r.orderType,
+    status: r.status,
+    total: r.total,
+    createdAt: r.createdAt.toISOString(),
+    tableNumber: r.tableNumber ?? null,
+    itemsCount: Number(r.itemsCount),
   }));
 
   return { data };

@@ -1,15 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { createMockQueryFn, queryKeys } from "@/hooks/useMockQuery";
 import { mockDashboardReport } from "@/mock-data/analytics";
-import { mockOrders } from "@/mock-data/orders";
 import { mockTables } from "@/mock-data/tables";
-import { getDashboardStatsAction, getRevenueDataAction, getTopDishesAction } from "../actions";
-
-// Computed once at module level — stable references
-const RECENT_ORDERS = [...mockOrders]
-  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-  .slice(0, 6);
-
+import { getDashboardStatsAction, getRecentOrdersAction, getRevenueDataAction, getTopDishesAction } from "../actions";
 
 export function useDashboardStats() {
   return useQuery({
@@ -59,9 +52,15 @@ export function useTopDishes() {
 export function useRecentOrders() {
   return useQuery({
     queryKey: [...queryKeys.orders.all, "recent"],
-    queryFn: createMockQueryFn(RECENT_ORDERS, 350),
-    staleTime: Infinity,
-    gcTime: Infinity,
+    queryFn: async () => {
+      const result = await getRecentOrdersAction();
+      if (result.error || !result.data) {
+        throw new Error(result.error ?? "Failed to load recent orders.");
+      }
+      return result.data;
+    },
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
   });
 }
 

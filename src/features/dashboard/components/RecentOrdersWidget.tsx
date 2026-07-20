@@ -88,7 +88,7 @@ export function RecentOrdersWidget() {
                     <OrderTypePill type={order.orderType} />
                   </div>
                   <div className="flex items-center gap-2 text-xs text-[#8a8680]">
-                    <span>{order.items.length} item{order.items.length !== 1 ? "s" : ""}</span>
+                    <span>{order.itemsCount} item{order.itemsCount !== 1 ? "s" : ""}</span>
                     {order.tableNumber && (
                       <>
                         <span className="text-[#d4d0ca]">·</span>
