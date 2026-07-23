@@ -26,9 +26,12 @@ export interface AttendanceRow {
   notes: string | null;
 }
 
+// Update getAttendanceForDateAction signature and query
+
 export async function getAttendanceForDateAction(
   date: string,
-  overrideBranchId?: string
+  overrideBranchId?: string,
+  roleFilter?: "ADMIN" | "STAFF" | "RIDER"
 ): Promise<{ data: AttendanceRow[]; error?: undefined } | { data: null; error: string }> {
   const supabase = await getSupabaseServerClient();
   const {
@@ -42,16 +45,17 @@ export async function getAttendanceForDateAction(
   if (!currentStaffRow) return { data: null, error: "Staff record not found." };
 
   const isAdmin = currentStaffRow.role === "ADMIN";
+  const isSuperAdmin = currentStaffRow.role === "SUPER_ADMIN";
   if (isAdmin && !currentStaffRow.branchId) {
     return { data: null, error: "Your account has no branch assigned." };
   }
 
   const tenantId = currentStaffRow.tenantId;
   const branchId = isAdmin ? currentStaffRow.branchId! : overrideBranchId;
+  // roleFilter is only meaningful for SUPER_ADMIN — ADMIN never sees other admins anyway.
+  const effectiveRoleFilter = isSuperAdmin ? roleFilter : undefined;
 
   const { start, end } = dayRange(date);
-
-  // in getAttendanceForDateAction, update the .where(...) clause:
 
   const rows = await db
     .select({
@@ -78,8 +82,10 @@ export async function getAttendanceForDateAction(
       and(
         eq(staff.tenantId, tenantId),
         eq(staff.isDeleted, false),
-        ne(staff.role, "SUPER_ADMIN"), // SUPER_ADMINs aren't tied to a branch — exempt from roll-call
-        branchId ? eq(staff.branchId, branchId) : undefined
+        ne(staff.role, "SUPER_ADMIN"), // never tracked
+        ne(staff.id, currentStaffRow.id), // viewer never sees themselves
+        branchId ? eq(staff.branchId, branchId) : undefined,
+        effectiveRoleFilter ? eq(staff.role, effectiveRoleFilter) : undefined
       )
     );
 

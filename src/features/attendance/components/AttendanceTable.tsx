@@ -27,15 +27,15 @@ const STATUS_STYLES: Record<Attendance["status"], string> = {
 };
 
 export function AttendanceTable() {
-    const { date, branchId } = useAttendanceFilters();
+    const { date, branchId, roleFilter } = useAttendanceFilters();
     const queryClient = useQueryClient();
-    const queryKey = ["attendance", date, branchId];
+    const queryKey = ["attendance", date, branchId, roleFilter];
     const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
 
     const { data, isLoading } = useQuery({
         queryKey,
         queryFn: async () => {
-            const res = await getAttendanceForDateAction(date, branchId);
+            const res = await getAttendanceForDateAction(date, branchId, roleFilter);
             if (res.error) throw new Error(res.error);
             return res.data;
         },
@@ -76,7 +76,7 @@ export function AttendanceTable() {
     }
 
     if (!data || data.length === 0) {
-        return <div className="text-sm text-muted-foreground">No staff found for this branch.</div>;
+        return <div className="text-sm text-muted-foreground">No data found.</div>;
     }
 
     return (

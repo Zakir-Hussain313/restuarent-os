@@ -15,9 +15,12 @@ import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import type { Branch } from "@/db/schema";
 
+type RoleFilter = "ADMIN" | "STAFF" | "RIDER";
+
 interface AttendanceFilterState {
     date: string; // "YYYY-MM-DD"
     branchId: string | undefined; // undefined = "All branches" (SUPER_ADMIN only)
+    roleFilter: RoleFilter | undefined; // undefined = "All roles" (SUPER_ADMIN only)
 }
 
 const AttendanceFilterContext = createContext<AttendanceFilterState | null>(null);
@@ -43,11 +46,12 @@ export function AttendanceFilters({
 }: AttendanceFiltersProps) {
     const [selectedDate, setSelectedDate] = useState<Date>(new Date());
     const [branchId, setBranchId] = useState<string | undefined>(undefined);
+    const [roleFilter, setRoleFilter] = useState<RoleFilter | undefined>(undefined);
 
     const dateKey = format(selectedDate, "yyyy-MM-dd");
 
     return (
-        <AttendanceFilterContext.Provider value={{ date: dateKey, branchId }}>
+        <AttendanceFilterContext.Provider value={{ date: dateKey, branchId, roleFilter }}>
             <div className="flex items-center gap-3 mb-6">
                 <Popover>
                     <PopoverTrigger
@@ -82,6 +86,25 @@ export function AttendanceFilters({
                                     {b.name}
                                 </SelectItem>
                             ))}
+                        </SelectContent>
+                    </Select>
+                )}
+
+                {isSuperAdmin && (
+                    <Select
+                        value={roleFilter ?? "all"}
+                        onValueChange={(v: string | null) =>
+                            setRoleFilter(!v || v === "all" ? undefined : (v as RoleFilter))
+                        }
+                    >
+                        <SelectTrigger className="w-45">
+                            <SelectValue placeholder="All roles" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All roles</SelectItem>
+                            <SelectItem value="ADMIN">Admins</SelectItem>
+                            <SelectItem value="STAFF">Staff</SelectItem>
+                            <SelectItem value="RIDER">Riders</SelectItem>
                         </SelectContent>
                     </Select>
                 )}
