@@ -86,6 +86,24 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: "UserCog",
         permission: "manage_staff",
       },
+      {
+        label: "Attendance",
+        href: "/attendance",
+        icon: "ClipboardList",
+        permission: "manage_attendance",
+      },
+      {
+        label: "Admins",
+        href: "/admins",
+        icon: "Users",
+        permission: "manage_admins",
+      },
+      {
+        label: "Branches",
+        href: "/branches",
+        icon: "Building2",
+        permission: "manage_branches",
+      },
     ],
   },
 ];
