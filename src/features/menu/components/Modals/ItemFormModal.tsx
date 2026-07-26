@@ -7,41 +7,41 @@ import { z } from "zod";
 import { X, Loader2, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MenuCategory, MenuItem } from "@/types";
-import type { Control, UseFormRegister } from "react-hook-form";
+import type { Control, FieldErrors, UseFormRegister } from "react-hook-form";
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
 const variantSchema = z.object({
-    id:          z.string().optional(),
-    name:        z.string().min(1, "Required"),
-    price:       z.number().min(0, "Required"),
-    isDefault:   z.boolean(),
+    id: z.string().optional(),
+    name: z.string().min(1, "Required"),
+    price: z.number().min(0, "Required"),
+    isDefault: z.boolean(),
     isAvailable: z.boolean(),
 });
 
 const modifierOptionSchema = z.object({
-    id:              z.string().optional(),
-    name:            z.string().min(1, "Required"),
+    id: z.string().optional(),
+    name: z.string().min(1, "Required"),
     priceAdjustment: z.number(),
-    isDefault:       z.boolean(),
-    isAvailable:     z.boolean(),
+    isDefault: z.boolean(),
+    isAvailable: z.boolean(),
 });
 
 const modifierGroupSchema = z.object({
-    id:            z.string().optional(),
-    name:          z.string().min(1, "Required"),
-    isRequired:    z.boolean(),
+    id: z.string().optional(),
+    name: z.string().min(1, "Required"),
+    isRequired: z.boolean(),
     minSelections: z.number().min(0),
     maxSelections: z.number().min(1),
-    options:       z.array(modifierOptionSchema).min(1, "Add at least one option"),
+    options: z.array(modifierOptionSchema).min(1, "Add at least one option"),
 });
 
 const itemSchema = z.object({
     categoryId: z.string().min(1, "Category is required"),
-    name:       z.string().min(1, "Name is required").max(100),
-    basePrice:  z.number().min(0, "Price is required"),
-    status:     z.enum(["available", "unavailable", "out_of_stock"]),
-    variants:   z.array(variantSchema),
+    name: z.string().min(1, "Name is required").max(100),
+    basePrice: z.number().min(0, "Price is required"),
+    status: z.enum(["available", "unavailable", "out_of_stock"]),
+    variants: z.array(variantSchema),
     modifierGroups: z.array(modifierGroupSchema),
 });
 
@@ -50,12 +50,12 @@ type ItemFormValues = z.infer<typeof itemSchema>;
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface ItemFormModalProps {
-    isOpen:     boolean;
-    item:       MenuItem | null;
+    isOpen: boolean;
+    item: MenuItem | null;
     categories: MenuCategory[];
-    isLoading:  boolean;
-    onSubmit:   (values: ItemFormValues) => void;
-    onClose:    () => void;
+    isLoading: boolean;
+    onSubmit: (values: ItemFormValues) => void;
+    onClose: () => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -66,11 +66,11 @@ const labelClass = "text-xs font-medium text-muted-foreground mb-1.5 block";
 const STATUS_OPTIONS = ["available", "out_of_stock", "unavailable"] as const;
 
 const DEFAULT_VALUES: ItemFormValues = {
-    categoryId:     "",
-    name:           "",
-    basePrice:      0,
-    status:         "available",
-    variants:       [],
+    categoryId: "",
+    name: "",
+    basePrice: 0,
+    status: "available",
+    variants: [],
     modifierGroups: [],
 };
 
@@ -120,19 +120,20 @@ export function ItemFormModal({
     } = useFieldArray({ control, name: "modifierGroups" });
 
     useEffect(() => {
+        if (!isOpen) return;
         if (item) {
             reset({
-                categoryId:     item.categoryId,
-                name:           item.name,
-                basePrice:      item.basePrice,
-                status:         item.status,
-                variants:       item.variants,
+                categoryId: item.categoryId,
+                name: item.name,
+                basePrice: item.basePrice,
+                status: item.status,
+                variants: item.variants,
                 modifierGroups: item.modifierGroups,
             });
         } else {
             reset(DEFAULT_VALUES);
         }
-    }, [item, reset]);
+    }, [isOpen, item, reset]);
 
     if (!isOpen) return null;
 
@@ -238,6 +239,11 @@ export function ItemFormModal({
                                             placeholder="e.g. Oil Preference"
                                             className={cn(inputClass, "flex-1")}
                                         />
+                                        {errors.modifierGroups?.[groupIndex]?.name && (
+                                            <p className="text-xs text-destructive mt-1">
+                                                {errors.modifierGroups[groupIndex]?.name?.message}
+                                            </p>
+                                        )}
                                         <label className="flex items-center gap-1.5 text-xs shrink-0">
                                             <input type="checkbox" {...register(`modifierGroups.${groupIndex}.isRequired`)} className="w-3.5 h-3.5 accent-primary" />
                                             Required
@@ -256,7 +262,7 @@ export function ItemFormModal({
                                             <input type="number" {...register(`modifierGroups.${groupIndex}.maxSelections`, { valueAsNumber: true })} className={inputClass} />
                                         </div>
                                     </div>
-                                    <ModifierOptions control={control} register={register} groupIndex={groupIndex} />
+                                    <ModifierOptions control={control} register={register} errors={errors} groupIndex={groupIndex} />
                                 </div>
                             ))}
                             <button
@@ -297,10 +303,12 @@ export function ItemFormModal({
 function ModifierOptions({
     control,
     register,
+    errors,
     groupIndex,
 }: {
     control: Control<ItemFormValues>;
     register: UseFormRegister<ItemFormValues>;
+    errors: FieldErrors<ItemFormValues>;
     groupIndex: number;
 }) {
     const { fields, append, remove } = useFieldArray({
@@ -318,6 +326,11 @@ function ModifierOptions({
                         placeholder="e.g. Desi Ghee"
                         className={cn(inputClass, "flex-2")}
                     />
+                    {errors.modifierGroups?.[groupIndex]?.options?.[optIndex]?.name && (
+                        <p className="text-xs text-destructive mt-1">
+                            {errors.modifierGroups[groupIndex]?.options?.[optIndex]?.name?.message}
+                        </p>
+                    )}
                     <input
                         type="number"
                         {...register(`modifierGroups.${groupIndex}.options.${optIndex}.priceAdjustment`, { valueAsNumber: true })}

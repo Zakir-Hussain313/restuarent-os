@@ -2,209 +2,147 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/hooks/useMockQuery";
+import {
+  createCategoryAction,
+  updateCategoryAction,
+  deleteCategoryAction,
+  createMenuItemAction,
+  updateMenuItemAction,
+  deleteMenuItemAction,
+  type CategoryFormInput,
+  type ItemFormInput,
+} from "@/features/menu/actions";
 import type { MenuCategory, MenuItem } from "@/types";
 
-// ─── Input Types ──────────────────────────────────────────────────────────────
+export type { CategoryFormInput, ItemFormInput };
 
-export interface CategoryFormInput {
-    name: string;
-    description?: string;
-    icon?: string;
-    isActive: boolean;
-}
+export function useMenuActions(overrideBranchId?: string) {
+  const queryClient = useQueryClient();
+  const categoriesKey = [...queryKeys.menu.categories, overrideBranchId];
+  const itemsKey = [...queryKeys.menu.items, overrideBranchId];
 
-export interface ItemFormInput {
-    categoryId: string;
-    name: string;
-    description: string;
-    basePrice: number;
-    status: MenuItem["status"];
-    isFeatured: boolean;
-    isPopular: boolean;
-    spiceLevel: MenuItem["spiceLevel"];
-    dietaryTags: MenuItem["dietaryTags"];
-    preparationTimeMinutes: number;
-    calories?: number;
-    variants: Array<{
-        id?: string;
-        name: string;
-        price: number;
-        isDefault: boolean;
-        isAvailable: boolean;
-    }>;
-    modifierGroups: Array<{
-        id?: string;
-        name: string;
-        isRequired: boolean;
-        minSelections: number;
-        maxSelections: number;
-        options: Array<{
-            id?: string;
-            name: string;
-            priceAdjustment: number;
-            isDefault: boolean;
-            isAvailable: boolean;
-        }>;
-    }>;
-}
+  // ── Add Category ───────────────────────────────────────────────
+  const { mutate: addCategory, isPending: isAddingCategory } = useMutation({
+    mutationFn: async (input: CategoryFormInput) => {
+      const res = await createCategoryAction(input, overrideBranchId);
+      if (!res.success) throw new Error(res.error);
+      return res.category;
+    },
+    onSuccess: (newCategory) => {
+      queryClient.setQueryData<MenuCategory[]>(
+        categoriesKey,
+        (old) => [...(old ?? []), newCategory]
+      );
+    },
+  });
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+  // ── Edit Category ──────────────────────────────────────────────
+  const { mutate: editCategory, isPending: isEditingCategory } = useMutation({
+    mutationFn: async ({ id, input }: { id: string; input: CategoryFormInput }) => {
+      const res = await updateCategoryAction(id, input);
+      if (!res.success) throw new Error(res.error);
+      return { id, input };
+    },
+    onSuccess: ({ id, input }) => {
+      queryClient.setQueryData<MenuCategory[]>(
+        categoriesKey,
+        (old) => old?.map((c) =>
+          c.id === id
+            ? { ...c, ...input, updatedAt: new Date().toISOString() }
+            : c
+        ) ?? []
+      );
+    },
+  });
 
-function generateId(prefix: string): string {
-    return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-}
+  // ── Delete Category ────────────────────────────────────────────
+  const { mutate: deleteCategory, isPending: isDeletingCategory } = useMutation({
+    mutationFn: async (categoryId: string) => {
+      const res = await deleteCategoryAction(categoryId);
+      if (!res.success) throw new Error(res.error);
+      return categoryId;
+    },
+    onSuccess: (categoryId) => {
+      queryClient.setQueryData<MenuCategory[]>(
+        categoriesKey,
+        (old) => old?.filter((c) => c.id !== categoryId) ?? []
+      );
+      queryClient.setQueryData<MenuItem[]>(
+        itemsKey,
+        (old) => old?.filter((i) => i.categoryId !== categoryId) ?? []
+      );
+    },
+  });
 
-function slugify(name: string): string {
-    return name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^\w-]/g, "");
-}
+  // ── Add Item ───────────────────────────────────────────────────
+  const { mutate: addItem, isPending: isAddingItem } = useMutation({
+    mutationFn: async (input: ItemFormInput) => {
+      const res = await createMenuItemAction(input, overrideBranchId);
+      if (!res.success) throw new Error(res.error);
+      return res.item;
+    },
+    onSuccess: (newItem) => {
+      queryClient.setQueryData<MenuItem[]>(
+        itemsKey,
+        (old) => [...(old ?? []), newItem]
+      );
+    },
+  });
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
+  // ── Edit Item ──────────────────────────────────────────────────
+  const { mutate: editItem, isPending: isEditingItem } = useMutation({
+    mutationFn: async ({ id, input }: { id: string; input: ItemFormInput }) => {
+      const res = await updateMenuItemAction(id, input);
+      if (!res.success) throw new Error(res.error);
+      return { id, input };
+    },
+    onSuccess: ({ id, input }) => {
+      queryClient.setQueryData<MenuItem[]>(
+        itemsKey,
+        (old) => old?.map((i) =>
+          i.id === id
+            ? {
+                ...i,
+                ...input,
+                updatedAt: new Date().toISOString(),
+                variants: input.variants.map((v) => ({ ...v, id: v.id ?? "" })),
+                modifierGroups: input.modifierGroups.map((g) => ({
+                  ...g,
+                  id: g.id ?? "",
+                  options: g.options.map((o) => ({ ...o, id: o.id ?? "" })),
+                })),
+              }
+            : i
+        ) ?? []
+      );
+      // Nested variant/modifier IDs are server-generated on every edit
+      // (wipe-and-rebuild strategy) — force a refetch so the client has
+      // the real IDs rather than the empty-string placeholders above.
+      queryClient.invalidateQueries({ queryKey: itemsKey });
+    },
+  });
 
-export function useMenuActions() {
-    const queryClient = useQueryClient();
+  // ── Delete Item ────────────────────────────────────────────────
+  const { mutate: deleteItem, isPending: isDeletingItem } = useMutation({
+    mutationFn: async (itemId: string) => {
+      const res = await deleteMenuItemAction(itemId);
+      if (!res.success) throw new Error(res.error);
+      return itemId;
+    },
+    onSuccess: (itemId) => {
+      queryClient.setQueryData<MenuItem[]>(
+        itemsKey,
+        (old) => old?.filter((i) => i.id !== itemId) ?? []
+      );
+    },
+  });
 
-    // ── Add Category ───────────────────────────────────────────────
-    const { mutate: addCategory, isPending: isAddingCategory } = useMutation({
-        mutationFn: (input: CategoryFormInput): Promise<MenuCategory> =>
-            new Promise((resolve) =>
-                setTimeout(() => {
-                    const categories = queryClient.getQueryData<MenuCategory[]>(queryKeys.menu.categories) ?? [];
-                    resolve({
-                        id: generateId("cat"),
-                        restaurantId: "rest_001",
-                        slug: slugify(input.name),
-                        sortOrder: categories.length + 1,
-                        createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString(),
-                        ...input,
-                    });
-                }, 400)
-            ),
-        onSuccess: (newCategory) => {
-            queryClient.setQueryData<MenuCategory[]>(
-                queryKeys.menu.categories,
-                (old) => [...(old ?? []), newCategory]
-            );
-        },
-    });
-
-    // ── Edit Category ──────────────────────────────────────────────
-    const { mutate: editCategory, isPending: isEditingCategory } = useMutation({
-        mutationFn: ({ id, input }: { id: string; input: CategoryFormInput }): Promise<{ id: string; input: CategoryFormInput }> =>
-            new Promise((resolve) => setTimeout(() => resolve({ id, input }), 400)),
-        onSuccess: ({ id, input }) => {
-            queryClient.setQueryData<MenuCategory[]>(
-                queryKeys.menu.categories,
-                (old) => old?.map((c) =>
-                    c.id === id
-                        ? { ...c, ...input, slug: slugify(input.name), updatedAt: new Date().toISOString() }
-                        : c
-                ) ?? []
-            );
-        },
-    });
-
-    // ── Delete Category ────────────────────────────────────────────
-    const { mutate: deleteCategory, isPending: isDeletingCategory } = useMutation({
-        mutationFn: (categoryId: string): Promise<string> =>
-            new Promise((resolve) => setTimeout(() => resolve(categoryId), 400)),
-        onSuccess: (categoryId) => {
-            queryClient.setQueryData<MenuCategory[]>(
-                queryKeys.menu.categories,
-                (old) => old?.filter((c) => c.id !== categoryId) ?? []
-            );
-            // Also remove all items in this category
-            queryClient.setQueryData<MenuItem[]>(
-                queryKeys.menu.items,
-                (old) => old?.filter((i) => i.categoryId !== categoryId) ?? []
-            );
-        },
-    });
-
-    // ── Add Item ───────────────────────────────────────────────────
-    const { mutate: addItem, isPending: isAddingItem } = useMutation({
-        mutationFn: (input: ItemFormInput): Promise<MenuItem> =>
-            new Promise((resolve) =>
-                setTimeout(() => {
-                    const items = queryClient.getQueryData<MenuItem[]>(queryKeys.menu.items) ?? [];
-                    const categoryItems = items.filter((i) => i.categoryId === input.categoryId);
-                    resolve({
-                        id: generateId("item"),
-                        restaurantId: "rest_001",
-                        slug: slugify(input.name),
-                        image: undefined,
-                        sortOrder: categoryItems.length + 1,
-                        createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString(),
-                        ...input,
-                        variants: input.variants.map((v) => ({
-                            ...v,
-                            id: v.id ?? generateId("var"),
-                        })),
-                        modifierGroups: input.modifierGroups.map((g) => ({
-                            ...g,
-                            id: g.id ?? generateId("mod"),
-                            options: g.options.map((o) => ({
-                                ...o,
-                                id: o.id ?? generateId("opt"),
-                            })),
-                        })),
-                    });
-                }, 400)
-            ),
-        onSuccess: (newItem) => {
-            queryClient.setQueryData<MenuItem[]>(
-                queryKeys.menu.items,
-                (old) => [...(old ?? []), newItem]
-            );
-        },
-    });
-
-    // ── Edit Item ──────────────────────────────────────────────────
-    const { mutate: editItem, isPending: isEditingItem } = useMutation({
-        mutationFn: ({ id, input }: { id: string; input: ItemFormInput }): Promise<{ id: string; input: ItemFormInput }> =>
-            new Promise((resolve) => setTimeout(() => resolve({ id, input }), 400)),
-        onSuccess: ({ id, input }) => {
-            queryClient.setQueryData<MenuItem[]>(
-                queryKeys.menu.items,
-                (old) => old?.map((i) =>
-                    i.id === id
-                        ? {
-                            ...i,
-                            ...input,
-                            slug: slugify(input.name),
-                            updatedAt: new Date().toISOString(),
-                            variants: input.variants.map((v) => ({ ...v, id: v.id ?? generateId("var") })),
-                            modifierGroups: input.modifierGroups.map((g) => ({
-                                ...g,
-                                id: g.id ?? generateId("mod"),
-                                options: g.options.map((o) => ({ ...o, id: o.id ?? generateId("opt") })),
-                            })),
-                        }
-                        : i
-                ) ?? []
-            );
-        },
-    });
-
-    // ── Delete Item ────────────────────────────────────────────────
-    const { mutate: deleteItem, isPending: isDeletingItem } = useMutation({
-        mutationFn: (itemId: string): Promise<string> =>
-            new Promise((resolve) => setTimeout(() => resolve(itemId), 400)),
-        onSuccess: (itemId) => {
-            queryClient.setQueryData<MenuItem[]>(
-                queryKeys.menu.items,
-                (old) => old?.filter((i) => i.id !== itemId) ?? []
-            );
-        },
-    });
-
-    return {
-        addCategory, isAddingCategory,
-        editCategory, isEditingCategory,
-        deleteCategory, isDeletingCategory,
-        addItem, isAddingItem,
-        editItem, isEditingItem,
-        deleteItem, isDeletingItem,
-    };
+  return {
+    addCategory, isAddingCategory,
+    editCategory, isEditingCategory,
+    deleteCategory, isDeletingCategory,
+    addItem, isAddingItem,
+    editItem, isEditingItem,
+    deleteItem, isDeletingItem,
+  };
 }

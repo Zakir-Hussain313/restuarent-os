@@ -11,6 +11,7 @@ interface CategorySidebarProps {
   onSelectCategory: (id: string | null) => void;
   isLoading: boolean;
   isTogglingCategory: boolean;
+  canManage: boolean;
   onToggleActive: (categoryId: string, isActive: boolean) => void;
   onAddCategory: () => void;
   onEditCategory: (category: MenuCategory) => void;
@@ -36,6 +37,7 @@ export function CategorySidebar({
   onSelectCategory,
   isLoading,
   isTogglingCategory,
+  canManage,
   onToggleActive,
   onAddCategory,
   onEditCategory,
@@ -50,13 +52,15 @@ export function CategorySidebar({
       {/* ── Header ───────────────────────────────────────────────── */}
       <div className="shrink-0 px-4 py-3 border-b flex items-center justify-between">
         <h2 className="text-sm font-semibold">Categories</h2>
-        <button
-          onClick={onAddCategory}
-          className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Add
-        </button>
+        {canManage && (
+          <button
+            onClick={onAddCategory}
+            className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add
+          </button>
+        )}
       </div>
 
       {/* ── All Items row ─────────────────────────────────────────── */}
@@ -82,7 +86,7 @@ export function CategorySidebar({
         {isLoading ? (
           Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
         ) : (
-          categories
+          [...categories]
             .sort((a, b) => a.sortOrder - b.sortOrder)
             .map((category) => (
               <CategoryRow
@@ -91,6 +95,7 @@ export function CategorySidebar({
                 itemCount={getItemCount(category.id)}
                 isSelected={selectedCategoryId === category.id}
                 isTogglingCategory={isTogglingCategory}
+                canManage={canManage}
                 onClick={() => onSelectCategory(category.id)}
                 onEdit={onEditCategory}
                 onDelete={onDeleteCategory}

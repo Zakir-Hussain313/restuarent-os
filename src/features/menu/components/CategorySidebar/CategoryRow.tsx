@@ -10,6 +10,7 @@ interface CategoryRowProps {
   itemCount: number;
   isSelected: boolean;
   isTogglingCategory: boolean;
+  canManage: boolean;
   onClick: () => void;
   onEdit: (category: MenuCategory) => void;
   onDelete: (category: MenuCategory) => void;
@@ -21,6 +22,7 @@ export function CategoryRow({
   itemCount,
   isSelected,
   isTogglingCategory,
+  canManage,
   onClick,
   onEdit,
   onDelete,
@@ -56,41 +58,43 @@ export function CategoryRow({
         </div>
 
         {/* Actions */}
-        <div className={cn(
-          "flex items-center gap-1 shrink-0 transition-opacity",
-          isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-        )}>
-          {isTogglingCategory ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
-          ) : (
+        {canManage && (
+          <div className={cn(
+            "flex items-center gap-1 shrink-0 transition-opacity",
+            isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          )}>
+            {isTogglingCategory ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+            ) : (
+              <button
+                onClick={(e) => { e.stopPropagation(); onToggleActive(category.id, !category.isActive); }}
+                className={cn(
+                  "w-8 h-4 rounded-full transition-colors shrink-0",
+                  category.isActive ? "bg-emerald-500" : "bg-muted-foreground/30"
+                )}
+              >
+                <div className={cn(
+                  "w-3 h-3 rounded-full bg-white shadow transition-transform mx-0.5",
+                  category.isActive ? "translate-x-4" : "translate-x-0"
+                )} />
+              </button>
+            )}
+
             <button
-              onClick={(e) => { e.stopPropagation(); onToggleActive(category.id, !category.isActive); }}
-              className={cn(
-                "w-8 h-4 rounded-full transition-colors shrink-0",
-                category.isActive ? "bg-emerald-500" : "bg-muted-foreground/30"
-              )}
+              onClick={(e) => { e.stopPropagation(); onEdit(category); }}
+              className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
             >
-              <div className={cn(
-                "w-3 h-3 rounded-full bg-white shadow transition-transform mx-0.5",
-                category.isActive ? "translate-x-4" : "translate-x-0"
-              )} />
+              <Pencil className="w-3.5 h-3.5" />
             </button>
-          )}
 
-          <button
-            onClick={(e) => { e.stopPropagation(); onEdit(category); }}
-            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <Pencil className="w-3.5 h-3.5" />
-          </button>
-
-          <button
-            onClick={(e) => { e.stopPropagation(); setConfirmOpen(true); }}
-            className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); setConfirmOpen(true); }}
+              className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── Confirm delete modal ──────────────────────────────── */}

@@ -9,6 +9,7 @@ interface ItemsPanelProps {
   selectedCategory: MenuCategory | null;
   isLoading: boolean;
   isToggling: boolean;
+  canManage: boolean;
   onToggleStatus: (itemId: string, status: MenuItemStatus) => void;
   onAddItem: () => void;
   onEditItem: (item: MenuItem) => void;
@@ -46,6 +47,7 @@ export function ItemsPanel({
   selectedCategory,
   isLoading,
   isToggling,
+  canManage,
   onToggleStatus,
   onAddItem,
   onEditItem,
@@ -64,13 +66,15 @@ export function ItemsPanel({
             {items.length} item{items.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <button
-          onClick={onAddItem}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Add Item
-        </button>
+        {canManage && (
+          <button
+            onClick={onAddItem}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add Item
+          </button>
+        )}
       </div>
 
       {/* ── Grid ─────────────────────────────────────────────────── */}
@@ -90,23 +94,26 @@ export function ItemsPanel({
             <p className="text-xs text-muted-foreground mt-1">
               Add your first item to this category
             </p>
-            <button
-              onClick={onAddItem}
-              className="mt-4 flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Add Item
-            </button>
+            {canManage && (
+              <button
+                onClick={onAddItem}
+                className="mt-4 flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add Item
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            {items
-              .sort((a, b) => a.sortOrder - b.sortOrder)
+            {[...items]
+            .sort((a, b) => a.sortOrder - b.sortOrder)
               .map((item) => (
                 <ItemCard
                   key={item.id}
                   item={item}
                   isToggling={isToggling}
+                  canManage={canManage}
                   onToggleStatus={onToggleStatus}
                   onEdit={onEditItem}
                   onDelete={onDeleteItem}
@@ -118,6 +125,3 @@ export function ItemsPanel({
     </div>
   );
 }
-
-
-

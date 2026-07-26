@@ -10,6 +10,7 @@ import type { MenuItem, MenuItemStatus } from "@/types";
 interface ItemCardProps {
   item: MenuItem;
   isToggling: boolean;
+  canManage: boolean;
   onToggleStatus: (itemId: string, status: MenuItemStatus) => void;
   onEdit: (item: MenuItem) => void;
   onDelete: (item: MenuItem) => void;
@@ -18,6 +19,7 @@ interface ItemCardProps {
 export function ItemCard({
   item,
   isToggling,
+  canManage,
   onToggleStatus,
   onEdit,
   onDelete,
@@ -39,44 +41,39 @@ export function ItemCard({
         <div className="flex items-start justify-between gap-2">
           <p className="text-sm font-semibold leading-tight flex-1 min-w-0">{item.name}</p>
 
-          <div className="flex items-center gap-1 shrink-0">
-            <button
-              onClick={() => onEdit(item)}
-              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Pencil className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => setConfirmOpen(true)}
-              className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          {canManage && (
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => onEdit(item)}
+                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setConfirmOpen(true)}
+                className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ── Price ───────────────────────────────────────── */}
         <span className="text-lg font-bold tabular-nums text-primary">{displayPrice}</span>
 
         {/* ── Variants preview ─────────────────────────────── */}
-        {item.variants.length > 0 && (
-          <div className="flex gap-1.5 flex-wrap">
-            {item.variants.map((v) => (
-              <span
-                key={v.id}
-                className="text-[10px] font-medium bg-muted text-muted-foreground px-2 py-0.5 rounded-full"
-              >
-                {v.name} — {formatCurrency(v.price)}
-              </span>
-            ))}
-          </div>
-        )}
+        {item.variants.map((v, index) => (
+          <span
+            key={v.id || `variant-${index}`}
+            className="text-[10px] font-medium bg-muted text-muted-foreground px-2 py-0.5 rounded-full"
+          >
+            {v.name} — {formatCurrency(v.price)}
+          </span>
+        ))}
 
         {/* ── Bottom: status toggle ────────────────────────── */}
         <div className="flex items-center justify-between pt-1 border-t border-border">
-          <span className="text-xs text-muted-foreground">
-            {item.preparationTimeMinutes} min prep
-          </span>
           <ItemStatusToggle
             status={item.status}
             isLoading={isToggling}

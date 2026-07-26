@@ -8,7 +8,9 @@ import { CategoryFormModal } from "./Modals/CategoryFormModal";
 import { ItemFormModal } from "./Modals/ItemFormModal";
 import { useMenu } from "../hooks/useMenu";
 import { useMenuActions } from "../hooks/useMenuActions";
+import { useMenuFilters } from "./MenuFilters";
 import type { MenuCategory, MenuItem } from "@/types";
+import type { ItemFormInput } from "@/features/menu/actions";
 
 // ─── Modal State Shapes ───────────────────────────────────────────────────────
 
@@ -28,6 +30,9 @@ const CLOSED_ITEM: ItemModalState = { isOpen: false, item: null };
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function MenuLayout() {
+  // ── Filter/permission context ─────────────────────────────────────────────
+  const { branchId, canManageMenu, isSuperAdmin } = useMenuFilters();
+
   // ── Data hooks ─────────────────────────────────────────────────────────────
   const {
     categories,
@@ -40,7 +45,7 @@ export function MenuLayout() {
     isToggling,
     toggleCategoryActive,
     isTogglingCategory,
-  } = useMenu();
+  } = useMenu(branchId);
 
   const {
     addCategory, isAddingCategory,
@@ -49,19 +54,31 @@ export function MenuLayout() {
     addItem, isAddingItem,
     editItem, isEditingItem,
     deleteItem,
-  } = useMenuActions();
+  } = useMenuActions(branchId);
 
   // ── Modal state ────────────────────────────────────────────────────────────
   const [categoryModal, setCategoryModal] = useState<CategoryModalState>(CLOSED_CAT);
   const [itemModal, setItemModal] = useState<ItemModalState>(CLOSED_ITEM);
 
   // ── Category modal callbacks ───────────────────────────────────────────────
-  const openAddCategory = useCallback(() => setCategoryModal({ isOpen: true, category: null }), []);
+  const openAddCategory = useCallback(() => {
+    if (isSuperAdmin && branchId === undefined) {
+      alert("Please select a specific branch before adding a category.");
+      return;
+    }
+    setCategoryModal({ isOpen: true, category: null });
+  }, [isSuperAdmin, branchId]);
   const openEditCategory = useCallback((cat: MenuCategory) => setCategoryModal({ isOpen: true, category: cat }), []);
   const closeCategoryModal = useCallback(() => setCategoryModal(CLOSED_CAT), []);
 
   // ── Item modal callbacks ───────────────────────────────────────────────────
-  const openAddItem = useCallback(() => setItemModal({ isOpen: true, item: null }), []);
+  const openAddItem = useCallback(() => {
+    if (isSuperAdmin && branchId === undefined) {
+      alert("Please select a specific branch before adding an item.");
+      return;
+    }
+    setItemModal({ isOpen: true, item: null });
+  }, [isSuperAdmin, branchId]);
   const openEditItem = useCallback((item: MenuItem) => setItemModal({ isOpen: true, item }), []);
   const closeItemModal = useCallback(() => setItemModal(CLOSED_ITEM), []);
 
@@ -90,10 +107,15 @@ export function MenuLayout() {
             selectedCategoryId={selectedCategoryId}
             isLoading={isLoading}
             isTogglingCategory={isTogglingCategory}
+            canManage={canManageMenu}
             onSelectCategory={setSelectedCategoryId}
             onAddCategory={openAddCategory}
             onEditCategory={openEditCategory}
-            onDeleteCategory={(cat) => deleteCategory(cat.id)}
+            onDeleteCategory={(cat) =>
+              deleteCategory(cat.id, {
+                onError: (err) => alert(`Failed to delete category: ${err.message}`),
+              })
+            }
             onToggleActive={toggleCategoryActive}
           />
           <div className="flex-1 min-h-0 overflow-hidden">
@@ -102,9 +124,14 @@ export function MenuLayout() {
               selectedCategory={selectedCategory}
               isLoading={isLoading}
               isToggling={isToggling}
+              canManage={canManageMenu}
               onAddItem={openAddItem}
               onEditItem={openEditItem}
-              onDeleteItem={(item) => deleteItem(item.id)}
+              onDeleteItem={(item) =>
+                deleteItem(item.id, {
+                  onError: (err) => alert(`Failed to delete item: ${err.message}`),
+                })
+              }
               onToggleStatus={toggleItemStatus}
             />
           </div>
@@ -120,10 +147,16 @@ export function MenuLayout() {
           if (categoryModal.category) {
             editCategory(
               { id: categoryModal.category.id, input: values },
-              { onSuccess: closeCategoryModal }
+              {
+                onSuccess: closeCategoryModal,
+                onError: (err) => alert(`Failed to save category: ${err.message}`),
+              }
             );
           } else {
-            addCategory(values, { onSuccess: closeCategoryModal });
+            addCategory(values, {
+              onSuccess: closeCategoryModal,
+              onError: (err) => alert(`Failed to add category: ${err.message}`),
+            });
           }
         }}
       />
@@ -135,13 +168,24 @@ export function MenuLayout() {
         isLoading={isAddingItem || isEditingItem}
         onClose={closeItemModal}
         onSubmit={(values) => {
+          const input: ItemFormInput = {
+            ...values,
+            description: itemModal.item?.description ?? "",
+          };
+
           if (itemModal.item) {
             editItem(
-              { id: itemModal.item.id, input: values as any },
-              { onSuccess: closeItemModal }
+              { id: itemModal.item.id, input },
+              {
+                onSuccess: closeItemModal,
+                onError: (err) => alert(`Failed to save item: ${err.message}`),
+              }
             );
           } else {
-            addItem(values as any, { onSuccess: closeItemModal });
+            addItem(input, {
+              onSuccess: closeItemModal,
+              onError: (err) => alert(`Failed to add item: ${err.message}`),
+            });
           }
         }}
       />

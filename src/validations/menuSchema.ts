@@ -45,14 +45,7 @@ export const menuItemSchema = z.object({
       ])
     )
     .default([]),
-  spiceLevel: z
-    .enum(["none", "mild", "medium", "hot", "extra_hot"])
-    .default("none"),
-  preparationTimeMinutes: z.number().min(1).max(120).default(15),
-  calories: z.number().min(0).optional(),
   status: z.enum(["available", "unavailable", "out_of_stock"]).default("available"),
-  isFeatured: z.boolean().default(false),
-  isPopular: z.boolean().default(false),
 });
 
 export const menuCategorySchema = z.object({

@@ -2,11 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { queryKeys, createMockQueryFn } from "@/hooks/useMockQuery";
-import { mockCategories, mockMenuItems } from "@/mock-data";
+import { queryKeys } from "@/hooks/useMockQuery";
+import {
+  getMenuCategoriesAction,
+  getMenuItemsAction,
+  toggleItemStatusAction,
+  toggleCategoryActiveAction,
+} from "@/features/menu/actions";
 import type { MenuCategory, MenuItem, MenuItemStatus } from "@/types";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface UseMenuReturn {
   categories: MenuCategory[];
@@ -21,22 +24,29 @@ export interface UseMenuReturn {
   isTogglingCategory: boolean;
 }
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
-
-export function useMenu(): UseMenuReturn {
+export function useMenu(overrideBranchId?: string): UseMenuReturn {
   const queryClient = useQueryClient();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
 
+  const categoriesKey = [...queryKeys.menu.categories, overrideBranchId];
+  const itemsKey = [...queryKeys.menu.items, overrideBranchId];
+
   const { data: categories = [], isLoading: categoriesLoading } = useQuery<MenuCategory[]>({
-    queryKey: queryKeys.menu.categories,
-    queryFn: createMockQueryFn(mockCategories, 300),
-    staleTime: Infinity,
+    queryKey: categoriesKey,
+    queryFn: async () => {
+      const res = await getMenuCategoriesAction(overrideBranchId);
+      if (res.data === null) throw new Error(res.error);
+      return res.data;
+    },
   });
 
   const { data: items = [], isLoading: itemsLoading } = useQuery<MenuItem[]>({
-    queryKey: queryKeys.menu.items,
-    queryFn: createMockQueryFn(mockMenuItems, 300),
-    staleTime: Infinity,
+    queryKey: itemsKey,
+    queryFn: async () => {
+      const res = await getMenuItemsAction(overrideBranchId);
+      if (res.data === null) throw new Error(res.error);
+      return res.data;
+    },
   });
 
   const isLoading = categoriesLoading || itemsLoading;
@@ -55,11 +65,14 @@ export function useMenu(): UseMenuReturn {
 
   // ── Toggle item status ─────────────────────────────────────────
   const { mutate: mutateItemStatus, isPending: isToggling } = useMutation({
-    mutationFn: ({ itemId, status }: { itemId: string; status: MenuItemStatus }): Promise<{ itemId: string; status: MenuItemStatus }> =>
-      new Promise((resolve) => setTimeout(() => resolve({ itemId, status }), 300)),
+    mutationFn: async ({ itemId, status }: { itemId: string; status: MenuItemStatus }) => {
+      const res = await toggleItemStatusAction(itemId, status);
+      if (!res.success) throw new Error(res.error);
+      return { itemId, status };
+    },
     onSuccess: ({ itemId, status }) => {
       queryClient.setQueryData<MenuItem[]>(
-        queryKeys.menu.items,
+        itemsKey,
         (old) => old?.map((i) => i.id === itemId ? { ...i, status, updatedAt: new Date().toISOString() } : i) ?? []
       );
     },
@@ -67,11 +80,14 @@ export function useMenu(): UseMenuReturn {
 
   // ── Toggle category active ─────────────────────────────────────
   const { mutate: mutateCategoryActive, isPending: isTogglingCategory } = useMutation({
-    mutationFn: ({ categoryId, isActive }: { categoryId: string; isActive: boolean }): Promise<{ categoryId: string; isActive: boolean }> =>
-      new Promise((resolve) => setTimeout(() => resolve({ categoryId, isActive }), 300)),
+    mutationFn: async ({ categoryId, isActive }: { categoryId: string; isActive: boolean }) => {
+      const res = await toggleCategoryActiveAction(categoryId, isActive);
+      if (!res.success) throw new Error(res.error);
+      return { categoryId, isActive };
+    },
     onSuccess: ({ categoryId, isActive }) => {
       queryClient.setQueryData<MenuCategory[]>(
-        queryKeys.menu.categories,
+        categoriesKey,
         (old) => old?.map((c) => c.id === categoryId ? { ...c, isActive, updatedAt: new Date().toISOString() } : c) ?? []
       );
     },

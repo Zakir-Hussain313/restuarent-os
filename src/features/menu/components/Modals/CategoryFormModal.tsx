@@ -11,10 +11,10 @@ import type { MenuCategory } from "@/types";
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
 const categorySchema = z.object({
-  name:        z.string().min(1, "Name is required").max(50),
+  name: z.string().min(1, "Name is required").max(50),
   description: z.string().max(200).optional(),
-  icon:        z.string().max(10).optional(),
-  isActive:    z.boolean(),
+  icon: z.string().max(10).optional(),
+  isActive: z.boolean(),
 });
 
 type CategoryFormValues = z.infer<typeof categorySchema>;
@@ -56,17 +56,18 @@ export function CategoryFormModal({
 
   // Populate form when editing
   useEffect(() => {
+    if (!isOpen) return;
     if (category) {
       reset({
-        name:        category.name,
+        name: category.name,
         description: category.description ?? "",
-        icon:        category.icon ?? "",
-        isActive:    category.isActive,
+        icon: category.icon ?? "",
+        isActive: category.isActive,
       });
     } else {
       reset({ name: "", description: "", icon: "", isActive: true });
     }
-  }, [category, reset]);
+  }, [isOpen, category, reset]);
 
   if (!isOpen) return null;
 
