@@ -2,8 +2,8 @@
 
 import { useMemo, useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { queryKeys, createMockQueryFn } from "@/hooks/useMockQuery";
-import { mockCategories, mockMenuItems } from "@/mock-data";
+import { queryKeys } from "@/hooks/useMockQuery";
+import { getMenuCategoriesAction, getMenuItemsAction } from "@/features/menu/actions";
 import type { MenuItem, MenuCategory } from "@/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -32,17 +32,21 @@ export function usePosMenu(): UsePosMenuReturn {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
 
   const { data: categories = [], isLoading: categoriesLoading } = useQuery<MenuCategory[]>({
-    queryKey: queryKeys.menu.categories,
-    queryFn: createMockQueryFn(mockCategories, 300),
-    staleTime: Infinity,
-    gcTime: Infinity,
+    queryKey: [...queryKeys.menu.categories, undefined],
+    queryFn: async () => {
+      const res = await getMenuCategoriesAction(undefined);
+      if (res.data === null) throw new Error(res.error);
+      return res.data;
+    },
   });
 
   const { data: items = [], isLoading: itemsLoading } = useQuery<MenuItem[]>({
-    queryKey: queryKeys.menu.items,
-    queryFn: createMockQueryFn(mockMenuItems, 300),
-    staleTime: Infinity,
-    gcTime: Infinity,
+    queryKey: [...queryKeys.menu.items, undefined],
+    queryFn: async () => {
+      const res = await getMenuItemsAction(undefined);
+      if (res.data === null) throw new Error(res.error);
+      return res.data;
+    },
   });
 
   const setSearchQuery = useCallback((query: string) => {

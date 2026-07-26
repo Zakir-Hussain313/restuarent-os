@@ -4,11 +4,12 @@ import { useRef } from "react";
 import { Printer, X, Loader2, Receipt } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils";
-import type { Order } from "@/types";
+import type { Order, PaymentMethod } from "@/types";
 
 interface BillModalProps {
   open: boolean;
   order: Order;
+  paymentMethod: PaymentMethod;
   isConfirming: boolean;
   onConfirm: () => void;
   onClose: () => void;
@@ -18,6 +19,15 @@ const ORDER_TYPE_LABELS: Record<string, string> = {
   dine_in:  "Dine In",
   takeaway: "Takeaway",
   delivery: "Delivery",
+};
+
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  cash: "Cash",
+  card: "Card",
+  jazzcash: "JazzCash",
+  easypaisa: "Easypaisa",
+  bank_transfer: "Bank Transfer",
+  complimentary: "Complimentary",
 };
 
 function formatTime(dateStr: string): string {
@@ -39,6 +49,7 @@ function formatDate(dateStr: string): string {
 export function BillModal({
   open,
   order,
+  paymentMethod,
   isConfirming,
   onConfirm,
   onClose,
@@ -257,7 +268,9 @@ export function BillModal({
 
               <div className="flex justify-between text-xs text-gray-600 pt-1">
                 <span>Payment Method</span>
-                <span className="font-medium">Cash on Delivery</span>
+                <span className="font-medium">
+                  {PAYMENT_METHOD_LABELS[paymentMethod]}
+                </span>
               </div>
             </div>
 

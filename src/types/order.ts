@@ -1,7 +1,7 @@
 import type { CustomerType } from "./customer";
 import type { SelectedModifier, SelectedVariant } from "./menu";
 
-export type OrderStatus = "pending" | "confirmed" | "completed" | "cancelled";
+export type OrderStatus = "pending" | "confirmed" | "out_for_delivery" | "completed" | "cancelled";
 
 export type OrderType = Exclude<CustomerType, "walk_in">;
 
@@ -57,7 +57,6 @@ export interface Payment {
 export interface Order {
   id: string;
   orderNumber: string;
-  restaurantId: string;
   branchId: string;
 
   tableId?: string;

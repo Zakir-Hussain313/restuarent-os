@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { KitchenTicketModal } from "../modals/KitchenTicketModal";
 import { BillModal } from "../modals/BillModal";
 import { CancelConfirmModal } from "../modals/CancelConfirmModal";
-import type { Order } from "@/types";
+import type { Order, PaymentMethod } from "@/types";
 
 interface OrderActionsProps {
   order: Order;
@@ -15,7 +15,7 @@ interface OrderActionsProps {
   canCancel: boolean;
   onPrintKitchenTicket: () => void;
   isPrintingKitchenTicket: boolean;
-  onCompleteBill: () => void;
+  onCompleteBill: (paymentMethod: PaymentMethod) => void;
   isCompletingBill: boolean;
   onCancelOrder: () => void;
   isCancelling: boolean;
@@ -29,6 +29,15 @@ interface ActionButtonProps {
   variant: "primary" | "secondary" | "danger";
   disabled?: boolean;
 }
+
+const PAYMENT_METHOD_OPTIONS: { value: PaymentMethod; label: string }[] = [
+  { value: "cash", label: "Cash" },
+  { value: "card", label: "Card" },
+  { value: "jazzcash", label: "JazzCash" },
+  { value: "easypaisa", label: "Easypaisa" },
+  { value: "bank_transfer", label: "Bank Transfer" },
+  { value: "complimentary", label: "Complimentary" },
+];
 
 function ActionButton({
   label,
@@ -77,6 +86,7 @@ export function OrderActions({
   const [kitchenTicketOpen, setKitchenTicketOpen] = useState(false);
   const [billOpen, setBillOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
 
   const hasActions = canPrintKitchenTicket || canPrintBill || canCancel;
 
@@ -96,13 +106,28 @@ export function OrderActions({
         )}
 
         {canPrintBill && (
-          <ActionButton
-            label="Print Bill"
-            icon={<Receipt className="w-3.5 h-3.5" />}
-            onClick={() => setBillOpen(true)}
-            isLoading={isCompletingBill}
-            variant="secondary"
-          />
+          <>
+            <select
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+              className="h-8 px-2 rounded-lg border text-xs font-medium bg-background text-foreground border-border cursor-pointer"
+              aria-label="Payment method"
+            >
+              {PAYMENT_METHOD_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+
+            <ActionButton
+              label="Print Bill"
+              icon={<Receipt className="w-3.5 h-3.5" />}
+              onClick={() => setBillOpen(true)}
+              isLoading={isCompletingBill}
+              variant="secondary"
+            />
+          </>
         )}
 
         {canCancel && (
@@ -130,9 +155,10 @@ export function OrderActions({
       <BillModal
         open={billOpen}
         order={order}
+        paymentMethod={paymentMethod}
         isConfirming={isCompletingBill}
         onConfirm={() => {
-          onCompleteBill();
+          onCompleteBill(paymentMethod);
           setBillOpen(false);
         }}
         onClose={() => setBillOpen(false)}

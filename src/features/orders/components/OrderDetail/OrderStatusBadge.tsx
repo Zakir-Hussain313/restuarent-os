@@ -17,6 +17,10 @@ const STATUS_CONFIG: Record<OrderStatus, { label: string; className: string }> =
     label: "Confirmed",
     className: "bg-green-50 text-green-800 border-green-200",
   },
+  out_for_delivery: {
+    label: "Out for Delivery",
+    className: "bg-purple-50 text-purple-700 border-purple-200",
+  },
   completed: {
     label: "Completed",
     className: "bg-blue-50 text-blue-700 border-blue-200",

@@ -2,7 +2,7 @@ import { pgEnum } from "drizzle-orm/pg-core";
 
 // ── Staff / Auth ──────────────────────────────────────────────────────────
 // Matches the finalized 3-role authz model. JWT app_metadata.role mirrors this.
-export const staffRoleEnum = pgEnum("staff_role", ["SUPER_ADMIN", "STAFF", "RIDER"]);
+export const staffRoleEnum = pgEnum("staff_role", ["SUPER_ADMIN", "ADMIN", "STAFF", "RIDER"]);
 
 export const staffStatusEnum = pgEnum("staff_status", ["active", "inactive", "on_leave"]);
 
@@ -36,8 +36,6 @@ export const tableStatusEnum = pgEnum("table_status", [
   "available",
   "occupied",
   "reserved",
-  "cleaning",
-  "inactive",
 ]);
 
 export const tableShapeEnum = pgEnum("table_shape", ["square", "rectangle", "circle", "oval"]);
@@ -48,6 +46,7 @@ export const orderTypeEnum = pgEnum("order_type", ["dine_in", "takeaway", "deliv
 export const orderStatusEnum = pgEnum("order_status", [
   "pending",
   "confirmed",
+  "out_for_delivery",
   "completed",
   "cancelled",
 ]);

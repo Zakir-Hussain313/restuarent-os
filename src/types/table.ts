@@ -1,25 +1,20 @@
-export type TableStatus =
-  | "available"
-  | "occupied"
-  | "reserved"
-  | "cleaning"
-  | "inactive";
+export type TableStatus = "available" | "occupied" | "reserved";
 
 export type TableShape = "square" | "rectangle" | "circle" | "oval";
 
 export interface TableSection {
   id: string;
-  restaurantId: string;
-  name: string; // "Indoor", "Outdoor", "VIP", "Rooftop"
+  branchId: string;
+  name: string; 
   description?: string;
   isActive: boolean;
 }
 
 export interface Table {
   id: string;
-  restaurantId: string;
+  branchId: string;
   sectionId: string;
-  tableNumber: string; // "T1", "A3", "VIP-1"
+  tableNumber: string; 
   capacity: number;
   shape: TableShape;
   status: TableStatus;
@@ -34,7 +29,7 @@ export interface Table {
 
 export interface Reservation {
   id: string;
-  restaurantId: string;
+  branchId: string;
   tableId: string;
   customerId?: string;
   customerPhone: string;

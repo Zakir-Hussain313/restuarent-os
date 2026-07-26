@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useOrderStore } from "@/store/useOrderStore";
+import { useQuery } from "@tanstack/react-query";
+import { getOrdersAction } from "../actions";
 import type { Order, OrderStatus, OrderType } from "@/types";
 
 export type OrderStatusFilter = OrderStatus | "all";
@@ -41,8 +42,15 @@ export function useOrders(options: UseOrdersOptions = {}): UseOrdersReturn {
   const { scopeTypes, scopeStatuses } = options;
   const [filters, setFilters] = useState<OrderFilters>(DEFAULT_FILTERS);
 
-  // Read directly from Zustand store — reactive, no async needed
-  const allOrders = useOrderStore((s) => s.orders);
+  const { data: allOrders = [], isLoading } = useQuery<Order[]>({
+    queryKey: ["orders", undefined],
+    queryFn: async () => {
+      const res = await getOrdersAction(undefined);
+      if (res.data === null) throw new Error(res.error);
+      return res.data;
+    },
+    refetchInterval: 10000, // simple polling until realtime is wired in
+  });
 
   const scopedOrders = useMemo(() => {
     let result = [...allOrders];
@@ -75,10 +83,7 @@ export function useOrders(options: UseOrdersOptions = {}): UseOrdersReturn {
 
     if (filters.search.trim().length > 0) {
       const q = filters.search.toLowerCase().trim();
-      result = result.filter(
-        (o) =>
-          o.orderNumber.toLowerCase().includes(q) 
-      );
+      result = result.filter((o) => o.orderNumber.toLowerCase().includes(q));
     }
 
     return result;
@@ -92,7 +97,7 @@ export function useOrders(options: UseOrdersOptions = {}): UseOrdersReturn {
     setOrderTypeFilter: (orderType) => setFilters((f) => ({ ...f, orderType })),
     setSearch: (search) => setFilters((f) => ({ ...f, search })),
     clearFilters: () => setFilters(DEFAULT_FILTERS),
-    isLoading: false, // Zustand is synchronous — no loading state needed
+    isLoading,
     totalCount: scopedOrders.length,
     filteredCount: filteredOrders.length,
   };

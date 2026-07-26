@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { usePosStore } from "@/store/usePosStore";
-import { mockTables } from "@/mock-data/tables";
+import { getTablesAction } from "@/features/tables/actions";
 import type { Table } from "@/types";
 
 export function TableSelector() {
@@ -13,9 +14,19 @@ export function TableSelector() {
   const clearTable = usePosStore((s) => s.clearTable);
   const [search, setSearch] = useState("");
 
+  const { data: tables = [] } = useQuery<Table[]>({
+    queryKey: ["tables", undefined],
+    queryFn: async () => {
+      const res = await getTablesAction(undefined);
+      if (res.data === null) throw new Error(res.error);
+      return res.data;
+    },
+    enabled: orderType === "dine_in",
+  });
+
   if (orderType !== "dine_in") return null;
 
-  const filtered = mockTables.filter(
+  const filtered = tables.filter(
     (t) =>
       t.isActive &&
       t.tableNumber.toLowerCase().includes(search.toLowerCase())

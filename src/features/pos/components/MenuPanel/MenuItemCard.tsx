@@ -55,13 +55,6 @@ export function MenuItemCard({ item, cartQuantity }: MenuItemCardProps) {
             {CATEGORY_EMOJI[item.categoryId] ?? "🍴"}
           </div>
         )}
-
-        {/* Badges */}
-        {item.isPopular && (
-          <span className="absolute top-1.5 left-1.5 bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-tight">
-            Popular
-          </span>
-        )}
         {isUnavailable && (
           <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
             <span className="text-xs font-medium text-muted-foreground">Unavailable</span>

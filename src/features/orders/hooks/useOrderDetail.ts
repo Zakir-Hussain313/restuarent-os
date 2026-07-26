@@ -1,10 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useOrderStore } from "@/store/useOrderStore";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/hooks/useMockQuery";
-import type { Order, OrderStatus } from "@/types";
+import {
+  getOrderByIdAction,
+  confirmOrderAction,
+  completeBillAction,
+  cancelOrderAction,
+} from "@/features/orders/actions";
+import type { Order, PaymentMethod } from "@/types";
 
 interface UseOrderDetailReturn {
   order: Order | undefined;
@@ -14,7 +18,7 @@ interface UseOrderDetailReturn {
   canCancel: boolean;
   printKitchenTicket: () => void;
   isPrintingKitchenTicket: boolean;
-  completeBill: () => void;
+  completeBill: (paymentMethod?: PaymentMethod) => void;
   isCompletingBill: boolean;
   cancelOrder: () => void;
   isCancelling: boolean;
@@ -22,66 +26,62 @@ interface UseOrderDetailReturn {
 
 export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
   const queryClient = useQueryClient();
-  const orders = useOrderStore((s) => s.orders);
-  const updateOrder = useOrderStore((s) => s.updateOrder);
 
-  const order = useMemo(
-    () => (orderId ? orders.find((o) => o.id === orderId) : undefined),
-    [orders, orderId]
-  );
+  const { data, isLoading } = useQuery({
+    queryKey: queryKeys.orders.detail(orderId ?? ""),
+    queryFn: async () => {
+      const result = await getOrderByIdAction(orderId as string);
+      if (!result.data) throw new Error(result.error);
+      return result.data;
+    },
+    enabled: !!orderId,
+  });
 
-  function patchOrder(id: string, patch: Partial<Order>) {
-    const now = new Date().toISOString();
-    updateOrder(id, { ...patch, updatedAt: now });
-    // Keep TanStack Query cache in sync for any components still reading from it
-    queryClient.setQueryData<Order>(
-      queryKeys.orders.detail(id),
-      (old) => (old ? { ...old, ...patch, updatedAt: now } : old)
-    );
+  const order = data;
+
+  // After any status-changing action succeeds: refetch this order's detail
+  // and the orders list (so ActiveOrders/Delivery/History pick up the change).
+  function invalidateOrderQueries(id: string) {
+    queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(id) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
   }
 
   const { mutate: mutateKitchenTicket, isPending: isPrintingKitchenTicket } =
     useMutation({
-      mutationFn: (id: string): Promise<string> =>
-        new Promise((resolve) => setTimeout(() => resolve(id), 400)),
-      onSuccess: (id) => {
-        patchOrder(id, { status: "confirmed" as OrderStatus, paymentStatus: "unpaid" });
+      mutationFn: async (id: string) => {
+        const result = await confirmOrderAction(id);
+        if (!result.success) throw new Error(result.error);
+        return id;
       },
+      onSuccess: (id) => invalidateOrderQueries(id),
+      onError: (err: Error) => alert(err.message),
     });
 
   const { mutate: mutateCompleteBill, isPending: isCompletingBill } =
     useMutation({
-      mutationFn: (id: string): Promise<string> =>
-        new Promise((resolve) => setTimeout(() => resolve(id), 400)),
-      onSuccess: (id) => {
-        const now = new Date().toISOString();
-        patchOrder(id, {
-          status: "completed" as OrderStatus,
-          paymentStatus: "paid",
-          completedAt: now,
-          totalPaid: order?.total ?? 0,
-          balance: 0,
-          payments: [
-            ...(order?.payments ?? []),
-            {
-              id: `pay_${Date.now()}`,
-              orderId: id,
-              method: "cash",
-              amount: order?.total ?? 0,
-              processedAt: now,
-              processedBy: "staff_001",
-            },
-          ],
-        });
+      mutationFn: async ({
+        id,
+        paymentMethod,
+      }: {
+        id: string;
+        paymentMethod: PaymentMethod;
+      }) => {
+        const result = await completeBillAction(id, paymentMethod);
+        if (!result.success) throw new Error(result.error);
+        return id;
       },
+      onSuccess: (id) => invalidateOrderQueries(id),
+      onError: (err: Error) => alert(err.message),
     });
 
   const { mutate: mutateCancelled, isPending: isCancelling } = useMutation({
-    mutationFn: (id: string): Promise<string> =>
-      new Promise((resolve) => setTimeout(() => resolve(id), 400)),
-    onSuccess: (id) => {
-      patchOrder(id, { status: "cancelled" as OrderStatus });
+    mutationFn: async (id: string) => {
+      const result = await cancelOrderAction(id);
+      if (!result.success) throw new Error(result.error);
+      return id;
     },
+    onSuccess: (id) => invalidateOrderQueries(id),
+    onError: (err: Error) => alert(err.message),
   });
 
   const canPrintKitchenTicket = !!order && order.status === "pending";
@@ -91,7 +91,7 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
 
   return {
     order,
-    isLoading: false,
+    isLoading,
     canPrintKitchenTicket,
     canPrintBill,
     canCancel,
@@ -100,9 +100,9 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
       mutateKitchenTicket(orderId);
     },
     isPrintingKitchenTicket,
-    completeBill: () => {
+    completeBill: (paymentMethod: PaymentMethod = "cash") => {
       if (!orderId || !canPrintBill) return;
-      mutateCompleteBill(orderId);
+      mutateCompleteBill({ id: orderId, paymentMethod });
     },
     isCompletingBill,
     cancelOrder: () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { formatCurrency } from "@/lib/utils";
-import { usePosCart, TAX_RATE, SERVICE_RATE } from "../../hooks/usePosCart";
+import { usePosCart } from "../../hooks/usePosCart";
 
 // ─── Row component ────────────────────────────────────────────────────────────
 
@@ -45,18 +45,6 @@ export function OrderSummary() {
           negative
         />
       )}
-
-      <SummaryRow
-        label={`Service (${(SERVICE_RATE * 100).toFixed(0)}%)`}
-        value={formatCurrency(totals.serviceCharge)}
-        muted
-      />
-
-      <SummaryRow
-        label={`GST (${(TAX_RATE * 100).toFixed(0)}%)`}
-        value={formatCurrency(totals.tax)}
-        muted
-      />
 
       {/* Grand total */}
       <div className="flex items-center justify-between pt-2 border-t border-[#ebe9e4]">

@@ -11,7 +11,6 @@ import {
 import { tenants } from "./tenants";
 import { branches } from "./branches";
 import { restaurantTables } from "./tables";
-import { customers } from "./customers";
 import { staff } from "./staff";
 import { menuItems } from "./menu";
 import {
@@ -38,9 +37,6 @@ export const orders = pgTable(
         orderNumber: text("order_number").notNull(),
 
         tableId: uuid("table_id").references(() => restaurantTables.id, {
-            onDelete: "set null",
-        }),
-        customerId: uuid("customer_id").references(() => customers.id, {
             onDelete: "set null",
         }),
         // Retained independently of customerId — walk-in or delivery orders may
@@ -98,8 +94,6 @@ export const orders = pgTable(
         index("orders_branch_id_idx").on(t.branchId),
         // Order queue / status board queries
         index("orders_status_idx").on(t.status),
-        // Customer order history
-        index("orders_customer_id_idx").on(t.customerId),
         // Rider active orders
         index("orders_rider_id_idx").on(t.riderId),
         // Who took the order
@@ -118,9 +112,10 @@ export const orders = pgTable(
         ),
         // Analytics / reporting: tenant + date range scans
         index("orders_tenant_created_at_idx").on(t.tenantId, t.createdAt),
-        // orderNumber must be unique within a tenant
-        uniqueIndex("orders_tenant_order_number_udx").on(
-            t.tenantId,
+        // orderNumber must be unique within a branch (not tenant-wide —
+        // each branch runs its own independent order number sequence)
+        uniqueIndex("orders_branch_order_number_udx").on(
+            t.branchId,
             t.orderNumber
         ),
     ]
@@ -139,6 +134,16 @@ type SelectedVariant = {
     variantName: string;
     priceAdjustment: number;
 } | null;
+
+export const orderCounters = pgTable("order_counters", {
+    branchId: uuid("branch_id")
+        .primaryKey()
+        .references(() => branches.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+        .notNull()
+        .references(() => tenants.id, { onDelete: "cascade" }),
+    nextNumber: integer("next_number").notNull().default(1),
+});
 
 export const orderItems = pgTable(
     "order_items",
@@ -264,3 +269,5 @@ export type OrderDiscount = typeof orderDiscounts.$inferSelect;
 export type NewOrderDiscount = typeof orderDiscounts.$inferInsert;
 export type Payment = typeof payments.$inferSelect;
 export type NewPayment = typeof payments.$inferInsert;
+export type OrderCounter = typeof orderCounters.$inferSelect;
+export type NewOrderCounter = typeof orderCounters.$inferInsert;
