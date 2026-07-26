@@ -5,38 +5,44 @@ import {
   integer,
   timestamp,
   boolean,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { tenants } from "./tenants";
-import { menuItemStatusEnum, spiceLevelEnum, dietaryTagEnum } from "./enums";
-
-// Tenant-wide menu (shared across all branches), per current decision.
-// A future branch-level override table (e.g. branch_menu_item_availability)
-// can layer on top of this without changing these tables.
+import { menuItemStatusEnum } from "./enums";
+import { branches } from "./branches";
 
 export const menuCategories = pgTable("menu_categories", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id")
     .notNull()
     .references(() => tenants.id, { onDelete: "cascade" }),
+  branchId: uuid("branch_id")
+    .notNull()
+    .references(() => branches.id, { onDelete: "cascade" }),
 
   name: text("name").notNull(),
   slug: text("slug").notNull(),
   description: text("description"),
   image: text("image"),
-  icon: text("icon"), // emoji or icon name, matches existing MenuCategory.icon
+  icon: text("icon"),
 
   sortOrder: integer("sort_order").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("menu_categories_branch_name_unique").on(table.branchId, table.name),
+]);
 
 export const menuItems = pgTable("menu_items", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id")
     .notNull()
     .references(() => tenants.id, { onDelete: "cascade" }),
+  branchId: uuid("branch_id")
+    .notNull()
+    .references(() => branches.id, { onDelete: "cascade" }),
   categoryId: uuid("category_id")
     .notNull()
     .references(() => menuCategories.id, { onDelete: "cascade" }),
@@ -46,21 +52,16 @@ export const menuItems = pgTable("menu_items", {
   description: text("description").notNull().default(""),
   image: text("image"),
 
-  basePrice: integer("base_price").notNull(), // smallest currency unit
-
-  dietaryTags: dietaryTagEnum("dietary_tags").array().notNull().default([]),
-  spiceLevel: spiceLevelEnum("spice_level").notNull().default("none"),
-  preparationTimeMinutes: integer("preparation_time_minutes").notNull().default(15),
-  calories: integer("calories"),
+  basePrice: integer("base_price").notNull(),
 
   status: menuItemStatusEnum("status").notNull().default("available"),
-  isFeatured: boolean("is_featured").notNull().default(false),
-  isPopular: boolean("is_popular").notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("menu_items_branch_name_unique").on(table.branchId, table.name),
+]);
 
 // Mirrors MenuItemVariant — e.g. "Half kg" / "Full kg"
 export const menuItemVariants = pgTable("menu_item_variants", {

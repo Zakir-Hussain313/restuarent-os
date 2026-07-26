@@ -22,7 +22,7 @@ export const staff = pgTable("staff", {
   role: staffRoleEnum("role").notNull().default("STAFF"),
   status: staffStatusEnum("status").notNull().default("active"),
 
-  avatar: text("avatar"),
+  image: text("image"),
 
   // 4-digit POS PIN for fast in-store auth (separate from Supabase password
   // login — see auth flows doc, "POS PIN auth"). Stored hashed, never plain.

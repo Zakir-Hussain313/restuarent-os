@@ -10,7 +10,7 @@ export async function getSupabaseServerClient() {
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
       cookies: {
         getAll() {
@@ -22,9 +22,7 @@ export async function getSupabaseServerClient() {
               cookieStore.set(name, value, options);
             });
           } catch {
-            // setAll() is called from Server Components where cookies cannot
-            // be mutated. This is safe to ignore — the middleware handles
-            // session refresh instead.
+            
           }
         },
       },

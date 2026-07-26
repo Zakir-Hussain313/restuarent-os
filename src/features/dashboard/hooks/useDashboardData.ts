@@ -1,13 +1,23 @@
 import { useQuery } from "@tanstack/react-query";
-import { createMockQueryFn, queryKeys } from "@/hooks/useMockQuery";
-import { mockDashboardReport } from "@/mock-data/analytics";
-import { getDashboardStatsAction, getRecentOrdersAction, getRevenueDataAction, getTableOccupancyAction, getTopDishesAction } from "../actions";
+import { queryKeys } from "@/hooks/useMockQuery";
+import { useSearchParams } from "next/navigation";
+import {
+  getDashboardStatsAction,
+  getRevenueDataAction,
+  getTopDishesAction,
+  getRecentOrdersAction,
+  getTableOccupancyAction,
+  getOrderTypeBreakdownAction,
+} from "../actions";
 
 export function useDashboardStats() {
+  const searchParams = useSearchParams();
+  const branch = searchParams.get("branch") ?? undefined;
+
   return useQuery({
-    queryKey: queryKeys.analytics.dashboard,
+    queryKey: [...queryKeys.analytics.dashboard, "stats", branch],
     queryFn: async () => {
-      const result = await getDashboardStatsAction();
+      const result = await getDashboardStatsAction(branch);
       if (result.error || !result.stats) {
         throw new Error(result.error ?? "Failed to load dashboard stats.");
       }
@@ -19,10 +29,13 @@ export function useDashboardStats() {
 }
 
 export function useRevenueData(range: "7d" | "30d" | "90d" = "30d") {
+  const searchParams = useSearchParams();
+  const branch = searchParams.get("branch") ?? undefined;
+
   return useQuery({
-    queryKey: [...queryKeys.analytics.dashboard, "revenue", range],
+    queryKey: [...queryKeys.analytics.dashboard, "revenue", range, branch],
     queryFn: async () => {
-      const result = await getRevenueDataAction(range);
+      const result = await getRevenueDataAction(range, branch);
       if (result.error || !result.data) {
         throw new Error(result.error ?? "Failed to load revenue data.");
       }
@@ -34,10 +47,13 @@ export function useRevenueData(range: "7d" | "30d" | "90d" = "30d") {
 }
 
 export function useTopDishes() {
+  const searchParams = useSearchParams();
+  const branch = searchParams.get("branch") ?? undefined;
+
   return useQuery({
-    queryKey: [...queryKeys.analytics.dashboard, "top-items"],
+    queryKey: [...queryKeys.analytics.dashboard, "top-items", branch],
     queryFn: async () => {
-      const result = await getTopDishesAction();
+      const result = await getTopDishesAction(branch);
       if (result.error || !result.data) {
         throw new Error(result.error ?? "Failed to load top dishes.");
       }
@@ -49,10 +65,13 @@ export function useTopDishes() {
 }
 
 export function useRecentOrders() {
+  const searchParams = useSearchParams();
+  const branch = searchParams.get("branch") ?? undefined;
+
   return useQuery({
-    queryKey: [...queryKeys.orders.all, "recent"],
+    queryKey: [...queryKeys.orders.all, "recent", branch],
     queryFn: async () => {
-      const result = await getRecentOrdersAction();
+      const result = await getRecentOrdersAction(branch);
       if (result.error || !result.data) {
         throw new Error(result.error ?? "Failed to load recent orders.");
       }
@@ -64,10 +83,13 @@ export function useRecentOrders() {
 }
 
 export function useTableOccupancy() {
+  const searchParams = useSearchParams();
+  const branch = searchParams.get("branch") ?? undefined;
+
   return useQuery({
-    queryKey: queryKeys.tables.all,
+    queryKey: [...queryKeys.tables.all, branch],
     queryFn: async () => {
-      const result = await getTableOccupancyAction();
+      const result = await getTableOccupancyAction(branch);
       if (result.error || !result.data) {
         throw new Error(result.error ?? "Failed to load table occupancy.");
       }
@@ -79,10 +101,19 @@ export function useTableOccupancy() {
 }
 
 export function useOrderTypeBreakdown() {
+  const searchParams = useSearchParams();
+  const branch = searchParams.get("branch") ?? undefined;
+
   return useQuery({
-    queryKey: [...queryKeys.analytics.dashboard, "order-type-breakdown"],
-    queryFn: createMockQueryFn(mockDashboardReport.orderTypeBreakdown, 420),
-    staleTime: Infinity,
-    gcTime: Infinity,
+    queryKey: [...queryKeys.analytics.dashboard, "order-type-breakdown", branch],
+    queryFn: async () => {
+      const result = await getOrderTypeBreakdownAction(branch);
+      if (result.error || !result.data) {
+        throw new Error(result.error ?? "Failed to load order type breakdown.");
+      }
+      return result.data;
+    },
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
   });
 }

@@ -12,7 +12,7 @@ export interface CustomerAddress {
 
 export interface Customer {
   id: string;
-  restaurantId: string;
+  branchId: string;
   firstName: string;
   lastName: string;
   fullName: string;

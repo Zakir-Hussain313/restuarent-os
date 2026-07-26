@@ -46,11 +46,6 @@ export function MenuItemCard({ item, cartQuantity }: MenuItemCardProps) {
         <span className="text-6xl">
           {CATEGORY_EMOJI[item.categoryId] ?? "🍴"}
         </span>
-        {item.isPopular && (
-          <span className="absolute top-2.5 left-2.5 bg-[#e8570e] text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
-            Popular
-          </span>
-        )}
       </div>
 
       {/* Info */}

@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, boolean } from "drizzle-orm/pg-core";
 import { tenants } from "./tenants";
 
 export const branches = pgTable("branches", {
@@ -11,16 +11,9 @@ export const branches = pgTable("branches", {
   phone: text("phone"),
   email: text("email"),
 
-  // Mirrors your existing Address shape (street/city/state/postalCode/country/coordinates).
-  address: jsonb("address").$type<{
-    street: string;
-    city: string;
-    state: string;
-    postalCode: string;
-    country: string;
-    coordinates?: { lat: number; lng: number };
-  }>(),
-
+  // Simple free-text address — no structured sub-fields.
+  address: text("address"),
+  image: text("image"),
   isMainBranch: boolean("is_main_branch").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
 

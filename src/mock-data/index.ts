@@ -1,5 +1,4 @@
 export * from "./restaurant";
-export * from "./staff";
 export * from "./menu";
 export * from "./tables";
 export * from "./customers";

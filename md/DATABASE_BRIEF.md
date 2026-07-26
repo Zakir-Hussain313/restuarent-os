@@ -107,18 +107,6 @@ Stores:
 
 ---
 
-### customers
-
-Stores:
-
-* name
-* phone
-* address
-* notes
-* order statistics
-
----
-
 ### tables
 
 Stores:
@@ -139,7 +127,7 @@ Statuses:
 
 Stores:
 
-* customer
+* customer_phone
 * table
 * rider
 * order_type
@@ -185,9 +173,13 @@ Tracks all important actions.
 Stores:
 
 * actor
+* actor_name (denormalized snapshot)
+* resource
+* resource_id
 * action
 * old_value
 * new_value
+* description
 * timestamp
 
 ---
@@ -246,6 +238,5 @@ Use:
 Optimize for:
 
 * order queries
-* analytics queries
 * dashboard queries
 * realtime updates

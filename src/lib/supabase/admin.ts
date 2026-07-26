@@ -10,13 +10,13 @@ import { createClient } from "@supabase/supabase-js";
 // NEVER import this in Client Components or expose it to the browser.
 // The service role key grants unrestricted database access.
 
-if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-  throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set.");
+if (!process.env.SUPABASE_SECRET_KEY) {
+  throw new Error("SUPABASE_SECRET_KEY is not set.");
 }
 
 export const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  process.env.SUPABASE_SECRET_KEY!,
   {
     auth: {
       // Disable auto session refresh — this client authenticates via the

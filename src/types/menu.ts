@@ -11,7 +11,7 @@ export type DietaryTag =
 
 export interface MenuCategory {
   id: string;
-  restaurantId: string;
+  branchId: string;
   name: string;
   slug: string;
   description?: string;
@@ -50,7 +50,7 @@ export interface MenuItemVariant {
 
 export interface MenuItem {
   id: string;
-  restaurantId: string;
+  branchId: string;
   categoryId: string;
   name: string;
   slug: string;
@@ -59,13 +59,7 @@ export interface MenuItem {
   basePrice: number;
   variants: MenuItemVariant[];
   modifierGroups: ModifierGroup[];
-  dietaryTags: DietaryTag[];
-  spiceLevel: SpiceLevel;
-  preparationTimeMinutes: number;
-  calories?: number;
   status: MenuItemStatus;
-  isFeatured: boolean;
-  isPopular: boolean;
   sortOrder: number;
   createdAt: string;
   updatedAt: string;

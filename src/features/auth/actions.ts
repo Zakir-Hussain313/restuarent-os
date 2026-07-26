@@ -5,6 +5,9 @@ import {
   loginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  type LoginInput,
+  type ForgotPasswordInput,
+  type ResetPasswordInput,
 } from "./schemas";
 import { db } from "@/db";
 import { staff } from "@/db/schema";
@@ -16,30 +19,39 @@ export type AppRole = (typeof staff.$inferSelect)["role"];
 
 // ── Login ─────────────────────────────────────────────────────────────────────
 
-export async function loginAction(formData: FormData) {
-  const raw = {
-    email: formData.get("email"),
-    password: formData.get("password"),
-  };
-
-  const parsed = loginSchema.safeParse(raw);
+export async function loginAction(input: LoginInput) {
+  const parsed = loginSchema.safeParse(input);
   if (!parsed.success) {
-    // Zod 4: ZodError exposes `.issues`, not `.errors` (Zod 3 API).
     return { error: parsed.error.issues[0].message };
   }
 
   const supabase = await getSupabaseServerClient();
 
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email: parsed.data.email,
     password: parsed.data.password,
   });
 
-  if (error) {
+  if (error || !data.user) {
     return { error: "Invalid email or password." };
   }
 
-  return { success: true };
+  const staffRow = await db.query.staff.findFirst({
+    where: eq(staff.id, data.user.id),
+  });
+
+  if (!staffRow) {
+    await supabase.auth.signOut();
+    return { error: "No staff account found for this user." };
+  }
+
+  // Block inactive staff — deactivated accounts cannot log in
+  if (staffRow.status === "inactive") {
+    await supabase.auth.signOut();
+    return { error: "Your account has been deactivated. Contact your administrator." };
+  }
+
+  return { success: true, role: staffRow.role };
 }
 
 // ── Logout ────────────────────────────────────────────────────────────────────
@@ -52,10 +64,8 @@ export async function logoutAction() {
 
 // ── Forgot Password ───────────────────────────────────────────────────────────
 
-export async function forgotPasswordAction(formData: FormData) {
-  const raw = { email: formData.get("email") };
-
-  const parsed = forgotPasswordSchema.safeParse(raw);
+export async function forgotPasswordAction(input: ForgotPasswordInput) {
+  const parsed = forgotPasswordSchema.safeParse(input);
   if (!parsed.success) {
     return { error: parsed.error.issues[0].message };
   }
@@ -70,6 +80,7 @@ export async function forgotPasswordAction(formData: FormData) {
   );
 
   if (error) {
+    console.error("resetPasswordForEmail error:", error.message, error.status);
     return { error: "Failed to send reset email. Please try again." };
   }
 
@@ -78,18 +89,26 @@ export async function forgotPasswordAction(formData: FormData) {
 
 // ── Reset Password ────────────────────────────────────────────────────────────
 
-export async function resetPasswordAction(formData: FormData) {
-  const raw = {
-    password: formData.get("password"),
-    confirmPassword: formData.get("confirmPassword"),
-  };
-
-  const parsed = resetPasswordSchema.safeParse(raw);
+export async function resetPasswordAction(input: ResetPasswordInput) {
+  const parsed = resetPasswordSchema.safeParse(input);
   if (!parsed.success) {
     return { error: parsed.error.issues[0].message };
   }
 
   const supabase = await getSupabaseServerClient();
+
+  // Defensive check — updateUser() can appear to "succeed" even with no
+  // active session, silently no-op-ing the password change. Verify a real
+  // session exists first so failures are explicit, not silent.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      error: "Your reset link has expired or is invalid. Please request a new one.",
+    };
+  }
 
   const { error } = await supabase.auth.updateUser({
     password: parsed.data.password,
@@ -110,13 +129,13 @@ export async function getCurrentStaff() {
   const supabase = await getSupabaseServerClient();
 
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!session?.user) return null;
+  if (!user) return null;
 
   const staffRow = await db.query.staff.findFirst({
-    where: eq(staff.id, session.user.id),
+    where: eq(staff.id, user.id),
   });
 
   return staffRow ?? null;

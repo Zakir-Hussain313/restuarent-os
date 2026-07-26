@@ -29,13 +29,11 @@ Implemented systems include:
 
 * Marketing Website
 * Online Ordering
-* Dashboard
+* Dashboard (includes analytics reporting)
 * POS
 * Orders
-* Customers
 * Tables
 * Menu Management
-* Analytics
 * Receipt Printing UI
 * Staff Management UI
 * Rider Management UI
@@ -54,11 +52,9 @@ Every tenant has isolated:
 
 * Users
 * Orders
-* Customers
 * Menu Items
 * Categories
 * Tables
-* Analytics
 * Reports
 * Settings
 * Attendance Records
@@ -80,7 +76,7 @@ Can:
 * Manage tables
 * Manage orders
 * Manage settings
-* Access analytics
+* View dashboard analytics (all branches or a selected branch)
 * Access reports
 * Access audit logs
 * Access POS
@@ -102,7 +98,6 @@ Can:
 Cannot:
 
 * Manage staff
-* Access analytics
 * Access settings
 * Access audit logs
 
@@ -121,7 +116,6 @@ Cannot:
 
 * Access POS
 * Access menu management
-* Access analytics
 * Access settings
 
 ---
@@ -137,9 +131,8 @@ Cannot:
 * POS
 * Order Management
 * Table Management
-* Customer Management
 * Delivery Management
-* Analytics
+* Dashboard (analytics & reporting)
 * Reports
 * Settings
 * Audit Logs

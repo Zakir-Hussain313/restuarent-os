@@ -50,7 +50,7 @@ export interface Restaurant {
 
 export interface Branch {
   id: string;
-  restaurantId: string;
+  branchId: string;
   name: string;
   phone: string;
   email: string;

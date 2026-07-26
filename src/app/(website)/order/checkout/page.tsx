@@ -67,7 +67,6 @@ export default function CheckoutPage() {
     const order: Order = {
       id: orderId,
       orderNumber: `ORD-${Date.now().toString().slice(-6)}`,
-      restaurantId: "rest_001",
       branchId: "branch_001",
       orderType: "delivery",
       status: "pending" as OrderStatus,

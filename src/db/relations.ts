@@ -4,7 +4,6 @@ import { branches } from "./schema/branches";
 import { staff } from "./schema/staff";
 import { menuCategories, menuItems, menuItemVariants, modifierGroups, modifierOptions } from "./schema/menu";
 import { tableSections, restaurantTables } from "./schema/tables";
-import { customers, customerAddresses } from "./schema/customers";
 import { orders, orderItems, orderDiscounts, payments } from "./schema/orders";
 import { deliveries } from "./schema/deliveries";
 import { attendance } from "./schema/attendance";
@@ -22,7 +21,6 @@ export const tenantsRelations = relations(tenants, ({ one, many }) => ({
     staff: many(staff),
     menuCategories: many(menuCategories),
     menuItems: many(menuItems),
-    customers: many(customers),
     tableSections: many(tableSections),
     restaurantTables: many(restaurantTables),
     orders: many(orders),
@@ -178,26 +176,6 @@ export const restaurantTablesRelations = relations(restaurantTables, ({ one, man
     orders: many(orders),
 }));
 
-// ── Customers ─────────────────────────────────────────────────────────────
-
-export const customersRelations = relations(customers, ({ one, many }) => ({
-    tenant: one(tenants, {
-        fields: [customers.tenantId],
-        references: [tenants.id],
-    }),
-    addresses: many(customerAddresses),
-    orders: many(orders),
-}));
-
-// ── Customer Addresses ────────────────────────────────────────────────────
-
-export const customerAddressesRelations = relations(customerAddresses, ({ one }) => ({
-    customer: one(customers, {
-        fields: [customerAddresses.customerId],
-        references: [customers.id],
-    }),
-}));
-
 // ── Orders ────────────────────────────────────────────────────────────────
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
@@ -227,10 +205,6 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
     table: one(restaurantTables, {
         fields: [orders.tableId],
         references: [restaurantTables.id],
-    }),
-    customer: one(customers, {
-        fields: [orders.customerId],
-        references: [customers.id],
     }),
     items: many(orderItems),
     discounts: many(orderDiscounts),

@@ -19,12 +19,12 @@ import { createClient } from "@supabase/supabase-js";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "../src/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 // ── CONFIGURE THIS ──────────────────────────────────────────────────────
 const TENANT_NAME = "Zaiqa Restaurant"; // your restaurant's display name
 const TENANT_SLUG = "zaiqa-restaurant"; // url-safe, unique
-const ADMIN_EMAIL = "you@example.com";   // the email you'll log in with
+const ADMIN_EMAIL = "regalt0s375@gmail.com";   // the email you'll log in with
 const ADMIN_PASSWORD = "ChangeThisStrongPassword123!"; // change before running
 const ADMIN_FIRST_NAME = "Your";
 const ADMIN_LAST_NAME = "Name";
@@ -32,12 +32,12 @@ const ADMIN_LAST_NAME = "Name";
 
 async function main() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceRoleKey = process.env.SUPABASE_SECRET_KEY;
   const directDbUrl = process.env.DATABASE_URL;
 
   if (!supabaseUrl || !serviceRoleKey) {
     throw new Error(
-      "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env.local"
+      "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY in .env.local"
     );
   }
   if (!directDbUrl) {
@@ -55,9 +55,11 @@ async function main() {
   const db = drizzle(client, { schema });
 
   // ── Guard: refuse to run if a SUPER_ADMIN already exists ───────────────
-  const existingAdmin = await db.query.staff.findFirst({
-    where: eq(schema.staff.role, "SUPER_ADMIN"),
-  });
+  const [existingAdmin] = await db
+    .select()
+    .from(schema.staff)
+    .where(sql`${schema.staff.role} = ${"SUPER_ADMIN"}::staff_role`)
+    .limit(1);
 
   if (existingAdmin) {
     console.log(
@@ -131,5 +133,14 @@ async function main() {
 
 main().catch((err) => {
   console.error("\nBootstrap failed:", err.message);
+  if (err.cause) {
+    console.error("\nCause:", {
+      message: err.cause.message,
+      code: err.cause.code,
+      detail: err.cause.detail,
+      hint: err.cause.hint,
+      where: err.cause.where,
+    });
+  }
   process.exit(1);
 });

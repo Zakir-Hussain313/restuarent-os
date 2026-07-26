@@ -3,8 +3,8 @@
 
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { db } from "@/db";
-import { eq, and, gte, lt, ne, sql , desc } from "drizzle-orm";
-import type { DashboardStats, RevenueDataPoint, TopMenuItem } from "@/types/analytics";
+import { eq, and, gte, lt, ne, sql, desc } from "drizzle-orm";
+import type { DashboardStats, RevenueDataPoint, TopMenuItem, OrderTypeBreakdown } from "@/types/analytics";
 import { staff, orders, orderItems, restaurantTables } from "@/db/schema";
 import type { OrderStatus, OrderType } from "@/types";
 import type { Table } from "@/types/table";
@@ -32,8 +32,9 @@ function pctChange(current: number, previous: number): number {
   return Math.round(((current - previous) / previous) * 100);
 }
 
-export async function getDashboardStatsAction(): Promise<
-  { stats: DashboardStats; error?: undefined } | { stats: null; error: string }
+export async function getDashboardStatsAction(
+  overrideBranchId?: string
+): Promise<{ stats: DashboardStats; error?: undefined } | { stats: null; error: string }
 > {
   const supabase = await getSupabaseServerClient();
   const {
@@ -52,7 +53,9 @@ export async function getDashboardStatsAction(): Promise<
   }
 
   const tenantId = currentStaffRow.tenantId;
-  const branchId = isAdmin ? currentStaffRow.branchId! : undefined;
+  // ADMIN is always locked to their own branch, regardless of what's in
+  // the URL — overrideBranchId is only ever honored for SUPER_ADMIN.
+  const branchId = isAdmin ? currentStaffRow.branchId! : overrideBranchId;
 
   const { start: curStart, end: curEnd } = getMonthRange(0);
   const { start: prevStart, end: prevEnd } = getMonthRange(-1);
@@ -133,11 +136,12 @@ const RANGE_DAYS: Record<"7d" | "30d" | "90d", number> = {
 };
 
 function toDateKey(d: Date): string {
-  return d.toISOString().slice(0, 10); // "YYYY-MM-DD"
+  return d.toISOString().slice(0, 10);
 }
 
 export async function getRevenueDataAction(
-  range: "7d" | "30d" | "90d" = "30d"
+  range: "7d" | "30d" | "90d" = "30d",
+  overrideBranchId?: string
 ): Promise<{ data: RevenueDataPoint[]; error?: undefined } | { data: null; error: string }
 > {
   const supabase = await getSupabaseServerClient();
@@ -157,14 +161,10 @@ export async function getRevenueDataAction(
   }
 
   const tenantId = currentStaffRow.tenantId;
-  const branchId = isAdmin ? currentStaffRow.branchId! : undefined;
+  const branchId = isAdmin ? currentStaffRow.branchId! : overrideBranchId;
 
   const days = RANGE_DAYS[range];
   const now = new Date();
-  // UTC midnight for "today", then step back (days - 1) days — matches
-  // Postgres's date_trunc('day', ...), which operates in the session
-  // timezone (UTC on Supabase). Using local setHours/setDate here would
-  // silently shift every bucket by the server's UTC offset.
   const todayUTC = new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
   );
@@ -211,9 +211,9 @@ export async function getRevenueDataAction(
   return { data: result };
 }
 
-
-
-export async function getTopDishesAction(): Promise<{ data: TopMenuItem[]; error?: undefined } | { data: null; error: string }
+export async function getTopDishesAction(
+  overrideBranchId?: string
+): Promise<{ data: TopMenuItem[]; error?: undefined } | { data: null; error: string }
 > {
   const supabase = await getSupabaseServerClient();
   const {
@@ -232,7 +232,7 @@ export async function getTopDishesAction(): Promise<{ data: TopMenuItem[]; error
   }
 
   const tenantId = currentStaffRow.tenantId;
-  const branchId = isAdmin ? currentStaffRow.branchId! : undefined;
+  const branchId = isAdmin ? currentStaffRow.branchId! : overrideBranchId;
 
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -275,8 +275,9 @@ export async function getTopDishesAction(): Promise<{ data: TopMenuItem[]; error
   return { data };
 }
 
-
-export async function getRecentOrdersAction(): Promise <{ data: RecentOrder[]; error?: undefined } | { data: null; error: string }
+export async function getRecentOrdersAction(
+  overrideBranchId?: string
+): Promise <{ data: RecentOrder[]; error?: undefined } | { data: null; error: string }
 > {
   const supabase = await getSupabaseServerClient();
   const {
@@ -295,7 +296,7 @@ export async function getRecentOrdersAction(): Promise <{ data: RecentOrder[]; e
   }
 
   const tenantId = currentStaffRow.tenantId;
-  const branchId = isAdmin ? currentStaffRow.branchId! : undefined;
+  const branchId = isAdmin ? currentStaffRow.branchId! : overrideBranchId;
 
   const rows = await db
     .select({
@@ -335,8 +336,9 @@ export async function getRecentOrdersAction(): Promise <{ data: RecentOrder[]; e
   return { data };
 }
 
-
-export async function getTableOccupancyAction(): Promise <{ data: Table[]; error?: undefined } | { data: null; error: string }
+export async function getTableOccupancyAction(
+  overrideBranchId?: string
+): Promise <{ data: Table[]; error?: undefined } | { data: null; error: string }
 > {
   const supabase = await getSupabaseServerClient();
   const {
@@ -355,7 +357,7 @@ export async function getTableOccupancyAction(): Promise <{ data: Table[]; error
   }
 
   const tenantId = currentStaffRow.tenantId;
-  const branchId = isAdmin ? currentStaffRow.branchId! : undefined;
+  const branchId = isAdmin ? currentStaffRow.branchId! : overrideBranchId;
 
   const rows = await db
     .select({
@@ -371,9 +373,6 @@ export async function getTableOccupancyAction(): Promise <{ data: Table[]; error
       isActive: restaurantTables.isActive,
       createdAt: restaurantTables.createdAt,
       updatedAt: restaurantTables.updatedAt,
-      // currentOrderId is intentionally not a stored column (per schema
-      // comment, avoids a circular FK with orders.tableId) — derive it
-      // here as the most recent non-final order still open on this table.
       currentOrderId: sql<string | null>`(
         select ${orders.id} from ${orders}
         where ${orders.tableId} = ${restaurantTables.id}
@@ -393,20 +392,91 @@ export async function getTableOccupancyAction(): Promise <{ data: Table[]; error
 
   const data: Table[] = rows.map((r) => ({
     id: r.id,
-    restaurantId: r.branchId, // widget/type uses "restaurantId" as the scoping key; branchId is the closest real equivalent here
+    branchId: r.branchId,
     sectionId: r.sectionId,
     tableNumber: r.tableNumber,
     capacity: r.capacity,
     shape: r.shape,
     status: r.status,
     currentOrderId: r.currentOrderId ?? undefined,
-    currentReservationId: undefined, // no reservations table exists yet in the schema
+    currentReservationId: undefined,
     positionX: r.positionX ?? undefined,
     positionY: r.positionY ?? undefined,
     isActive: r.isActive,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
   }));
+
+  return { data };
+}
+
+const ORDER_TYPE_LABELS: Record<string, string> = {
+  dine_in: "Dine-in",
+  takeaway: "Takeaway",
+  delivery: "Delivery",
+};
+
+export async function getOrderTypeBreakdownAction(
+  overrideBranchId?: string
+): Promise <{ data: OrderTypeBreakdown[]; error?: undefined } | { data: null; error: string }
+> {
+  const supabase = await getSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { data: null, error: "Not authenticated." };
+
+  const currentStaffRow = await db.query.staff.findFirst({
+    where: eq(staff.id, user.id),
+  });
+  if (!currentStaffRow) return { data: null, error: "Staff record not found." };
+
+  const isAdmin = currentStaffRow.role === "ADMIN";
+  if (isAdmin && !currentStaffRow.branchId) {
+    return { data: null, error: "Your account has no branch assigned." };
+  }
+
+  const tenantId = currentStaffRow.tenantId;
+  const branchId = isAdmin ? currentStaffRow.branchId! : overrideBranchId;
+
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+
+  const rows = await db
+    .select({
+      orderType: orders.orderType,
+      count: sql<number>`count(*)`,
+      revenue: sql<number>`coalesce(sum(${orders.total}), 0)`,
+    })
+    .from(orders)
+    .where(
+      and(
+        eq(orders.tenantId, tenantId),
+        ne(orders.status, "cancelled"),
+        gte(orders.createdAt, monthStart),
+        lt(orders.createdAt, monthEnd),
+        branchId ? eq(orders.branchId, branchId) : undefined
+      )
+    )
+    .groupBy(orders.orderType);
+
+  const byType = new Map(rows.map((r) => [r.orderType, r]));
+  const totalOrders = rows.reduce((sum, r) => sum + Number(r.count), 0);
+
+  const data: OrderTypeBreakdown[] = (["dine_in", "takeaway", "delivery"] as const).map(
+    (type) => {
+      const row = byType.get(type);
+      const count = row ? Number(row.count) : 0;
+      const revenue = row ? Number(row.revenue) : 0;
+      return {
+        orderType: ORDER_TYPE_LABELS[type],
+        count,
+        revenue,
+        percentage: totalOrders > 0 ? Math.round((count / totalOrders) * 100) : 0,
+      };
+    }
+  );
 
   return { data };
 }
