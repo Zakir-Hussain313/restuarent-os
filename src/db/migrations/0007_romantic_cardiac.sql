@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "menu_items_branch_name_unique" ON "menu_items" USING btree ("branch_id","name");
