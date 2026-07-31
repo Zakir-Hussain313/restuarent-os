@@ -5,6 +5,7 @@ export const RESTAURANT_CONFIG = {
   currencySymbol: "Rs.",
   defaultDeliveryFee: 150,
   freeDeliveryThreshold: 2000,
+  enableFreeDelivery: false,
   maxTableCapacity: 20,
   orderNumberPrefix: "ORD",
 } as const;

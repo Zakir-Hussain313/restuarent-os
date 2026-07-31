@@ -84,7 +84,7 @@ export interface Order {
   estimatedDeliveryMinutes?: number;
 
   notes?: string;
-  staffId: string;
+  staffId: string | null;
 
   createdAt: string;
   updatedAt: string;

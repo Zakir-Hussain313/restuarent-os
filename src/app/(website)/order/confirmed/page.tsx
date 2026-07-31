@@ -3,13 +3,13 @@
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Clock, Phone } from "lucide-react";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 
 function ConfirmedContent() {
   const params = useSearchParams();
   const orderNumber = params.get("order") ?? "—";
-  const phone = params.get("phone") ?? "—";
-
+  const [phone] = useState(() => sessionStorage.getItem("rns-last-order-phone") ?? "—");
+  
   return (
     <div className="min-h-screen bg-[#faf9f7] pt-16 flex items-center justify-center px-4">
       <div className="max-w-md w-full text-center">

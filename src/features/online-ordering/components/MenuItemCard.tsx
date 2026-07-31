@@ -8,20 +8,10 @@ import type { MenuItem } from "@/types";
 interface MenuItemCardProps {
   item: MenuItem;
   cartQuantity: number;
+  categoryIcon?: string;
 }
 
-const CATEGORY_EMOJI: Record<string, string> = {
-  cat_001: "🔥",
-  cat_002: "🍲",
-  cat_003: "🍚",
-  cat_004: "🍔",
-  cat_005: "🫓",
-  cat_006: "🍮",
-  cat_007: "🥤",
-  cat_008: "🥗",
-};
-
-export function MenuItemCard({ item, cartQuantity }: MenuItemCardProps) {
+export function MenuItemCard({ item, cartQuantity , categoryIcon }: MenuItemCardProps) {
   const addItem = useCustomerCartStore((s) => s.addItem);
   const items = useCustomerCartStore((s) => s.items);
   const updateQuantity = useCustomerCartStore((s) => s.updateQuantity);
@@ -43,9 +33,7 @@ export function MenuItemCard({ item, cartQuantity }: MenuItemCardProps) {
     >
       {/* Visual */}
       <div className="h-36 bg-linear-to-br from-[#f4f2ef] to-[#ebe9e4] flex items-center justify-center relative">
-        <span className="text-6xl">
-          {CATEGORY_EMOJI[item.categoryId] ?? "🍴"}
-        </span>
+        <span className="text-6xl">{categoryIcon ?? "🍴"}</span>
       </div>
 
       {/* Info */}

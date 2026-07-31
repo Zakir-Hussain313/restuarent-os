@@ -42,6 +42,7 @@ export const orders = pgTable(
         // Retained independently of customerId — walk-in or delivery orders may
         // have a phone number without a registered customer record.
         customerPhone: text("customer_phone"),
+        customerName: text("customer_name"),
 
         // Denormalized pointer to the assigned rider. The authoritative delivery
         // lifecycle (status, timestamps, address snapshot) lives on the
@@ -76,7 +77,6 @@ export const orders = pgTable(
         // Staff member who created / took the order.
         // onDelete: "restrict" — prevents deleting a staff record that has orders.
         staffId: uuid("staff_id")
-            .notNull()
             .references(() => staff.id, { onDelete: "restrict" }),
 
         createdAt: timestamp("created_at", { withTimezone: true })

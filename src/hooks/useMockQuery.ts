@@ -59,4 +59,12 @@ export const queryKeys = {
     dashboard: ["analytics", "dashboard"] as const,
     report: (from: string, to: string) => ["analytics", "report", from, to] as const,
   },
+  deliveryAreas: {
+    list: (branchId?: string) => ["deliveryAreas", branchId] as const,
+  },
+  onlineOrdering: {
+    branchInfo: ["onlineOrdering", "branchInfo"] as const,
+    deliveryAreas: ["onlineOrdering", "deliveryAreas"] as const,
+    menu: (branchId: string) => ["onlineOrdering", "menu", branchId] as const,
+  },
 } as const;
