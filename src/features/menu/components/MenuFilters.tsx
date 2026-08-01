@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     Select,
     SelectContent,
@@ -8,6 +9,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { queryKeys } from "@/hooks/useMockQuery";
+import {
+    getWebsiteBranchSettingAction,
+    setWebsiteBranchSettingAction,
+} from "@/features/website/actions";
 import type { Branch } from "@/db/schema";
 
 interface MenuFilterState {
@@ -32,6 +38,59 @@ interface MenuFiltersProps {
     canManageMenu: boolean;
     branches: Branch[];
     children: React.ReactNode;
+}
+
+// Which branch's menu shows on the public marketing homepage. Unrelated to
+// the "viewing/editing" branch filter below — kept as a visually separate
+// control so the two don't get confused with each other.
+function WebsiteBranchSelector({ branches }: { branches: Branch[] }) {
+    const queryClient = useQueryClient();
+    const activeBranches = branches.filter((b) => b.isActive);
+
+    const { data, isLoading } = useQuery({
+        queryKey: queryKeys.website.branchSetting,
+        queryFn: async () => {
+            const res = await getWebsiteBranchSettingAction();
+            if (res.data === null) throw new Error(res.error);
+            return res.data;
+        },
+    });
+
+    const { mutate, isPending } = useMutation({
+        mutationFn: async (branchId: string | null) => {
+            const res = await setWebsiteBranchSettingAction(branchId);
+            if (!res.success) throw new Error(res.error);
+            return branchId;
+        },
+        onSuccess: (branchId) => {
+            queryClient.setQueryData(queryKeys.website.branchSetting, { websiteBranchId: branchId });
+        },
+    });
+
+    if (activeBranches.length < 2) return null;
+
+    return (
+        <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground shrink-0">Website shows:</span>
+            <Select
+                value={data?.websiteBranchId ?? "auto"}
+                disabled={isLoading || isPending}
+                onValueChange={(v: string | null) => mutate(!v || v === "auto" ? null : v)}
+            >
+                <SelectTrigger className="w-55">
+                    <SelectValue placeholder="Auto (earliest branch)" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="auto">Auto (earliest branch)</SelectItem>
+                    {activeBranches.map((b) => (
+                        <SelectItem key={b.id} value={b.id}>
+                            {b.name}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
+    );
 }
 
 export function MenuFilters({
@@ -62,6 +121,8 @@ export function MenuFilters({
                             ))}
                         </SelectContent>
                     </Select>
+
+                    <WebsiteBranchSelector branches={branches} />
                 </div>
             )}
 

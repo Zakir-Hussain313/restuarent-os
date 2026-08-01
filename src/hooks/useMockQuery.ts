@@ -67,4 +67,7 @@ export const queryKeys = {
     deliveryAreas: ["onlineOrdering", "deliveryAreas"] as const,
     menu: (branchId: string) => ["onlineOrdering", "menu", branchId] as const,
   },
+  website: {
+    branchSetting: ["website", "branchSetting"] as const,
+  },
 } as const;
