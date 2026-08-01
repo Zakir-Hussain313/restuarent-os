@@ -78,7 +78,7 @@ export default function AboutPage() {
               </p>
             </div>
             <Link
-              href="/menu"
+              href="/order"
               className="inline-flex items-center gap-2 text-sm font-semibold text-[#e8570e] hover:text-[#c44a0c] transition-colors w-fit"
             >
               Explore our menu

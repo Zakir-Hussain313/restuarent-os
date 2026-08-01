@@ -1,5 +1,5 @@
 export const RESTAURANT_CONFIG = {
-  name: "Zaiqa Restaurant",
+  name: process.env.NEXT_PUBLIC_RESTAURANT_NAME,
   tagline: "Taste the Tradition",
   currency: "PKR",
   currencySymbol: "Rs.",

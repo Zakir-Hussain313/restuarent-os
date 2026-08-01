@@ -7,9 +7,10 @@ import { eq } from "drizzle-orm";
 import { getBranchListAction } from "@/features/branches/actions";
 import { MenuFilters } from "@/features/menu/components/MenuFilters";
 import { MenuLayout } from "@/features/menu";
+import { RESTAURANT_CONFIG } from "@/config/restaurant";
 
 export const metadata: Metadata = {
-  title: "Menu | Rice n Spice",
+  title: `Menu | ${RESTAURANT_CONFIG.name}`,
 };
 
 export default async function MenuPage() {

@@ -82,7 +82,7 @@ export function HeroSection() {
             Order Online
           </Link>
           <Link
-            href="/menu"
+            href="/order"
             className="flex items-center gap-2.5 bg-white/10 hover:bg-white/15 backdrop-blur-sm border border-white/20 text-white font-semibold px-7 py-3.5 rounded-xl transition-all duration-200 hover:-translate-y-0.5"
           >
             View Full Menu

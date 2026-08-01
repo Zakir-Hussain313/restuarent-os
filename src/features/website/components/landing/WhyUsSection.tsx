@@ -1,3 +1,4 @@
+import { RESTAURANT_CONFIG } from "@/config/restaurant";
 import { WHY_US } from "../../data/websiteContent";
 
 export function WhyUsSection() {
@@ -7,7 +8,7 @@ export function WhyUsSection() {
         {/* Header */}
         <div className="text-center max-w-xl mx-auto mb-14">
           <p className="text-xs font-semibold uppercase tracking-widest text-[#e8570e] mb-2">
-            Why Rice n Spice
+            Why {RESTAURANT_CONFIG.name}
           </p>
           <h2 className="text-3xl sm:text-4xl font-bold text-[#1a1815] leading-tight">
             The Difference You Can Taste

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { MapPin, Phone, Mail, Clock } from "lucide-react";
+import { RESTAURANT_CONFIG } from "@/config/restaurant";
 
 export function WebsiteFooter() {
   return (
@@ -11,7 +12,7 @@ export function WebsiteFooter() {
             <div className="w-8 h-8 bg-[#e8570e] rounded-lg flex items-center justify-center">
               <span className="text-white text-sm font-bold">R</span>
             </div>
-            <span className="text-base font-bold tracking-tight">Rice n Spice</span>
+            <span className="text-base font-bold tracking-tight">{RESTAURANT_CONFIG.name}</span>
           </div>
           <p className="text-sm text-white/50 leading-relaxed">
             Authentic flavours crafted with tradition. Every dish tells a story of heritage, spice, and love.
@@ -104,7 +105,7 @@ export function WebsiteFooter() {
       {/* Bottom bar */}
       <div className="border-t border-white/10">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <p className="text-xs text-white/30">© {new Date().getFullYear()} Rice n Spice. All rights reserved.</p>
+          <p className="text-xs text-white/30">© {new Date().getFullYear()} {RESTAURANT_CONFIG.name}. All rights reserved.</p>
           <p className="text-xs text-white/30">Made with ❤️ in Karachi</p>
         </div>
       </div>

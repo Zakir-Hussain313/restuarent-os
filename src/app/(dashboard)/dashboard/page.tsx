@@ -15,6 +15,7 @@ import {
   QuickActionsBar,
 } from "@/features/dashboard";
 import { DashboardBranchFilter } from "@/features/dashboard/components/DashboardBranchFilter";
+import { RESTAURANT_CONFIG } from "@/config/restaurant";
 
 export default async function DashboardPage() {
   const supabase = await getSupabaseServerClient();
@@ -33,7 +34,7 @@ export default async function DashboardPage() {
   return (
     <PageShell
       title="Dashboard"
-      description="Welcome back. Here's what's happening at Rice n Spice today."
+      description= {`Welcome back. Here's what's happening at ${RESTAURANT_CONFIG.name} today.`}
       actions={
         <div className="flex items-center gap-3">
           {isSuperAdmin && <DashboardBranchFilter branches={branches ?? []} />}

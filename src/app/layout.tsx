@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+import { RESTAURANT_CONFIG } from "@/config/restaurant";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Rice n Spice — Restaurant OS",
+  title: `${RESTAURANT_CONFIG.name} — Restaurant OS`,
   description: "Premium restaurant management system",
 };
 
