@@ -1,16 +1,32 @@
 import Link from "next/link";
-import { ArrowRight, Clock } from "lucide-react";
-import { FEATURED_DISHES } from "../../data/websiteContent";
+import { ArrowRight, UtensilsCrossed } from "lucide-react";
+import { getPublicWebsiteMenuAction } from "@/features/online-ordering/actions";
 import { formatCurrency } from "@/lib/utils";
+import Image from "next/image";
 
-const TAG_STYLES: Record<string, string> = {
-  Bestseller:    "bg-[#e8570e] text-white",
-  "Chef's Pick": "bg-[#1a1815] text-white",
-  New:           "bg-emerald-500 text-white",
-  Popular:       "bg-blue-500 text-white",
-};
+const FEATURED_COUNT = 6;
 
-export function FeaturedDishesSection() {
+export async function FeaturedDishesSection() {
+  const { data } = await getPublicWebsiteMenuAction();
+
+  // No active branch / menu configured yet — hide the section rather than
+  // showing an empty or fake grid.
+  if (!data || data.items.length === 0) {
+    return null;
+  }
+
+  const categoryNameById = new Map(data.categories.map((c) => [c.id, c.name]));
+
+  const featuredItems = data.items
+    .filter((item) => item.isFeatured)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  // No curated picks for this branch yet — fall back to the old behaviour
+  // (first N by sortOrder) rather than hiding the section.
+  const dishes = featuredItems.length > 0
+    ? featuredItems.slice(0, FEATURED_COUNT)
+    : [...data.items].sort((a, b) => a.sortOrder - b.sortOrder).slice(0, FEATURED_COUNT);
+
   return (
     <section className="py-20 bg-[#faf9f7]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -28,7 +44,7 @@ export function FeaturedDishesSection() {
             </p>
           </div>
           <Link
-            href="/menu"
+            href="/order"
             className="inline-flex items-center gap-2 text-sm font-semibold text-[#e8570e] hover:text-[#c44a0c] transition-colors shrink-0"
           >
             View full menu
@@ -38,27 +54,24 @@ export function FeaturedDishesSection() {
 
         {/* Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {FEATURED_DISHES.map((dish) => (
+          {dishes.map((dish) => (
             <div
               key={dish.id}
               className="group bg-white rounded-2xl border border-[#ebe9e4] overflow-hidden hover:shadow-md hover:border-[#e8570e]/20 transition-all duration-200"
             >
-              {/* Dish visual — emoji placeholder */}
-              <div className="relative h-44 bg-linear-to-br from-[#f4f2ef] to-[#ebe9e4] flex items-center justify-center">
-                <span className="text-7xl">{dish.emoji}</span>
-                {dish.tag && (
-                  <span
-                    className={`absolute top-3 left-3 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${
-                      TAG_STYLES[dish.tag] ?? "bg-gray-100 text-gray-600"
-                    }`}
-                  >
-                    {dish.tag}
-                  </span>
+              {/* Dish visual — real photo if the item has one, plain fallback otherwise */}
+              <div className="relative h-44 bg-linear-to-br from-[#f4f2ef] to-[#ebe9e4] flex items-center justify-center overflow-hidden">
+                {dish.image ? (
+                  <Image
+                    src={dish.image}
+                    alt={dish.name}
+                    fill
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    className="object-cover"
+                  />
+                ) : (
+                  <UtensilsCrossed className="w-10 h-10 text-[#c9c5bd]" />
                 )}
-                <span className="absolute top-3 right-3 text-[10px] text-[#8a8680] bg-white/80 backdrop-blur-sm border border-[#ebe9e4] rounded-full px-2.5 py-1 flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {dish.prepTime}
-                </span>
               </div>
 
               {/* Info */}
@@ -66,7 +79,7 @@ export function FeaturedDishesSection() {
                 <div className="flex items-start justify-between gap-2 mb-1.5">
                   <h3 className="text-sm font-semibold text-[#1a1815] leading-tight">{dish.name}</h3>
                   <span className="text-sm font-bold text-[#e8570e] shrink-0">
-                    {formatCurrency(dish.price)}
+                    {formatCurrency(dish.basePrice)}
                   </span>
                 </div>
                 <p className="text-xs text-[#8a8680] leading-relaxed line-clamp-2 mb-3">
@@ -74,7 +87,7 @@ export function FeaturedDishesSection() {
                 </p>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-[#8a8680] bg-[#f4f2ef] rounded-full px-2.5 py-1">
-                    {dish.category}
+                    {categoryNameById.get(dish.categoryId) ?? ""}
                   </span>
                   <Link
                     href="/order"

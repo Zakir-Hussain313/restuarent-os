@@ -8,6 +8,7 @@ import {
   getMenuItemsAction,
   toggleItemStatusAction,
   toggleCategoryActiveAction,
+  toggleItemFeaturedAction,
 } from "@/features/menu/actions";
 import type { MenuCategory, MenuItem, MenuItemStatus } from "@/types";
 
@@ -22,6 +23,8 @@ export interface UseMenuReturn {
   isToggling: boolean;
   toggleCategoryActive: (categoryId: string, isActive: boolean) => void;
   isTogglingCategory: boolean;
+  toggleItemFeatured: (itemId: string) => void;
+  isTogglingFeatured: boolean;
 }
 
 export function useMenu(overrideBranchId?: string): UseMenuReturn {
@@ -93,6 +96,21 @@ export function useMenu(overrideBranchId?: string): UseMenuReturn {
     },
   });
 
+  // ── Toggle item featured ───────────────────────────────────────
+  const { mutate: mutateItemFeatured, isPending: isTogglingFeatured } = useMutation({
+    mutationFn: async (itemId: string) => {
+      const res = await toggleItemFeaturedAction(itemId);
+      if (!res.success) throw new Error(res.error);
+      return { itemId, isFeatured: res.isFeatured };
+    },
+    onSuccess: ({ itemId, isFeatured }) => {
+      queryClient.setQueryData<MenuItem[]>(
+        itemsKey,
+        (old) => old?.map((i) => i.id === itemId ? { ...i, isFeatured, updatedAt: new Date().toISOString() } : i) ?? []
+      );
+    },
+  });
+
   return {
     categories,
     items,
@@ -104,5 +122,7 @@ export function useMenu(overrideBranchId?: string): UseMenuReturn {
     isToggling,
     toggleCategoryActive: (categoryId, isActive) => mutateCategoryActive({ categoryId, isActive }),
     isTogglingCategory,
+    toggleItemFeatured: (itemId) => mutateItemFeatured(itemId),
+    isTogglingFeatured,
   };
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil, Trash2, AlertTriangle } from "lucide-react";
+import { Pencil, Trash2, AlertTriangle, Star, UtensilsCrossed } from "lucide-react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils";
 import { ItemStatusToggle } from "./ItemStatusToggle";
@@ -10,8 +11,10 @@ import type { MenuItem, MenuItemStatus } from "@/types";
 interface ItemCardProps {
   item: MenuItem;
   isToggling: boolean;
+  isTogglingFeatured: boolean;
   canManage: boolean;
   onToggleStatus: (itemId: string, status: MenuItemStatus) => void;
+  onToggleFeatured: (itemId: string) => void;
   onEdit: (item: MenuItem) => void;
   onDelete: (item: MenuItem) => void;
 }
@@ -19,8 +22,10 @@ interface ItemCardProps {
 export function ItemCard({
   item,
   isToggling,
+  isTogglingFeatured,
   canManage,
   onToggleStatus,
+  onToggleFeatured,
   onEdit,
   onDelete,
 }: ItemCardProps) {
@@ -37,12 +42,34 @@ export function ItemCard({
         item.status === "unavailable" && "opacity-60"
       )}>
 
-        {/* ── Top row: name + actions ─────────────────────── */}
+        {/* ── Top row: image + name + actions ─────────────── */}
         <div className="flex items-start justify-between gap-2">
-          <p className="text-sm font-semibold leading-tight flex-1 min-w-0">{item.name}</p>
+          <div className="flex items-start gap-2.5 flex-1 min-w-0">
+            <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted border shrink-0 relative">
+              {item.image ? (
+                <Image src={item.image} alt={item.name} fill sizes="40px" className="object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <UtensilsCrossed className="w-4 h-4 text-muted-foreground" />
+                </div>
+              )}
+            </div>
+            <p className="text-sm font-semibold leading-tight flex-1 min-w-0 pt-1">{item.name}</p>
+          </div>
 
           {canManage && (
             <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => onToggleFeatured(item.id)}
+                disabled={isTogglingFeatured}
+                title={item.isFeatured ? "Remove from featured" : "Mark as featured"}
+                className={cn(
+                  "p-1.5 rounded-lg hover:bg-amber-50 transition-colors disabled:opacity-50",
+                  item.isFeatured ? "text-amber-500" : "text-muted-foreground hover:text-amber-500"
+                )}
+              >
+                <Star className="w-3.5 h-3.5" fill={item.isFeatured ? "currentColor" : "none"} />
+              </button>
               <button
                 onClick={() => onEdit(item)}
                 className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"

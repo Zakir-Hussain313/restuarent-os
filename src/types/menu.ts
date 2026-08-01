@@ -61,6 +61,7 @@ export interface MenuItem {
   modifierGroups: ModifierGroup[];
   status: MenuItemStatus;
   sortOrder: number;
+  isFeatured: boolean;
   createdAt: string;
   updatedAt: string;
 }

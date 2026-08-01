@@ -12,7 +12,7 @@ import {
     staff,
 } from "@/db/schema";
 import { getSupabaseServerClient } from "@/lib/supabase";
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, asc, count } from "drizzle-orm";
 import type {
     MenuCategory,
     MenuItem,
@@ -34,6 +34,7 @@ export interface ItemFormInput {
     description: string;
     basePrice: number;
     status: MenuItemStatus;
+    image?: string;
     variants: Array<{
         id?: string;
         name: string;
@@ -212,6 +213,7 @@ export async function getMenuItemsAction(
         })),
         status: i.status,
         sortOrder: i.sortOrder,
+        isFeatured: i.isFeatured,
         createdAt: i.createdAt.toISOString(),
         updatedAt: i.updatedAt.toISOString(),
     }));
@@ -494,6 +496,7 @@ export async function createMenuItemAction(
                 })),
                 status: created.item.status,
                 sortOrder: created.item.sortOrder,
+                isFeatured: created.item.isFeatured,
                 createdAt: created.item.createdAt.toISOString(),
                 updatedAt: created.item.updatedAt.toISOString(),
             },
@@ -541,6 +544,7 @@ export async function updateMenuItemAction(
                     description: input.description,
                     basePrice: input.basePrice,
                     status: input.status,
+                    image: input.image,
                     updatedAt: new Date(),
                 })
                 .where(eq(menuItems.id, id));
@@ -657,4 +661,49 @@ export async function toggleItemStatusAction(
         .where(eq(menuItems.id, id));
 
     return { success: true };
+}
+
+
+export async function toggleItemFeaturedAction(
+    id: string
+): Promise<{ success: true; isFeatured: boolean } | { success?: undefined; error: string }> {
+    const auth = await getCurrentStaff();
+    if (!auth.ok) return { error: auth.error };
+    const { staff: currentStaffRow } = auth;
+
+    // Curation decision, not an availability toggle — STAFF excluded on purpose.
+    if (currentStaffRow.role !== "ADMIN" && currentStaffRow.role !== "SUPER_ADMIN") {
+        return { error: "You don't have permission to manage featured items." };
+    }
+
+    const target = await db.query.menuItems.findFirst({
+        where: eq(menuItems.id, id),
+    });
+    if (!target || target.tenantId !== currentStaffRow.tenantId) {
+        return { error: "Menu item not found." };
+    }
+    // ADMIN locked to their own branch; SUPER_ADMIN unrestricted.
+    if (currentStaffRow.role !== "SUPER_ADMIN" && target.branchId !== currentStaffRow.branchId) {
+        return { error: "You can only manage your own branch's menu." };
+    }
+
+    const nextFeatured = !target.isFeatured;
+
+    if (nextFeatured) {
+        const featuredCount = await db
+            .select({ count: count() })
+            .from(menuItems)
+            .where(and(eq(menuItems.branchId, target.branchId), eq(menuItems.isFeatured, true)));
+
+        if ((featuredCount[0]?.count ?? 0) >= 6) {
+            return { error: "You can only feature up to 6 items per branch. Unfeature another item first." };
+        }
+    }
+
+    await db
+        .update(menuItems)
+        .set({ isFeatured: nextFeatured, updatedAt: new Date() })
+        .where(eq(menuItems.id, id));
+
+    return { success: true, isFeatured: nextFeatured };
 }

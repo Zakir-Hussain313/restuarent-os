@@ -9,11 +9,60 @@ import {
     menuCategories,
     branches,
     branchDeliveryAreas,
+    tenantSettings,
 } from "@/db/schema";
 import { eq, and, inArray, sql, count, asc } from "drizzle-orm";
 import type { Order, MenuCategory, MenuItem } from "@/types";
 import { RESTAURANT_CONFIG } from "@/config/restaurant";
 import { getTenantId } from "@/lib/tenant";
+
+
+// ─── Website menu (marketing homepage) ──────────────────────────────────
+// The homepage isn't location-aware like the real /order flow, so it just
+// shows one branch's menu: the earliest-created active branch, for now.
+// (A per-tenant override setting is coming next — this fallback will stay
+// in place for tenants who never set one.)
+export async function getPublicWebsiteMenuAction(): Promise <
+    | { data: { categories: MenuCategory[]; items: MenuItem[] }; error?: undefined }
+    | { data: null; error: string }
+> {
+    const tenantId = getTenantId();
+
+    // Prefer the SUPER_ADMIN-configured website branch, if one is set and
+    // still points to an active branch belonging to this tenant. Otherwise
+    // fall back to the earliest-created active branch.
+    const settings = await db.query.tenantSettings.findFirst({
+        where: eq(tenantSettings.tenantId, tenantId),
+        columns: { websiteBranchId: true },
+    });
+
+    let targetBranchId = settings?.websiteBranchId ?? null;
+
+    if (targetBranchId) {
+        const configuredBranch = await db.query.branches.findFirst({
+            where: and(
+                eq(branches.id, targetBranchId),
+                eq(branches.tenantId, tenantId),
+                eq(branches.isActive, true)
+            ),
+        });
+        if (!configuredBranch) targetBranchId = null;
+    }
+
+    if (!targetBranchId) {
+        const flagshipBranch = await db.query.branches.findFirst({
+            where: and(eq(branches.tenantId, tenantId), eq(branches.isActive, true)),
+            orderBy: [asc(branches.createdAt)],
+        });
+        if (!flagshipBranch) {
+            return { data: null, error: "No active branches configured for this restaurant." };
+        }
+        targetBranchId = flagshipBranch.id;
+    }
+
+    return getPublicMenuAction(targetBranchId);
+}
+
 
 // ─── Branch info (drives whether the location modal shows at all) ──────
 
@@ -149,6 +198,7 @@ export async function getPublicMenuAction(
         })),
         status: i.status,
         sortOrder: i.sortOrder,
+        isFeatured: i.isFeatured,
         createdAt: i.createdAt.toISOString(),
         updatedAt: i.updatedAt.toISOString(),
     }));

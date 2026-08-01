@@ -9,8 +9,10 @@ interface ItemsPanelProps {
   selectedCategory: MenuCategory | null;
   isLoading: boolean;
   isToggling: boolean;
+  isTogglingFeatured: boolean;
   canManage: boolean;
   onToggleStatus: (itemId: string, status: MenuItemStatus) => void;
+  onToggleFeatured: (itemId: string) => void;
   onAddItem: () => void;
   onEditItem: (item: MenuItem) => void;
   onDeleteItem: (item: MenuItem) => void;
@@ -47,8 +49,10 @@ export function ItemsPanel({
   selectedCategory,
   isLoading,
   isToggling,
+  isTogglingFeatured,
   canManage,
   onToggleStatus,
+  onToggleFeatured,
   onAddItem,
   onEditItem,
   onDeleteItem,
@@ -113,8 +117,10 @@ export function ItemsPanel({
                   key={item.id}
                   item={item}
                   isToggling={isToggling}
+                  isTogglingFeatured={isTogglingFeatured}
                   canManage={canManage}
                   onToggleStatus={onToggleStatus}
+                  onToggleFeatured={onToggleFeatured}
                   onEdit={onEditItem}
                   onDelete={onDeleteItem}
                 />

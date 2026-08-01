@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { X, Loader2, Plus, Trash2 } from "lucide-react";
+import { X, Loader2, Plus, Trash2, Upload, ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MenuCategory, MenuItem } from "@/types";
 import type { Control, FieldErrors, UseFormRegister } from "react-hook-form";
@@ -48,13 +48,12 @@ const itemSchema = z.object({
 type ItemFormValues = z.infer<typeof itemSchema>;
 
 // ─── Props ────────────────────────────────────────────────────────────────────
-
 interface ItemFormModalProps {
     isOpen: boolean;
     item: MenuItem | null;
     categories: MenuCategory[];
     isLoading: boolean;
-    onSubmit: (values: ItemFormValues) => void;
+    onSubmit: (values: ItemFormValues, imageFile: File | null) => void;
     onClose: () => void;
 }
 
@@ -64,6 +63,9 @@ const inputClass = "w-full h-9 px-3 text-sm border rounded-lg bg-background focu
 const labelClass = "text-xs font-medium text-muted-foreground mb-1.5 block";
 
 const STATUS_OPTIONS = ["available", "out_of_stock", "unavailable"] as const;
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 const DEFAULT_VALUES: ItemFormValues = {
     categoryId: "",
@@ -119,6 +121,50 @@ export function ItemFormModal({
         remove: removeModifier,
     } = useFieldArray({ control, name: "modifierGroups" });
 
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [imageError, setImageError] = useState<string | null>(null);
+
+    // Derived, not stored — avoids needing an effect to keep it in sync.
+    const previewUrl = useMemo(() => {
+        if (selectedFile) return URL.createObjectURL(selectedFile);
+        return item?.image ?? null;
+    }, [selectedFile, item]);
+
+    // Object URLs must be revoked to avoid leaking memory — this is a real
+    // "subscribe to an external system" case, so an effect is correct here.
+    useEffect(() => {
+        return () => {
+            if (selectedFile && previewUrl) URL.revokeObjectURL(previewUrl);
+        };
+    }, [selectedFile, previewUrl]);
+
+    function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!ALLOWED_TYPES.includes(file.type)) {
+            setImageError("Only JPEG, PNG, or WebP images are allowed.");
+            return;
+        }
+        if (file.size > MAX_FILE_SIZE) {
+            setImageError("Image must be under 5MB.");
+            return;
+        }
+
+        setImageError(null);
+        setSelectedFile(file);
+    }
+
+    function clearSelectedImage() {
+        setSelectedFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+
+    function handleFormSubmit(values: ItemFormValues) {
+        onSubmit(values, selectedFile);
+    }
+
     useEffect(() => {
         if (!isOpen) return;
         if (item) {
@@ -153,9 +199,53 @@ export function ItemFormModal({
 
                 {/* Body */}
                 <div className="flex-1 overflow-y-auto min-h-0 px-6 py-5">
-                    <form id="item-form" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+                    <form id="item-form" onSubmit={handleSubmit(handleFormSubmit)} className="space-y-5">
 
                         <SectionTitle>Basic Info</SectionTitle>
+
+                        <SectionTitle>Basic Info</SectionTitle>
+
+                        {/* Photo */}
+                        <div>
+                            <label className={labelClass}>Photo (optional)</label>
+                            <div className="flex items-center gap-3">
+                                <div className="h-16 w-16 rounded-lg overflow-hidden bg-muted border flex items-center justify-center shrink-0">
+                                    {previewUrl ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img src={previewUrl} alt="Preview" className="h-full w-full object-cover" />
+                                    ) : (
+                                        <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                                    )}
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-lg hover:bg-muted transition-colors"
+                                    >
+                                        <Upload className="w-3.5 h-3.5" />
+                                        {previewUrl ? "Change" : "Upload"}
+                                    </button>
+                                    {selectedFile && (
+                                        <button
+                                            type="button"
+                                            onClick={clearSelectedImage}
+                                            className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors"
+                                        >
+                                            <X className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                </div>
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/webp"
+                                    className="hidden"
+                                    onChange={handleFileChange}
+                                />
+                            </div>
+                            {imageError && <p className="text-xs text-destructive mt-1.5">{imageError}</p>}
+                        </div>
 
                         {/* Category */}
                         <div>

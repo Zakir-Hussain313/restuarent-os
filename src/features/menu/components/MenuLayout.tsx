@@ -8,6 +8,7 @@ import { CategoryFormModal } from "./Modals/CategoryFormModal";
 import { ItemFormModal } from "./Modals/ItemFormModal";
 import { useMenu } from "../hooks/useMenu";
 import { useMenuActions } from "../hooks/useMenuActions";
+import { uploadEntityImage } from "@/features/uploads/actions";
 import { useMenuFilters } from "./MenuFilters";
 import type { MenuCategory, MenuItem } from "@/types";
 import type { ItemFormInput } from "@/features/menu/actions";
@@ -45,16 +46,20 @@ export function MenuLayout() {
     isToggling,
     toggleCategoryActive,
     isTogglingCategory,
+    toggleItemFeatured,
+    isTogglingFeatured,
   } = useMenu(branchId);
 
   const {
     addCategory, isAddingCategory,
     editCategory, isEditingCategory,
     deleteCategory,
-    addItem, isAddingItem,
-    editItem, isEditingItem,
+    addItemAsync, isAddingItem,
+    editItemAsync, isEditingItem,
     deleteItem,
   } = useMenuActions(branchId);
+
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   // ── Modal state ────────────────────────────────────────────────────────────
   const [categoryModal, setCategoryModal] = useState<CategoryModalState>(CLOSED_CAT);
@@ -81,6 +86,18 @@ export function MenuLayout() {
   }, [isSuperAdmin, branchId]);
   const openEditItem = useCallback((item: MenuItem) => setItemModal({ isOpen: true, item }), []);
   const closeItemModal = useCallback(() => setItemModal(CLOSED_ITEM), []);
+
+  async function uploadItemImage(itemId: string, file: File): Promise<string> {
+    const fd = new FormData();
+    fd.set("entityType", "menu_item");
+    fd.set("entityId", itemId);
+    fd.set("file", file);
+    const result = await uploadEntityImage(fd);
+    if (result.error || !result.url) {
+      throw new Error(result.error ?? "Image upload failed.");
+    }
+    return result.url;
+  }
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const selectedCategory: MenuCategory | null =
@@ -124,6 +141,7 @@ export function MenuLayout() {
               selectedCategory={selectedCategory}
               isLoading={isLoading}
               isToggling={isToggling}
+              isTogglingFeatured={isTogglingFeatured}
               canManage={canManageMenu}
               onAddItem={openAddItem}
               onEditItem={openEditItem}
@@ -133,6 +151,7 @@ export function MenuLayout() {
                 })
               }
               onToggleStatus={toggleItemStatus}
+              onToggleFeatured={toggleItemFeatured}
             />
           </div>
         </div>
@@ -162,30 +181,44 @@ export function MenuLayout() {
       />
 
       <ItemFormModal
+        key={`${itemModal.isOpen}-${itemModal.item?.id ?? "new"}`}
         isOpen={itemModal.isOpen}
         item={itemModal.item}
         categories={categories}
-        isLoading={isAddingItem || isEditingItem}
+        isLoading={isAddingItem || isEditingItem || isUploadingImage}
         onClose={closeItemModal}
-        onSubmit={(values) => {
+        onSubmit={async (values, imageFile) => {
           const input: ItemFormInput = {
             ...values,
             description: itemModal.item?.description ?? "",
           };
 
-          if (itemModal.item) {
-            editItem(
-              { id: itemModal.item.id, input },
-              {
-                onSuccess: closeItemModal,
-                onError: (err) => alert(`Failed to save item: ${err.message}`),
+          try {
+            if (itemModal.item) {
+              // Edit mode: the item's ID already exists, so we can upload
+              // first (if a new photo was picked) and save everything in one go.
+              let image: string | undefined;
+              if (imageFile) {
+                setIsUploadingImage(true);
+                image = await uploadItemImage(itemModal.item.id, imageFile);
+                setIsUploadingImage(false);
               }
-            );
-          } else {
-            addItem(input, {
-              onSuccess: closeItemModal,
-              onError: (err) => alert(`Failed to add item: ${err.message}`),
-            });
+              await editItemAsync({ id: itemModal.item.id, input: { ...input, image } });
+            } else {
+              // Add mode: no ID exists until the item is created, so the
+              // photo (if any) has to be uploaded and attached in a second step.
+              const newItem = await addItemAsync(input);
+              if (imageFile) {
+                setIsUploadingImage(true);
+                const image = await uploadItemImage(newItem.id, imageFile);
+                setIsUploadingImage(false);
+                await editItemAsync({ id: newItem.id, input: { ...input, image } });
+              }
+            }
+            closeItemModal();
+          } catch (err) {
+            setIsUploadingImage(false);
+            alert(`Failed to save item: ${err instanceof Error ? err.message : "Something went wrong."}`);
           }
         }}
       />

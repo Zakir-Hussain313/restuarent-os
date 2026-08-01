@@ -10,7 +10,7 @@ import { hasPermission } from "@/types/staff";
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
-type EntityType = "staff" | "branch";
+type EntityType = "staff" | "branch" | "menu_item";
 
 export async function uploadEntityImage(formData: FormData) {
   const entityType = formData.get("entityType") as EntityType | null;
@@ -47,11 +47,20 @@ export async function uploadEntityImage(formData: FormData) {
     return { error: "Staff record not found." };
   }
 
-  const requiredPermission =
-    entityType === "staff" ? "manage_staff" : "manage_branches";
+  if (entityType === "menu_item") {
+    // Matches createMenuItemAction/updateMenuItemAction: ADMIN + SUPER_ADMIN only,
+    // NOT STAFF — unlike the "manage_menu" permission string, which STAFF also
+    // holds for availability toggling. Direct role check here on purpose.
+    if (currentStaffRow.role !== "ADMIN" && currentStaffRow.role !== "SUPER_ADMIN") {
+      return { error: "You don't have permission to upload this image." };
+    }
+  } else {
+    const requiredPermission =
+      entityType === "staff" ? "manage_staff" : "manage_branches";
 
-  if (!hasPermission(currentStaffRow.role, requiredPermission)) {
-    return { error: "You don't have permission to upload this image." };
+    if (!hasPermission(currentStaffRow.role, requiredPermission)) {
+      return { error: "You don't have permission to upload this image." };
+    }
   }
 
   // ── Upload ─────────────────────────────────────────────────────────────

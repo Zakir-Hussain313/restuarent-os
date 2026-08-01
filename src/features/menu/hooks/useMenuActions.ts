@@ -75,7 +75,7 @@ export function useMenuActions(overrideBranchId?: string) {
   });
 
   // ── Add Item ───────────────────────────────────────────────────
-  const { mutate: addItem, isPending: isAddingItem } = useMutation({
+  const { mutate: addItem, mutateAsync: addItemAsync, isPending: isAddingItem } = useMutation({
     mutationFn: async (input: ItemFormInput) => {
       const res = await createMenuItemAction(input, overrideBranchId);
       if (!res.success) throw new Error(res.error);
@@ -90,7 +90,7 @@ export function useMenuActions(overrideBranchId?: string) {
   });
 
   // ── Edit Item ──────────────────────────────────────────────────
-  const { mutate: editItem, isPending: isEditingItem } = useMutation({
+  const { mutate: editItem, mutateAsync: editItemAsync, isPending: isEditingItem } = useMutation({
     mutationFn: async ({ id, input }: { id: string; input: ItemFormInput }) => {
       const res = await updateMenuItemAction(id, input);
       if (!res.success) throw new Error(res.error);
@@ -102,16 +102,16 @@ export function useMenuActions(overrideBranchId?: string) {
         (old) => old?.map((i) =>
           i.id === id
             ? {
-                ...i,
-                ...input,
-                updatedAt: new Date().toISOString(),
-                variants: input.variants.map((v) => ({ ...v, id: v.id ?? "" })),
-                modifierGroups: input.modifierGroups.map((g) => ({
-                  ...g,
-                  id: g.id ?? "",
-                  options: g.options.map((o) => ({ ...o, id: o.id ?? "" })),
-                })),
-              }
+              ...i,
+              ...input,
+              updatedAt: new Date().toISOString(),
+              variants: input.variants.map((v) => ({ ...v, id: v.id ?? "" })),
+              modifierGroups: input.modifierGroups.map((g) => ({
+                ...g,
+                id: g.id ?? "",
+                options: g.options.map((o) => ({ ...o, id: o.id ?? "" })),
+              })),
+            }
             : i
         ) ?? []
       );
@@ -141,8 +141,8 @@ export function useMenuActions(overrideBranchId?: string) {
     addCategory, isAddingCategory,
     editCategory, isEditingCategory,
     deleteCategory, isDeletingCategory,
-    addItem, isAddingItem,
-    editItem, isEditingItem,
+    addItem, addItemAsync, isAddingItem,
+    editItem, editItemAsync, isEditingItem,
     deleteItem, isDeletingItem,
   };
 }

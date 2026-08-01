@@ -56,6 +56,7 @@ export const menuItems = pgTable("menu_items", {
 
   status: menuItemStatusEnum("status").notNull().default("available"),
   sortOrder: integer("sort_order").notNull().default(0),
+  isFeatured: boolean("is_featured").notNull().default(false),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
