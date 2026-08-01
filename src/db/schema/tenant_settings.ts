@@ -10,6 +10,7 @@ import {
     uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { tenants } from "./tenants";
+import { branches } from "./branches";
 
 // Operating hours for a single day.
 type DayHours = {
@@ -57,6 +58,14 @@ export const tenantSettings = pgTable(
         tenantId: uuid("tenant_id")
             .notNull()
             .references(() => tenants.id, { onDelete: "cascade" }),
+
+        // ── Website ──────────────────────────────────────────────────────
+        // Which branch's menu shows on the public marketing homepage.
+        // Nullable — if unset, the app falls back to the earliest-created
+        // active branch (see getPublicWebsiteMenuAction).
+        websiteBranchId: uuid("website_branch_id").references(() => branches.id, {
+            onDelete: "set null",
+        }),
 
         // ── Localization ──────────────────────────────────────────────────
         currency: text("currency").notNull().default("PKR"),

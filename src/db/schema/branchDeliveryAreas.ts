@@ -23,8 +23,8 @@ export const branchDeliveryAreas = pgTable(
         index("branch_delivery_areas_tenant_id_idx").on(t.tenantId),
         index("branch_delivery_areas_branch_id_idx").on(t.branchId),
         index("branch_delivery_areas_city_area_idx").on(t.city, t.area),
-        uniqueIndex("branch_delivery_areas_branch_city_area_udx").on(
-            t.branchId,
+        uniqueIndex("branch_delivery_areas_tenant_city_area_udx").on(
+            t.tenantId,
             t.city,
             t.area
         ),
