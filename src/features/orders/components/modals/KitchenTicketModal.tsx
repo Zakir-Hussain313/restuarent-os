@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { Printer, X, Loader2, ChefHat } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Order } from "@/types";
+import { RESTAURANT_CONFIG } from "@/config/restaurant";
 
 interface KitchenTicketModalProps {
   open: boolean;
@@ -129,7 +130,7 @@ export function KitchenTicketModal({
               <h1 className="text-base font-black tracking-widest uppercase">
                 Kitchen Ticket
               </h1>
-              <p className="text-xs text-gray-500">Rice n Spice</p>
+              <p className="text-xs text-gray-500">{RESTAURANT_CONFIG.name}</p>
             </div>
 
             <div className="divider border-t border-dashed border-gray-400" />

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ProfileModal } from "./ProfileModal";
+import { useQuery } from "@tanstack/react-query";
+import { getBranchCountAction } from "@/features/delivery-areas/actions";
 import { useState } from "react";
 import {
   LayoutDashboard,
@@ -23,6 +25,7 @@ import {
   ChevronDown,
   LogOut,
   Building2,
+  MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NAV_GROUPS } from "@/config/nav";
@@ -43,7 +46,8 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Settings2,
   Bike,
   History,
-  Building2
+  Building2,
+  MapPin
 };
 
 function isChildActive(children: NavChild[], pathname: string): boolean {
@@ -204,11 +208,21 @@ export function Sidebar() {
   const currentStaff = useAuthStore((s) => s.currentStaff);
   const role = currentStaff?.role;
 
+  const { data: branchCount } = useQuery({
+    queryKey: ["branch-count"],
+    queryFn: async () => {
+      const res = await getBranchCountAction();
+      if (res.error) throw new Error(res.error);
+      return res.data;
+    },
+  });
+
   const visibleGroups = NAV_GROUPS
     .map((group) => ({
       ...group,
       items: group.items
         .filter((item) => !role || hasPermission(role, item.permission))
+        .filter((item) => !item.multiBranchOnly || (branchCount ?? 0) >= 2)
         .map((item) => ({
           ...item,
           children: item.children?.filter(

@@ -15,6 +15,20 @@ export interface DeliveryAreaInput {
     area: string;
 }
 
+// ─── Normalization ──────────────────────────────────────────────────────
+// Prevents "DHA Phase 5" and "dha  phase 5" from being treated as distinct
+// areas by the tenant_city_area unique constraint. Applied at write-time
+// only — all future rows are stored clean, so no read-path changes needed.
+
+function normalizeAreaField(value: string): string {
+    return value
+        .trim()
+        .replace(/\s+/g, " ")
+        .split(" ")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(" ");
+}
+
 // ─── Shared auth helper (same pattern as orders actions) ───────────────
 
 async function getCurrentStaff() {
@@ -79,15 +93,23 @@ export async function addDeliveryAreaAction(
         return { error: "Only SUPER_ADMIN can manage delivery areas." };
     }
 
+    const city = normalizeAreaField(input.city);
+    const area = normalizeAreaField(input.area);
+
     try {
         await db.insert(branchDeliveryAreas).values({
             tenantId: auth.staff.tenantId,
             branchId: input.branchId,
-            city: input.city,
-            area: input.area,
+            city,
+            area,
         });
     } catch (err) {
-        return { error: `Failed to add delivery area: ${(err as Error).message}` };
+        const error = err as Error & { cause?: { message?: string } };
+        const causeMessage = error.cause?.message ?? "";
+        if (causeMessage.includes("branch_delivery_areas_tenant_city_area_udx")) {
+            return { error: `"${area}, ${city}" is already assigned to a branch. Each area can only belong to one branch tenant-wide.` };
+        }
+        return { error: `Failed to add delivery area: ${error.message}` };
     }
 
     revalidatePath("/settings/delivery-areas");
@@ -111,13 +133,21 @@ export async function editDeliveryAreaAction(
     });
     if (!existing) return { error: "Delivery area not found." };
 
+    const city = normalizeAreaField(input.city);
+    const area = normalizeAreaField(input.area);
+
     try {
         await db
             .update(branchDeliveryAreas)
-            .set({ city: input.city, area: input.area, updatedAt: new Date() })
+            .set({ city, area, updatedAt: new Date() })
             .where(and(eq(branchDeliveryAreas.id, id), eq(branchDeliveryAreas.tenantId, auth.staff.tenantId)));
     } catch (err) {
-        return { error: `Failed to update delivery area: ${(err as Error).message}` };
+        const error = err as Error & { cause?: { message?: string } };
+        const causeMessage = error.cause?.message ?? "";
+        if (causeMessage.includes("branch_delivery_areas_tenant_city_area_udx")) {
+            return { error: `"${area}, ${city}" is already assigned to a branch. Each area can only belong to one branch tenant-wide.` };
+        }
+        return { error: `Failed to update delivery area: ${error.message}` };
     }
 
     revalidatePath("/settings/delivery-areas");

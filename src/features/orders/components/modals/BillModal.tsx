@@ -5,6 +5,7 @@ import { Printer, X, Loader2, Receipt } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils";
 import type { Order, PaymentMethod } from "@/types";
+import { RESTAURANT_CONFIG } from "@/config/restaurant";
 
 interface BillModalProps {
   open: boolean;
@@ -146,7 +147,7 @@ export function BillModal({
           >
             <div className="text-center space-y-0.5">
               <h1 className="text-base font-black tracking-widest uppercase">
-                Rice n Spice
+                {RESTAURANT_CONFIG.name}
               </h1>
               <p className="text-[10px] text-gray-500">
                 Karachi, Pakistan
@@ -279,7 +280,7 @@ export function BillModal({
             <div className="text-center space-y-1">
               <p className="text-[11px] font-bold">Thank you for dining with us!</p>
               <p className="text-[10px] text-gray-500">
-                Please visit again · Rice n Spice
+                Please visit again · {RESTAURANT_CONFIG.name}
               </p>
             </div>
           </div>

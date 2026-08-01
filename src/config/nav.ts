@@ -12,6 +12,7 @@ export interface NavItem {
   href: string;
   icon: string;
   permission: Permission;
+  multiBranchOnly?: boolean;
   badge?: "live" | "new";
   children?: NavChild[];
 }
@@ -103,6 +104,13 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/branches",
         icon: "Building2",
         permission: "manage_branches",
+      },
+      {
+        label: "Delivery Areas",
+        href: "/settings/delivery-areas",
+        icon: "MapPin",
+        permission: "manage_settings",
+        multiBranchOnly: true,
       },
     ],
   },
