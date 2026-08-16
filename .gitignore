@@ -37,6 +37,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# supabase CLI local cache
+supabase/.temp/
+
 # database dumps — may contain real customer/staff data, never commit
 *.sql
 
