@@ -1,16 +1,17 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { RESTAURANT_CONFIG } from "@/config/restaurant";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(amount: number, symbol = "Rs."): string {
-  return `${symbol} ${amount.toLocaleString("en-PK", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+export function formatCurrency(amount: number, symbol = RESTAURANT_CONFIG.currencySymbol): string {
+  return `${symbol} ${amount.toLocaleString(RESTAURANT_CONFIG.locale, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 export function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-PK", {
+  return new Date(dateString).toLocaleDateString(RESTAURANT_CONFIG.locale, {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -18,7 +19,7 @@ export function formatDate(dateString: string): string {
 }
 
 export function formatTime(dateString: string): string {
-  return new Date(dateString).toLocaleTimeString("en-PK", {
+  return new Date(dateString).toLocaleTimeString(RESTAURANT_CONFIG.locale, {
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,

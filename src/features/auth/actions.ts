@@ -12,6 +12,7 @@ import {
 import { db } from "@/db";
 import { staff } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { loginRateLimit, forgotPasswordRateLimit } from "@/lib/rate-limit";
 
 // Single source of truth — derived from the Drizzle schema, never redeclared.
 // When staffRoleEnum grows (e.g. CUSTOMER), this type updates automatically.
@@ -19,13 +20,19 @@ export type AppRole = (typeof staff.$inferSelect)["role"];
 
 // ── Login ─────────────────────────────────────────────────────────────────────
 
+
 export async function loginAction(input: LoginInput) {
   const parsed = loginSchema.safeParse(input);
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0].message };
-  }
+    if (!parsed.success) {
+      return { error: parsed.error.issues[0].message };
+    }
 
-  const supabase = await getSupabaseServerClient();
+    const { success } = await loginRateLimit.limit(parsed.data.email.toLowerCase());
+    if (!success) {
+      return { error: "Too many login attempts. Please wait a minute and try again." };
+    }
+
+    const supabase = await getSupabaseServerClient();
 
   const { data, error } = await supabase.auth.signInWithPassword({
     email: parsed.data.email,
@@ -68,6 +75,11 @@ export async function forgotPasswordAction(input: ForgotPasswordInput) {
   const parsed = forgotPasswordSchema.safeParse(input);
   if (!parsed.success) {
     return { error: parsed.error.issues[0].message };
+  }
+
+  const { success } = await forgotPasswordRateLimit.limit(parsed.data.email.toLowerCase());
+  if (!success) {
+    return { error: "Too many reset requests. Please wait before trying again." };
   }
 
   const supabase = await getSupabaseServerClient();

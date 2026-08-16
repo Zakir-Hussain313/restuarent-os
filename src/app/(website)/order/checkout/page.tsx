@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, MapPin, Phone, User, Loader2 } from "lucide-react";
 import Link from "next/link";
@@ -28,15 +28,17 @@ export default function CheckoutPage() {
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
-  if (items.length === 0 && !orderPlaced) {
-    router.replace("/order");
-    return null;
-  }
+  const shouldRedirect =
+    (items.length === 0 && !orderPlaced) ||
+    (!branchInfoLoading && !resolvedBranchId && !orderPlaced);
 
-  if (!branchInfoLoading && !resolvedBranchId && !orderPlaced) {
-    // No branch resolved — e.g. direct nav to /checkout without going
-    // through the location picker first. Send them back to fix that.
-    router.replace("/order");
+  useEffect(() => {
+    if (shouldRedirect) {
+      router.replace("/order");
+    }
+  }, [shouldRedirect, router]);
+
+  if (shouldRedirect) {
     return null;
   }
 
@@ -63,7 +65,7 @@ export default function CheckoutPage() {
       customerPhone: form.phone,
       deliveryAddress: form.address,
       city: location?.city ?? "",
-      area: location?.area ?? "",
+      area: location?.area,
       items: items.map((ci) => ({
         menuItemId: ci.menuItem.id,
         variantId: ci.selectedVariant?.variantId,
@@ -132,7 +134,7 @@ export default function CheckoutPage() {
                 />
                 {location && (
                   <p className="text-xs text-[#8a8680]">
-                    Delivering to {location.area}, {location.city}
+                    Delivering to {location.area ? `${location.area}, ` : ""}{location.city}
                   </p>
                 )}
               </Field>

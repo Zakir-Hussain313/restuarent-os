@@ -14,6 +14,7 @@ import { MenuItemCard } from "@/features/online-ordering/components/MenuItemCard
 import { CustomerCart } from "@/features/online-ordering/components/CustomerCart";
 import { LocationPickerModal } from "@/features/online-ordering/components/LocationPickerModal";
 import { formatCurrency } from "@/lib/utils";
+import { BranchSwitcher } from "@/features/online-ordering/components/BranchSwitcher";
 
 export default function OrderPage() {
   const [activeCategory, setActiveCategory] = useState<string>("all");
@@ -78,7 +79,7 @@ export default function OrderPage() {
 
   return (
     <div className="min-h-screen bg-[#faf9f7] pt-16">
-      {needsLocationPicker && <LocationPickerModal />}
+      {needsLocationPicker && <LocationPickerModal mode="delivery" />}
 
       {/* Header */}
       <div className="bg-[#1a1815] py-10">
@@ -94,6 +95,8 @@ export default function OrderPage() {
           </p>
         </div>
       </div>
+
+      <BranchSwitcher mode="delivery" />
 
       {!needsLocationPicker && resolvedBranchId && (
         <>

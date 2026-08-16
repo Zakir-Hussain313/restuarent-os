@@ -70,6 +70,12 @@ export const NAV_GROUPS: NavGroup[] = [
           },
         ],
       },
+      {
+        label: "Tables",
+        href: "/tables",
+        icon: "Table2",
+        permission: "manage_tables",
+      },
     ],
   },
   {
@@ -106,11 +112,22 @@ export const NAV_GROUPS: NavGroup[] = [
         permission: "manage_branches",
       },
       {
-        label: "Delivery Areas",
+        label: "Settings",
         href: "/settings/delivery-areas",
-        icon: "MapPin",
+        icon: "Settings2",
         permission: "manage_settings",
-        multiBranchOnly: true,
+      },
+      {
+        label: "Audit Logs",
+        href: "/audit-logs",
+        icon: "History",
+        permission: "view_audit_logs",
+      },
+      {
+        label: "Reports",
+        href: "/reports/sales",
+        icon: "BarChart3",
+        permission: "view_reports",
       },
     ],
   },

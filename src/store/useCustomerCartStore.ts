@@ -25,6 +25,7 @@ interface CustomerCartState {
   clearCart: () => void;
   itemCount: () => number;
   subtotal: () => number;
+  branchIds: () => string[];
 }
 
 export const useCustomerCartStore = create<CustomerCartState>()(
@@ -96,6 +97,9 @@ export const useCustomerCartStore = create<CustomerCartState>()(
 
       subtotal: () =>
         get().items.reduce((sum, ci) => sum + ci.itemTotal, 0),
+
+      branchIds: () =>
+        [...new Set(get().items.map((ci) => ci.menuItem.branchId))],
     }),
     { name: "rns-customer-cart" }
   )

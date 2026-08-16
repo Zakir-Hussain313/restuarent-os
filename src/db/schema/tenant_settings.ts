@@ -12,24 +12,6 @@ import {
 import { tenants } from "./tenants";
 import { branches } from "./branches";
 
-// Operating hours for a single day.
-type DayHours = {
-    open: boolean;
-    openTime: string | null;  // "HH:MM" 24-hour format
-    closeTime: string | null; // "HH:MM" 24-hour format
-};
-
-// Full week operating hours schedule.
-type OperatingHours = {
-    monday: DayHours;
-    tuesday: DayHours;
-    wednesday: DayHours;
-    thursday: DayHours;
-    friday: DayHours;
-    saturday: DayHours;
-    sunday: DayHours;
-};
-
 // Receipt footer/header customization.
 type ReceiptSettings = {
     headerLine1: string | null;
@@ -114,9 +96,6 @@ export const tenantSettings = pgTable(
                 showLogo: true,
                 showTaxNumber: true,
             }),
-
-        // ── Operating hours ───────────────────────────────────────────────
-        operatingHours: jsonb("operating_hours").$type<OperatingHours>(),
 
         // ── Notifications ─────────────────────────────────────────────────
         notificationSettings: jsonb("notification_settings")

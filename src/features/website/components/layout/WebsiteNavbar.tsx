@@ -9,6 +9,7 @@ import { RESTAURANT_CONFIG } from "@/config/restaurant";
 const NAV_LINKS = [
   { label: "Home", href: "/" },
   { label: "Menu", href: "/order" },
+  { label: "Tables", href: "/book-a-table" },
   { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },
 ];

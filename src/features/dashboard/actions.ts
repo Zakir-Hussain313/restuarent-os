@@ -5,7 +5,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { db } from "@/db";
 import { eq, and, gte, lt, ne, sql, desc } from "drizzle-orm";
 import type { DashboardStats, RevenueDataPoint, TopMenuItem, OrderTypeBreakdown } from "@/types/analytics";
-import { staff, orders, orderItems, restaurantTables } from "@/db/schema";
+import { staff, orders, orderItems, restaurantTables, tableReservations } from "@/db/schema";
 import type { OrderStatus, OrderType } from "@/types";
 import type { Table } from "@/types/table";
 
@@ -479,4 +479,80 @@ export async function getOrderTypeBreakdownAction(
   );
 
   return { data };
+}
+
+
+export interface ReservationStats {
+  totalReservations: number;
+  reservationsChange: number;
+  statusBreakdown: { status: string; count: number }[];
+}
+
+export async function getReservationStatsAction(
+  overrideBranchId?: string
+): Promise<{ stats: ReservationStats; error?: undefined } | { stats: null; error: string }
+> {
+  const supabase = await getSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { stats: null, error: "Not authenticated." };
+
+  const currentStaffRow = await db.query.staff.findFirst({
+    where: eq(staff.id, user.id),
+  });
+  if (!currentStaffRow) return { stats: null, error: "Staff record not found." };
+
+  const isAdmin = currentStaffRow.role === "ADMIN";
+  if (isAdmin && !currentStaffRow.branchId) {
+    return { stats: null, error: "Your account has no branch assigned." };
+  }
+
+  const tenantId = currentStaffRow.tenantId;
+  const branchId = isAdmin ? currentStaffRow.branchId! : overrideBranchId;
+
+  const { start: curStart, end: curEnd } = getMonthRange(0);
+  const { start: prevStart, end: prevEnd } = getMonthRange(-1);
+
+  function reservationScope(start: Date, end: Date) {
+    return and(
+      eq(tableReservations.tenantId, tenantId),
+      gte(tableReservations.createdAt, start),
+      lt(tableReservations.createdAt, end),
+      branchId ? eq(tableReservations.branchId, branchId) : undefined
+    );
+  }
+
+  const [curAgg] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(tableReservations)
+    .where(reservationScope(curStart, curEnd));
+
+  const [prevAgg] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(tableReservations)
+    .where(reservationScope(prevStart, prevEnd));
+
+  const breakdownRows = await db
+    .select({
+      status: tableReservations.status,
+      count: sql<number>`count(*)`,
+    })
+    .from(tableReservations)
+    .where(reservationScope(curStart, curEnd))
+    .groupBy(tableReservations.status);
+
+  const curCount = Number(curAgg.count);
+  const prevCount = Number(prevAgg.count);
+
+  const stats: ReservationStats = {
+    totalReservations: curCount,
+    reservationsChange: pctChange(curCount, prevCount),
+    statusBreakdown: breakdownRows.map((r) => ({
+      status: r.status,
+      count: Number(r.count),
+    })),
+  };
+
+  return { stats };
 }

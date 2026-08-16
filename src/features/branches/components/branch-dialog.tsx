@@ -29,6 +29,7 @@ type FormState = {
   phone: string;
   email: string;
   address: string;
+  city: string;
   isMainBranch: boolean;
 };
 
@@ -37,6 +38,7 @@ const EMPTY_FORM: FormState = {
   phone: "",
   email: "",
   address: "",
+  city: "",
   isMainBranch: false,
 };
 
@@ -46,6 +48,7 @@ function buildEditForm(target: Branch): FormState {
     phone: target.phone ?? "",
     email: target.email ?? "",
     address: target.address ?? "",
+    city: target.city ?? "",
     isMainBranch: target.isMainBranch,
   };
 }
@@ -131,6 +134,11 @@ export function BranchDialog({ branch: editTarget }: BranchDialogProps) {
       return;
     }
 
+    if (!form.city.trim()) {
+      setError("City is required.");
+      return;
+    }
+
     setIsLoading(true);
     try {
       if (isEditMode) {
@@ -144,6 +152,7 @@ export function BranchDialog({ branch: editTarget }: BranchDialogProps) {
           phone: form.phone || undefined,
           email: form.email || undefined,
           address: form.address || undefined,
+          city: form.city || undefined,
           isMainBranch: form.isMainBranch,
           image: imageUrl,
         });
@@ -158,6 +167,7 @@ export function BranchDialog({ branch: editTarget }: BranchDialogProps) {
           phone: form.phone || undefined,
           email: form.email || undefined,
           address: form.address || undefined,
+          city: form.city,
           isMainBranch: form.isMainBranch,
         });
 
@@ -318,6 +328,17 @@ export function BranchDialog({ branch: editTarget }: BranchDialogProps) {
               disabled={isLoading}
               rows={3}
               placeholder="Street, city, state, country"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="city">City</Label>
+            <Input
+              id="city"
+              value={form.city}
+              onChange={(e) => setField("city", e.target.value)}
+              required
+              disabled={isLoading}
             />
           </div>
 

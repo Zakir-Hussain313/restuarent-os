@@ -40,6 +40,7 @@ export default async function AttendancePage() {
         <AttendanceFilters
           isSuperAdmin={isSuperAdmin}
           branches={branches ?? []}
+          ownBranchId={currentStaffRow.branchId ?? undefined}
         >
           <AttendanceTable />
         </AttendanceFilters>

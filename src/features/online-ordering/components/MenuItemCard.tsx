@@ -4,6 +4,7 @@ import { Plus, Minus } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useCustomerCartStore } from "@/store/useCustomerCartStore";
 import type { MenuItem } from "@/types";
+import Image from "next/image";
 
 interface MenuItemCardProps {
   item: MenuItem;
@@ -32,8 +33,18 @@ export function MenuItemCard({ item, cartQuantity , categoryIcon }: MenuItemCard
       )}
     >
       {/* Visual */}
-      <div className="h-36 bg-linear-to-br from-[#f4f2ef] to-[#ebe9e4] flex items-center justify-center relative">
-        <span className="text-6xl">{categoryIcon ?? "🍴"}</span>
+      <div className="h-36 bg-linear-to-br from-[#f4f2ef] to-[#ebe9e4] flex items-center justify-center relative overflow-hidden">
+        {item.image ? (
+          <Image
+            src={item.image}
+            alt={item.name}
+            fill
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+            className="object-cover"
+          />
+        ) : (
+          <span className="text-6xl">{categoryIcon ?? "🍴"}</span>
+        )}
       </div>
 
       {/* Info */}

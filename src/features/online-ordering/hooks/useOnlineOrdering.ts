@@ -5,6 +5,9 @@ import { queryKeys } from "@/hooks/useMockQuery";
 import {
   getPublicBranchInfoAction,
   getPublicDeliveryAreasAction,
+  getPublicCitiesAction,
+  getPublicAreasForCityAction,
+  getPublicBranchesByCityAction,
   getPublicMenuAction,
 } from "@/features/online-ordering/actions";
 
@@ -53,4 +56,53 @@ export function usePublicMenu(branchId: string | undefined) {
   });
 
   return { categories: data?.categories ?? [], items: data?.items ?? [], isLoading };
+}
+
+// ─── Distinct cities for the city-picker step ────────────────────────────
+
+export function usePublicCities() {
+  const { data: cities = [], isLoading } = useQuery({
+    queryKey: queryKeys.onlineOrdering.cities,
+    queryFn: async () => {
+      const res = await getPublicCitiesAction();
+      if (res.data === null) throw new Error(res.error);
+      return res.data;
+    },
+  });
+
+  return { cities, isLoading };
+}
+
+// ─── Delivery areas within a picked city (used on /order) ───────────────
+
+export function usePublicAreasForCity(city: string | null) {
+  const { data: areas = [], isLoading } = useQuery({
+    queryKey: queryKeys.onlineOrdering.areasForCity(city ?? ""),
+    queryFn: async () => {
+      if (!city) throw new Error("No city selected.");
+      const res = await getPublicAreasForCityAction(city);
+      if (res.data === null) throw new Error(res.error);
+      return res.data;
+    },
+    enabled: !!city,
+  });
+
+  return { areas, isLoading };
+}
+
+// ─── Branches within a picked city (used on /book-a-table and the switcher) ─
+
+export function usePublicBranchesByCity(city: string | null) {
+  const { data: branches = [], isLoading } = useQuery({
+    queryKey: queryKeys.onlineOrdering.branchesByCity(city ?? ""),
+    queryFn: async () => {
+      if (!city) throw new Error("No city selected.");
+      const res = await getPublicBranchesByCityAction(city);
+      if (res.data === null) throw new Error(res.error);
+      return res.data;
+    },
+    enabled: !!city,
+  });
+
+  return { branches, isLoading };
 }

@@ -10,12 +10,13 @@ type DeliveryArea = typeof branchDeliveryAreas.$inferSelect;
 export interface UseDeliveryAreasReturn {
   areas: DeliveryArea[];
   isLoading: boolean;
+  error: string | null;
 }
 
 export function useDeliveryAreas(branchId: string): UseDeliveryAreasReturn {
   const areasKey = queryKeys.deliveryAreas.list(branchId);
 
-  const { data: areas = [], isLoading } = useQuery<DeliveryArea[]>({
+  const { data: areas = [], isLoading, error } = useQuery<DeliveryArea[]>({
     queryKey: areasKey,
     queryFn: async () => {
       const res = await getDeliveryAreasAction(branchId);
@@ -25,5 +26,5 @@ export function useDeliveryAreas(branchId: string): UseDeliveryAreasReturn {
     enabled: !!branchId,
   });
 
-  return { areas, isLoading };
+  return { areas, isLoading, error: error instanceof Error ? error.message : null };
 }

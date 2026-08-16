@@ -36,16 +36,18 @@ export function useAttendanceFilters() {
 interface AttendanceFiltersProps {
     isSuperAdmin: boolean;
     branches: Branch[];
+    ownBranchId?: string;
     children: React.ReactNode;
 }
 
 export function AttendanceFilters({
     isSuperAdmin,
     branches,
+    ownBranchId,
     children,
 }: AttendanceFiltersProps) {
     const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-    const [branchId, setBranchId] = useState<string | undefined>(undefined);
+    const [branchId, setBranchId] = useState<string | undefined>(ownBranchId);
     const [roleFilter, setRoleFilter] = useState<RoleFilter | undefined>(undefined);
 
     const dateKey = format(selectedDate, "yyyy-MM-dd");

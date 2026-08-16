@@ -47,6 +47,7 @@ export default async function MenuPage() {
         isSuperAdmin={isSuperAdmin}
         canManageMenu={canManageMenu}
         branches={branches ?? []}
+        ownBranchId={currentStaffRow.branchId ?? undefined}
       >
         <MenuLayout />
       </MenuFilters>

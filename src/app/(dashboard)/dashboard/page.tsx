@@ -10,9 +10,9 @@ import {
   RevenueChart,
   RecentOrdersWidget,
   TopDishesWidget,
-  TableOccupancyWidget,
   OrderTypeBreakdownWidget,
   QuickActionsBar,
+  ReservationStatsWidget,
 } from "@/features/dashboard";
 import { DashboardBranchFilter } from "@/features/dashboard/components/DashboardBranchFilter";
 import { RESTAURANT_CONFIG } from "@/config/restaurant";
@@ -61,7 +61,7 @@ export default async function DashboardPage() {
             </div>
             <div className="col-span-2 flex flex-col gap-6">
               <OrderTypeBreakdownWidget />
-              <TableOccupancyWidget />
+              <ReservationStatsWidget />
             </div>
           </div>
         </div>

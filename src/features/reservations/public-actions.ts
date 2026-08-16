@@ -1,0 +1,324 @@
+"use server";
+
+import { db } from "@/db";
+import { restaurantTables, tableReservations, reservationCounters, branches } from "@/db/schema";
+import { eq, and, sql, lt, notInArray } from "drizzle-orm";
+import { createNotification } from "@/features/notifications/actions";
+
+export interface CreateReservationInput {
+    tableId: string;
+    customerName?: string;
+    customerPhone: string;
+    partySize: number;
+    startTime: string; // ISO string from the client
+    durationMinutes: number;
+    notes?: string;
+}
+
+type CreateReservationResult =
+    | {
+        success: true;
+        reservationId: string;
+        reservationNumber: string;
+        reservationCode: string;
+        overCapacity: boolean;
+        error?: undefined;
+    }
+    | { success?: undefined; error: string; code?: "TABLE_TAKEN" };
+
+const MAX_DURATION_MINUTES = 120;
+const MAX_ADVANCE_BOOKING_DAYS = 7;
+const NO_SHOW_GRACE_MINUTES = 30;
+
+function generateReservationCode(): string {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I to avoid confusion
+    let code = "";
+    for (let i = 0; i < 6; i++) {
+        code += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return code;
+}
+
+const DAY_KEYS = [
+    "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
+] as const;
+
+function isWithinOperatingHours(
+    startTime: Date,
+    durationMinutes: number,
+    operatingHours: {
+        [K in (typeof DAY_KEYS)[number]]: { open: boolean; openTime: string | null; closeTime: string | null };
+    } | null
+): { ok: true } | { ok: false; error: string } {
+    if (!operatingHours) return { ok: true }; // tenant hasn't configured hours — allow anything
+
+    const dayKey = DAY_KEYS[startTime.getDay()];
+    const hours = operatingHours[dayKey];
+
+    if (!hours.open || !hours.openTime || !hours.closeTime) {
+        return { ok: false, error: `We're closed on ${dayKey.charAt(0).toUpperCase() + dayKey.slice(1)}s. Please pick another day.` };
+    }
+
+    const endTime = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
+
+    const toMinutes = (t: string) => {
+        const [h, m] = t.split(":").map(Number);
+        return h * 60 + m;
+    };
+
+    const startMinutes = startTime.getHours() * 60 + startTime.getMinutes();
+    const endMinutes = endTime.getHours() * 60 + endTime.getMinutes();
+    const openMinutes = toMinutes(hours.openTime);
+    const closeMinutes = toMinutes(hours.closeTime);
+
+    // Doesn't handle overnight hours (e.g. open 6pm, close 2am) — flat
+    // same-day comparison only. Fine for typical daytime/evening hours;
+    // worth revisiting if a tenant ever needs an overnight schedule.
+    if (startMinutes < openMinutes || endMinutes > closeMinutes) {
+        return {
+            ok: false,
+            error: `We're open ${hours.openTime}–${hours.closeTime} that day. Please pick a time within our hours.`,
+        };
+    }
+
+    return { ok: true };
+}
+
+export async function createReservationAction(
+    input: CreateReservationInput
+): Promise<CreateReservationResult> {
+    const customerPhone = input.customerPhone.trim();
+    if (!customerPhone) {
+        return { error: "A phone number is required." };
+    }
+    if (!Number.isInteger(input.partySize) || input.partySize < 1) {
+        return { error: "Party size must be a positive whole number." };
+    }
+    if (!Number.isInteger(input.durationMinutes) || input.durationMinutes < 1) {
+        return { error: "Duration must be a positive whole number of minutes." };
+    }
+    if (input.durationMinutes > MAX_DURATION_MINUTES) {
+        return { error: `Reservations can't be longer than ${MAX_DURATION_MINUTES / 60} hours.` };
+    }
+
+    const startTime = new Date(input.startTime);
+    if (Number.isNaN(startTime.getTime())) {
+        return { error: "Invalid start time." };
+    }
+
+    const now = new Date();
+    const maxAdvance = new Date(now.getTime() + MAX_ADVANCE_BOOKING_DAYS * 24 * 60 * 60 * 1000);
+    if (startTime < now) {
+        return { error: "Reservation time must be in the future." };
+    }
+    if (startTime > maxAdvance) {
+        return { error: `Reservations can only be made up to ${MAX_ADVANCE_BOOKING_DAYS} days in advance.` };
+    }
+
+    const endTime = new Date(startTime.getTime() + input.durationMinutes * 60 * 1000);
+
+    try {
+        const result = await db.transaction(async (tx) => {
+            const table = await tx.query.restaurantTables.findFirst({
+                where: and(eq(restaurantTables.id, input.tableId), eq(restaurantTables.isActive, true)),
+            });
+            if (!table) {
+                throw new Error("NOT_FOUND");
+            }
+
+            const branchRow = await tx.query.branches.findFirst({
+                where: eq(branches.id, table.branchId),
+                columns: { operatingHours: true },
+            });
+            const hoursCheck = isWithinOperatingHours(
+                startTime,
+                input.durationMinutes,
+                branchRow?.operatingHours ?? null
+            );
+            if (!hoursCheck.ok) {
+                throw new Error(`HOURS:${hoursCheck.error}`);
+            }
+
+            // Lazily expire any abandoned reservations on this table before
+            // checking for overlaps — a no-show sitting past its grace
+            // period shouldn't block a new booking for the same table.
+            const graceThreshold = new Date(now.getTime() - NO_SHOW_GRACE_MINUTES * 60 * 1000);
+            await tx
+                .update(tableReservations)
+                .set({ status: "no_show", updatedAt: new Date() })
+                .where(
+                    and(
+                        eq(tableReservations.tableId, input.tableId),
+                        eq(tableReservations.status, "pending"),
+                        lt(tableReservations.startTime, graceThreshold)
+                    )
+                );
+
+            // Overlap check: does any active reservation on this table
+            // intersect the requested [startTime, endTime) window?
+            // Two ranges overlap when: existing.start < newEnd AND existing.end > newStart.
+            const activeStatuses = ["pending", "confirmed", "seated"] as const;
+            const candidates = await tx.query.tableReservations.findMany({
+                where: and(
+                    eq(tableReservations.tableId, input.tableId),
+                    notInArray(tableReservations.status, ["cancelled", "no_show"])
+                ),
+            });
+
+            const hasOverlap = candidates.some((r) => {
+                if (!activeStatuses.includes(r.status as (typeof activeStatuses)[number])) return false;
+                const existingEnd = new Date(r.startTime.getTime() + r.durationMinutes * 60 * 1000);
+                return r.startTime < endTime && existingEnd > startTime;
+            });
+
+            if (hasOverlap) {
+                throw new Error("TABLE_TAKEN");
+            }
+
+            // Reservation number, scoped per branch — same counter pattern as orders.
+            const [counter] = await tx
+                .insert(reservationCounters)
+                .values({ branchId: table.branchId, tenantId: table.tenantId, nextNumber: 2 })
+                .onConflictDoUpdate({
+                    target: reservationCounters.branchId,
+                    set: { nextNumber: sql`${reservationCounters.nextNumber} + 1` },
+                })
+                .returning();
+            const reservationNumber = `RES-${String(counter.nextNumber - 1).padStart(4, "0")}`;
+
+            // Reservation code — random, private, retried on the rare chance of collision.
+            let reservationCode = generateReservationCode();
+            for (let attempt = 0; attempt < 5; attempt++) {
+                const clash = await tx.query.tableReservations.findFirst({
+                    where: and(
+                        eq(tableReservations.tenantId, table.tenantId),
+                        eq(tableReservations.reservationCode, reservationCode)
+                    ),
+                });
+                if (!clash) break;
+                reservationCode = generateReservationCode();
+            }
+
+            const [reservation] = await tx
+                .insert(tableReservations)
+                .values({
+                    tenantId: table.tenantId,
+                    branchId: table.branchId,
+                    tableId: table.id,
+                    customerName: input.customerName?.trim() || null,
+                    customerPhone,
+                    partySize: input.partySize,
+                    notes: input.notes?.trim() || null,
+                    reservationNumber,
+                    reservationCode,
+                    startTime,
+                    durationMinutes: input.durationMinutes,
+                    status: "pending",
+                })
+                .returning();
+
+            return {
+                reservationId: reservation.id,
+                reservationNumber: reservation.reservationNumber,
+                reservationCode: reservation.reservationCode,
+                overCapacity: input.partySize > table.capacity,
+                tenantId: table.tenantId,
+                branchId: table.branchId,
+            };
+        });
+
+        await createNotification({
+            tenantId: result.tenantId,
+            branchId: result.branchId,
+            type: "reservation_new",
+            title: "New reservation request",
+            message: `${result.reservationNumber} — party of ${input.partySize}, ${startTime.toLocaleString()}.`,
+            resourceType: "reservation",
+            resourceId: result.reservationId,
+        });
+
+        return {
+            success: true,
+            reservationId: result.reservationId,
+            reservationNumber: result.reservationNumber,
+            reservationCode: result.reservationCode,
+            overCapacity: result.overCapacity,
+        };
+    } catch (err) {
+        const message = (err as Error).message;
+        if (message === "TABLE_TAKEN") {
+            return {
+                error: "This table isn't available for the selected time. Please pick another time or table.",
+                code: "TABLE_TAKEN",
+            };
+        }
+        if (message === "NOT_FOUND") {
+            return { error: "This table could not be found." };
+        }
+        if (message.startsWith("HOURS:")) {
+            return { error: message.slice("HOURS:".length) };
+        }
+        return { error: "Failed to create reservation. Please try again." };
+    }
+}
+
+export interface LookupReservationInput {
+    customerPhone: string;
+    reservationCode: string;
+}
+
+type LookupReservationResult =
+    | {
+          success: true;
+          reservation: {
+              reservationNumber: string;
+              status: string;
+              startTime: Date;
+              durationMinutes: number;
+              partySize: number;
+              customerName: string | null;
+              tableNumber: string;
+          };
+          error?: undefined;
+      }
+    | { success?: undefined; error: string };
+
+export async function getMyReservationAction(
+    input: LookupReservationInput
+): Promise<LookupReservationResult> {
+    const customerPhone = input.customerPhone.trim();
+    const reservationCode = input.reservationCode.trim().toUpperCase();
+
+    if (!customerPhone || !reservationCode) {
+        return { error: "Phone number and reservation code are both required." };
+    }
+
+    const reservation = await db.query.tableReservations.findFirst({
+        where: and(
+            eq(tableReservations.customerPhone, customerPhone),
+            eq(tableReservations.reservationCode, reservationCode)
+        ),
+    });
+
+    if (!reservation) {
+        return { error: "No reservation found for that phone number and code. Please double-check both." };
+    }
+
+    const table = await db.query.restaurantTables.findFirst({
+        where: eq(restaurantTables.id, reservation.tableId),
+        columns: { tableNumber: true },
+    });
+
+    return {
+        success: true,
+        reservation: {
+            reservationNumber: reservation.reservationNumber,
+            status: reservation.status,
+            startTime: reservation.startTime,
+            durationMinutes: reservation.durationMinutes,
+            partySize: reservation.partySize,
+            customerName: reservation.customerName,
+            tableNumber: table?.tableNumber ?? "—",
+        },
+    };
+}

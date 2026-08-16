@@ -19,8 +19,13 @@ export const staff = pgTable("staff", {
   email: text("email").notNull(),
   phone: text("phone"),
 
-  role: staffRoleEnum("role").notNull().default("STAFF"),
+ role: staffRoleEnum("role").notNull().default("STAFF"),
   status: staffStatusEnum("status").notNull().default("active"),
+
+  // Rider's manual online/offline toggle — only RIDER-role staff who are
+  // isAvailable=true are candidates for auto-assignment to new deliveries.
+  // Unrelated to `status` (employment status) or attendance (clocked in).
+  isAvailable: boolean("is_available").notNull().default(false),
 
   image: text("image"),
 

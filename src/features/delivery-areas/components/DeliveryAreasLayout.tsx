@@ -1,11 +1,9 @@
-// src/features/delivery-areas/components/DeliveryAreasLayout.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { getBranchCountAction } from "@/features/delivery-areas/actions";
 import { useDeliveryAreas } from "@/features/delivery-areas/hooks/useDeliveryAreas";
 import { useDeliveryAreaActions } from "@/features/delivery-areas/hooks/useDeliveryAreaActions";
-import { BranchSelector } from "./BranchSelector";
 import { DeliveryAreaFormModal } from "./DeliveryAreaFormModal";
 import { DeliveryAreaRow } from "./DeliveryAreaRow";
 import { Button } from "@/components/ui/button";
@@ -14,9 +12,12 @@ import type { branchDeliveryAreas } from "@/db/schema";
 
 type DeliveryArea = typeof branchDeliveryAreas.$inferSelect;
 
-export function DeliveryAreasLayout() {
+interface DeliveryAreasLayoutProps {
+  branchId: string;
+}
+
+export function DeliveryAreasLayout({ branchId }: DeliveryAreasLayoutProps) {
   const [branchCount, setBranchCount] = useState<number | null>(null);
-  const [selectedBranchId, setSelectedBranchId] = useState("");
   const [modal, setModal] = useState<{ isOpen: boolean; entity: DeliveryArea | null }>({
     isOpen: false,
     entity: null,
@@ -28,24 +29,17 @@ export function DeliveryAreasLayout() {
     });
   }, []);
 
-  const { areas, isLoading } = useDeliveryAreas(selectedBranchId);
+  const { areas, isLoading, error } = useDeliveryAreas(branchId);
   const { addArea, isAddingArea, editArea, isEditingArea, deleteArea } =
-    useDeliveryAreaActions(selectedBranchId);
+    useDeliveryAreaActions(branchId);
 
-  // Still checking branch count — render nothing until we know.
   if (branchCount === null) return null;
-
-  // Single-branch tenants don't get this feature at all.
   if (branchCount === 1) return null;
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <BranchSelector value={selectedBranchId} onChange={setSelectedBranchId} />
-        <Button
-          onClick={() => setModal({ isOpen: true, entity: null })}
-          disabled={!selectedBranchId}
-        >
+      <div className="flex justify-end">
+        <Button onClick={() => setModal({ isOpen: true, entity: null })}>
           <Plus className="w-4 h-4 mr-2" />
           Add Delivery Area
         </Button>
@@ -55,6 +49,8 @@ export function DeliveryAreasLayout() {
         <div className="flex justify-center py-8">
           <Loader2 className="w-5 h-5 animate-spin text-[#8a8680]" />
         </div>
+      ) : error ? (
+        <p className="text-sm text-destructive py-8 text-center">{error}</p>
       ) : areas.length === 0 ? (
         <p className="text-sm text-[#8a8680] py-8 text-center">
           No delivery areas added yet for this branch.
@@ -75,11 +71,14 @@ export function DeliveryAreasLayout() {
       <DeliveryAreaFormModal
         isOpen={modal.isOpen}
         entity={modal.entity}
-        branchId={selectedBranchId}
+        branchId={branchId}
         isLoading={modal.entity ? isEditingArea : isAddingArea}
         onSubmit={(input) => {
           if (modal.entity) {
-            editArea({ id: modal.entity.id, input }, { onSuccess: () => setModal({ isOpen: false, entity: null }) });
+            editArea(
+              { id: modal.entity.id, input },
+              { onSuccess: () => setModal({ isOpen: false, entity: null }) }
+            );
           } else {
             addArea(input, { onSuccess: () => setModal({ isOpen: false, entity: null }) });
           }

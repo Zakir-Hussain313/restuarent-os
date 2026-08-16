@@ -7,6 +7,7 @@ import { staff, branches } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { hasPermission } from "@/types/staff";
 import { logAudit } from "@/lib/audit";
+import { createNotification } from "@/features/notifications/actions";
 import {
   createStaffSchema,
   type CreateStaffInput,
@@ -105,6 +106,18 @@ export async function createStaffAction(input: CreateStaffInput) {
       },
       description: `Invited ${newStaff.firstName} ${newStaff.lastName} as ${newStaff.role}`,
     });
+
+    if (newStaff.branchId) {
+      await createNotification({
+        tenantId,
+        branchId: newStaff.branchId,
+        type: "staff_created",
+        title: "New account created",
+        message: `${newStaff.firstName} ${newStaff.lastName} was added as ${newStaff.role}.`,
+        resourceType: "staff",
+        resourceId: newStaff.id,
+      });
+    }
 
     return { success: true, staff: newStaff };
   } catch (err) {

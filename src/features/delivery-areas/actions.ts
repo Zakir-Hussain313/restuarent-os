@@ -46,6 +46,17 @@ async function getCurrentStaff() {
     return { ok: true as const, staff: currentStaffRow };
 }
 
+// ─── Authorization: SUPER_ADMIN can manage any branch; ADMIN only their own ─
+
+function canManageDeliveryAreasForBranch(
+    staffRow: { role: string; branchId: string | null },
+    branchId: string
+): boolean {
+    if (staffRow.role === "SUPER_ADMIN") return true;
+    if (staffRow.role === "ADMIN" && staffRow.branchId === branchId) return true;
+    return false;
+}
+
 // ─── Branch count (feature gate: only relevant with 2+ branches) ───────
 
 export async function getBranchCountAction(): Promise<{ data: number; error?: undefined } | { data: null; error: string }> {
@@ -67,8 +78,8 @@ export async function getDeliveryAreasAction(
 ): Promise<{ data: typeof branchDeliveryAreas.$inferSelect[]; error?: undefined } | { data: null; error: string }> {
     const auth = await getCurrentStaff();
     if (!auth.ok) return { data: null, error: auth.error };
-    if (auth.staff.role !== "SUPER_ADMIN") {
-        return { data: null, error: "Only SUPER_ADMIN can manage delivery areas." };
+    if (!canManageDeliveryAreasForBranch(auth.staff, branchId)) {
+        return { data: null, error: "You don't have permission to view delivery areas for this branch." };
     }
 
     const rows = await db.query.branchDeliveryAreas.findMany({
@@ -124,14 +135,15 @@ export async function editDeliveryAreaAction(
 ): Promise<{ success: true } | { success?: undefined; error: string }> {
     const auth = await getCurrentStaff();
     if (!auth.ok) return { error: auth.error };
-    if (auth.staff.role !== "SUPER_ADMIN") {
-        return { error: "Only SUPER_ADMIN can manage delivery areas." };
-    }
 
     const existing = await db.query.branchDeliveryAreas.findFirst({
         where: and(eq(branchDeliveryAreas.id, id), eq(branchDeliveryAreas.tenantId, auth.staff.tenantId)),
     });
     if (!existing) return { error: "Delivery area not found." };
+
+    if (!canManageDeliveryAreasForBranch(auth.staff, existing.branchId)) {
+        return { error: "You don't have permission to manage delivery areas for this branch." };
+    }
 
     const city = normalizeAreaField(input.city);
     const area = normalizeAreaField(input.area);
@@ -161,14 +173,15 @@ export async function deleteDeliveryAreaAction(
 ): Promise<{ success: true } | { success?: undefined; error: string }> {
     const auth = await getCurrentStaff();
     if (!auth.ok) return { error: auth.error };
-    if (auth.staff.role !== "SUPER_ADMIN") {
-        return { error: "Only SUPER_ADMIN can manage delivery areas." };
-    }
 
     const existing = await db.query.branchDeliveryAreas.findFirst({
         where: and(eq(branchDeliveryAreas.id, id), eq(branchDeliveryAreas.tenantId, auth.staff.tenantId)),
     });
     if (!existing) return { error: "Delivery area not found." };
+
+    if (!canManageDeliveryAreasForBranch(auth.staff, existing.branchId)) {
+        return { error: "You don't have permission to manage delivery areas for this branch." };
+    }
 
     await db
         .delete(branchDeliveryAreas)

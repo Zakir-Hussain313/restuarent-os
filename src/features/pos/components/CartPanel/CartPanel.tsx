@@ -3,12 +3,17 @@
 import { usePosStore } from "@/store/usePosStore";
 import { OrderTypeSelector } from "./OrderTypeSelector";
 import { CartItemList } from "./CartItemList";
-import { TableSelector } from "./TableSelector";
-import { DiscountInput } from "./DiscountInput";
+import { CouponPicker } from "./CouponPicker";
 import { OrderSummary } from "./OrderSummary";
 import { CartActions } from "./CartActions";
+import { DeliveryDetailsForm } from "./DeliveryDetailsForm";
 
-export function CartPanel() {
+interface CartPanelProps {
+  branchId?: string;
+  autoConfirmOnPlace?: boolean;
+}
+
+export function CartPanel({ branchId, autoConfirmOnPlace }: CartPanelProps) {
   const orderType = usePosStore((s) => s.orderType);
 
   return (
@@ -25,18 +30,18 @@ export function CartPanel() {
         <CartItemList />
 
         {/* Table selector lives at the bottom of the scroll area */}
-        {orderType === "dine_in" && (
+        {orderType === "delivery" && (
           <div className="pt-2 pb-4 border-t border-border mt-2">
-            <TableSelector />
+            <DeliveryDetailsForm branchId={branchId} />
           </div>
         )}
       </div>
 
       {/* Footer — always pinned */}
       <div className="shrink-0 px-4 pb-4 pt-3 border-t space-y-3 bg-background">
-        <DiscountInput />
+        <CouponPicker />
         <OrderSummary />
-        <CartActions />
+        <CartActions autoConfirmOnPlace={autoConfirmOnPlace} />
       </div>
     </div>
   );

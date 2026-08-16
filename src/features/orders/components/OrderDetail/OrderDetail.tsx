@@ -14,6 +14,9 @@ import {
   Phone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useQueryClient } from "@tanstack/react-query";
+import { RiderAssignment } from "./RiderAssignment";
+import { queryKeys } from "@/hooks/useMockQuery";
 
 interface OrderDetailProps {
   orderId: string;
@@ -36,11 +39,13 @@ const ORDER_TYPE_LABEL: Record<string, string> = {
 };
 
 export function OrderDetail({ orderId }: OrderDetailProps) {
+  const queryClient = useQueryClient();
   const {
     order,
     isLoading,
     canPrintKitchenTicket,
     canPrintBill,
+    canCompleteBill,
     canCancel,
     printKitchenTicket,
     isPrintingKitchenTicket,
@@ -73,6 +78,11 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
               <Hash className="w-3 h-3" />
               {order.orderNumber}
             </span>
+            {order.wasOfflineOrder && order.offlineRef && (
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 inline-block">
+                Offline — {order.offlineRef}
+              </span>
+            )}
           </div>
           <OrderStatusBadge status={order.status} />
         </div>
@@ -110,6 +120,18 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
           )}
         </div>
       </div>
+
+      {order.orderType === "delivery" && (
+        <div className="px-5 pt-3">
+          <RiderAssignment
+            order={order}
+            onAssigned={() => {
+              queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(order.id) });
+              queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
+            }}
+          />
+        </div>
+      )}
 
       <ScrollArea className="flex-1 min-h-0">
         <div className="px-5 pt-4 pb-2">
@@ -248,9 +270,11 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
       {/* Actions */}
       <div className="px-5 py-4 border-t shrink-0">
         <OrderActions
+          key={order.id}
           order={order}
           canPrintKitchenTicket={canPrintKitchenTicket}
           canPrintBill={canPrintBill}
+          canCompleteBill={canCompleteBill}
           canCancel={canCancel}
           onPrintKitchenTicket={printKitchenTicket}
           isPrintingKitchenTicket={isPrintingKitchenTicket}

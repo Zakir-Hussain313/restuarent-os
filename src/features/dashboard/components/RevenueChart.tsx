@@ -8,6 +8,7 @@ import {
 import { ChartSkeleton } from "@/components/data-display/LoadingSkeleton";
 import { useRevenueData } from "../hooks/useDashboardData";
 import { formatCurrency } from "@/lib/utils";
+import { RESTAURANT_CONFIG } from "@/config/restaurant";
 import type { RevenueDataPoint } from "@/types/analytics";
 
 type Range = "7d" | "30d" | "90d";
@@ -29,7 +30,7 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
   return (
     <div className="bg-white border border-[#ebe9e4] rounded-lg px-3 py-2 shadow-lg">
       <p className="text-xs text-[#8a8680] mb-1">
-        {new Date(point.date).toLocaleDateString("en-PK", { month: "short", day: "numeric" })}
+        {new Date(point.date).toLocaleDateString(RESTAURANT_CONFIG.locale, { month: "short", day: "numeric" })}
       </p>
       <p className="text-sm font-semibold text-[#1a1815]">{formatCurrency(point.revenue)}</p>
       <p className="text-xs text-[#8a8680]">Orders: {point.orders}</p>
@@ -92,7 +93,7 @@ export function RevenueChart() {
                 interval={range === "7d" ? 0 : range === "30d" ? 4 : 9}
                 tickFormatter={(val: string) => {
                   const d = new Date(val);
-                  return d.toLocaleDateString("en-PK", { month: "short", day: "numeric" });
+                  return d.toLocaleDateString(RESTAURANT_CONFIG.locale, { month: "short", day: "numeric" });
                 }}
               />
               <YAxis

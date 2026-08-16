@@ -10,11 +10,23 @@ import {
     branches,
     branchDeliveryAreas,
     tenantSettings,
+    deliveries,
 } from "@/db/schema";
-import { eq, and, inArray, sql, count, asc } from "drizzle-orm";
+import { eq, and, inArray, sql, asc } from "drizzle-orm";
 import type { Order, MenuCategory, MenuItem } from "@/types";
 import { RESTAURANT_CONFIG } from "@/config/restaurant";
 import { getTenantId } from "@/lib/tenant";
+import { logAudit } from "@/lib/audit";
+import { publicOrderRateLimit } from "@/lib/rate-limit";
+import { headers } from "next/headers";
+
+const ONLINE_ORDER_ACTOR = (tenantId: string, branchId: string) => ({
+  id: "system:online-ordering",
+  tenantId,
+  branchId,
+  firstName: "Online",
+  lastName: "Order",
+});
 
 
 // ─── Website menu (marketing homepage) ──────────────────────────────────
@@ -217,12 +229,12 @@ export interface PublicOrderItemInput {
 }
 
 export interface CreatePublicOrderInput {
-    branchId: string; // resolved client-side via area selection; re-verified below
+    branchId: string; // resolved via location picker or branch switcher
     customerName?: string;
     customerPhone: string;
     deliveryAddress: string;
     city: string;
-    area: string;
+    area?: string; // absent when the branch was picked directly via the switcher
     items: PublicOrderItemInput[];
     notes?: string;
 }
@@ -236,31 +248,19 @@ export async function createPublicOrderAction(
     if (!input.customerPhone?.trim()) return { error: "A phone number is required." };
     if (!input.deliveryAddress?.trim()) return { error: "A delivery address is required." };
 
+    const headersList = await headers();
+    const ip = headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const { success } = await publicOrderRateLimit.limit(ip);
+    if (!success) {
+        return { error: "Too many orders placed. Please wait a few minutes and try again." };
+    }
+
     try {
         const result = await db.transaction(async (tx) => {
             const branch = await tx.query.branches.findFirst({
                 where: and(eq(branches.id, input.branchId), eq(branches.tenantId, tenantId), eq(branches.isActive, true)),
             });
             if (!branch) throw new Error("Selected branch is not available.");
-
-            const [branchCountRow] = await tx
-                .select({ value: count() })
-                .from(branches)
-                .where(and(eq(branches.tenantId, tenantId), eq(branches.isActive, true)));
-
-            if ((branchCountRow?.value ?? 0) >= 2) {
-                const areaMatch = await tx.query.branchDeliveryAreas.findFirst({
-                    where: and(
-                        eq(branchDeliveryAreas.tenantId, tenantId),
-                        eq(branchDeliveryAreas.branchId, input.branchId),
-                        eq(branchDeliveryAreas.city, input.city),
-                        eq(branchDeliveryAreas.area, input.area)
-                    ),
-                });
-                if (!areaMatch) {
-                    throw new Error("This branch does not deliver to the selected area.");
-                }
-            }
 
             const menuItemIds = [...new Set(input.items.map((i) => i.menuItemId))];
             const realMenuItems = await tx.query.menuItems.findMany({
@@ -355,11 +355,29 @@ export async function createPublicOrderAction(
                     totalDiscount: 0,
                     deliveryFee,
                     total,
-                    deliveryAddress: `${input.deliveryAddress}, ${input.area}, ${input.city}`,
+                    deliveryAddress: [input.deliveryAddress, input.area, input.city]
+                        .filter((part) => part && part.trim().length > 0)
+                        .join(", "),
                     notes: input.notes ?? null,
                     staffId: null,
                 })
                 .returning();
+
+                await tx.insert(deliveries).values({
+                tenantId,
+                branchId: input.branchId,
+                orderId: createdOrder.id,
+                riderId: null,
+                status: "unassigned",
+                deliveryAddress: {
+                    label: null,
+                    street: input.deliveryAddress,
+                    area: input.area ?? "",
+                    city: input.city,
+                    instructions: input.notes ?? null,
+                },
+                deliveryFee,
+            });
 
             const insertedItems = await tx
                 .insert(orderItems)
@@ -385,6 +403,24 @@ export async function createPublicOrderAction(
             return { order: createdOrder, items: insertedItems };
         });
 
+        await logAudit(
+            db,
+            ONLINE_ORDER_ACTOR(tenantId, input.branchId),
+            "order",
+            result.order.id,
+            "create",
+            {
+                branchId: input.branchId,
+                newValue: {
+                    orderNumber: result.order.orderNumber,
+                    orderType: result.order.orderType,
+                    customerPhone: input.customerPhone,
+                    itemCount: result.items.length,
+                    source: "online-ordering",
+                },
+            }
+        );
+
         return {
             success: true,
             order: {
@@ -394,6 +430,7 @@ export async function createPublicOrderAction(
                 customerPhone: result.order.customerPhone ?? undefined,
                 orderType: result.order.orderType,
                 status: result.order.status,
+                wasOfflineOrder: false,
                 items: result.items.map((i) => ({
                     id: i.id,
                     orderId: i.orderId,
@@ -430,4 +467,86 @@ export async function createPublicOrderAction(
     } catch (err) {
         return { error: (err as Error).message };
     }
+}
+
+// ─── Distinct cities with active branches (drives the new city-picker step) ─
+
+export async function getPublicCitiesAction(): Promise <
+    | { data: string[]; error?: undefined }
+    | { data: null; error: string }
+> {
+    const tenantId = getTenantId();
+
+    const rows = await db
+        .selectDistinct({ city: branches.city })
+        .from(branches)
+        .where(and(eq(branches.tenantId, tenantId), eq(branches.isActive, true)))
+        .orderBy(asc(branches.city));
+
+    if (rows.length === 0) {
+        return { data: null, error: "No active branches configured for this restaurant." };
+    }
+
+    return { data: rows.map((r) => r.city) };
+}
+
+// ─── Delivery areas within one city (used by /order after city is picked) ──
+
+export async function getPublicAreasForCityAction(
+    city: string
+): Promise <
+    | { data: { area: string; branchId: string }[]; error?: undefined }
+    | { data: null; error: string }
+> {
+    const tenantId = getTenantId();
+
+    const activeBranches = await db.query.branches.findMany({
+        where: and(
+            eq(branches.tenantId, tenantId),
+            eq(branches.isActive, true),
+            eq(branches.city, city)
+        ),
+        columns: { id: true },
+    });
+    const activeBranchIds = activeBranches.map((b) => b.id);
+    if (activeBranchIds.length === 0) {
+        return { data: null, error: "No branches found in this city." };
+    }
+
+    const rows = await db.query.branchDeliveryAreas.findMany({
+        where: and(
+            eq(branchDeliveryAreas.tenantId, tenantId),
+            eq(branchDeliveryAreas.city, city),
+            inArray(branchDeliveryAreas.branchId, activeBranchIds)
+        ),
+        orderBy: [asc(branchDeliveryAreas.area)],
+    });
+
+    return { data: rows.map((r) => ({ area: r.area, branchId: r.branchId })) };
+}
+
+// ─── Branches within one city (used by /book-a-table and the branch switcher) ─
+
+export async function getPublicBranchesByCityAction(
+    city: string
+): Promise <
+    | { data: { id: string; name: string; address: string | null }[]; error?: undefined }
+    | { data: null; error: string }
+> {
+    const tenantId = getTenantId();
+
+    const rows = await db.query.branches.findMany({
+        where: and(
+            eq(branches.tenantId, tenantId),
+            eq(branches.isActive, true),
+            eq(branches.city, city)
+        ),
+        orderBy: [asc(branches.name)],
+    });
+
+    if (rows.length === 0) {
+        return { data: null, error: "No branches found in this city." };
+    }
+
+    return { data: rows.map((b) => ({ id: b.id, name: b.name, address: b.address })) };
 }

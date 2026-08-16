@@ -15,7 +15,7 @@ export function CategoryTabs({
   onChange,
 }: CategoryTabsProps) {
   return (
-    <div className="sticky top-16 z-30 bg-white border-b border-[#ebe9e4] shadow-sm">
+    <div className="sticky top-16 z-40 bg-white border-b border-[#ebe9e4] shadow-sm">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="flex items-center gap-1 overflow-x-auto py-3 scrollbar-hide">
           <button

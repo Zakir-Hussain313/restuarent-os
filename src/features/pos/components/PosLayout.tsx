@@ -9,7 +9,12 @@ import { CartPanel } from "./CartPanel/CartPanel";
 
 type MobileTab = "menu" | "cart";
 
-export function PosLayout() {
+interface PosLayoutProps {
+  branchId?: string;
+  autoConfirmOnPlace?: boolean;
+}
+
+export function PosLayout({ branchId, autoConfirmOnPlace }: PosLayoutProps) {
   const [mobileTab, setMobileTab] = useState<MobileTab>("menu");
   const { itemCount } = usePosCart();
 
@@ -24,7 +29,7 @@ export function PosLayout() {
 
         {/* Right: Cart — 40% */}
         <div className="flex-2 overflow-hidden min-w-75 max-w-105">
-          <CartPanel />
+          <CartPanel branchId={branchId} autoConfirmOnPlace={autoConfirmOnPlace} />
         </div>
       </div>
 
@@ -36,7 +41,7 @@ export function PosLayout() {
               <MenuPanel />
             </div>
           ) : (
-            <CartPanel />
+            <CartPanel branchId={branchId} autoConfirmOnPlace={autoConfirmOnPlace} />
           )}
         </div>
 

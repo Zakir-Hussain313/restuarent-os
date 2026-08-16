@@ -1,4 +1,4 @@
-export type TableStatus = "available" | "occupied" | "reserved";
+export type TableStatus = "available" | "occupied" | "reserved" | "out_of_service";
 
 export type TableShape = "square" | "rectangle" | "circle" | "oval";
 
@@ -27,17 +27,17 @@ export interface Table {
   updatedAt: string;
 }
 
+export type ReservationStatus = "pending" | "confirmed" | "seated" | "cancelled" | "no_show";
+
 export interface Reservation {
   id: string;
   branchId: string;
   tableId: string;
-  customerId?: string;
+  customerName?: string;
   customerPhone: string;
   partySize: number;
-  reservedAt: string; // ISO datetime
-  durationMinutes: number;
-  status: "pending" | "confirmed" | "seated" | "completed" | "cancelled" | "no_show";
   notes?: string;
+  status: ReservationStatus;
   createdAt: string;
   updatedAt: string;
 }

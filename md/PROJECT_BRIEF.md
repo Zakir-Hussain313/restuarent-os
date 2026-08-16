@@ -44,22 +44,24 @@ The goal is to evolve the existing frontend into a complete production-grade Saa
 
 ## Business Model
 
-The platform is multi-tenant.
+The platform is deployed per-tenant: each restaurant gets its own
+dedicated server and its own dedicated database. There is no shared
+infrastructure between restaurants.
 
-Each restaurant represents a tenant.
+`tenant_id` is still present on every major entity for schema
+consistency, portability, and future flexibility, but the isolation
+guarantee comes from physical separation (separate DB per restaurant),
+not from tenant_id filtering.
 
-Every tenant has isolated:
+Within a single restaurant's database, roles must still be strictly
+separated:
 
-* Users
-* Orders
-* Menu Items
-* Categories
-* Tables
-* Reports
-* Settings
-* Attendance Records
+* Super Admin
+* Staff
+* Rider
 
-No tenant should ever access another tenant's data.
+No role should be able to access data or actions outside its
+permitted scope, even if application code has a bug.
 
 ---
 

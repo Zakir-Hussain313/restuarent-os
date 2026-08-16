@@ -37,6 +37,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# database dumps — may contain real customer/staff data, never commit
+*.sql
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

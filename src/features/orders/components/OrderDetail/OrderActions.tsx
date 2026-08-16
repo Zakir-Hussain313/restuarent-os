@@ -1,17 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Printer, Receipt, XCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { KitchenTicketModal } from "../modals/KitchenTicketModal";
 import { BillModal } from "../modals/BillModal";
 import { CancelConfirmModal } from "../modals/CancelConfirmModal";
+import { getBranchesAction } from "@/features/staff/actions";
+import type { Branch } from "@/db/schema";
 import type { Order, PaymentMethod } from "@/types";
 
 interface OrderActionsProps {
   order: Order;
   canPrintKitchenTicket: boolean;
   canPrintBill: boolean;
+  canCompleteBill: boolean;
   canCancel: boolean;
   onPrintKitchenTicket: () => void;
   isPrintingKitchenTicket: boolean;
@@ -75,6 +78,7 @@ export function OrderActions({
   order,
   canPrintKitchenTicket,
   canPrintBill,
+  canCompleteBill,
   canCancel,
   onPrintKitchenTicket,
   isPrintingKitchenTicket,
@@ -87,10 +91,29 @@ export function OrderActions({
   const [billOpen, setBillOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [billPrinted, setBillPrinted] = useState(false);
+  const [branch, setBranch] = useState<Branch | undefined>(undefined);
 
+  useEffect(() => {
+    let cancelled = false;
+    getBranchesAction().then((res) => {
+      if (cancelled) return;
+      setBranch(res.branches.find((b) => b.id === order.branchId));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [order.branchId]);
+
+  const isDelivery = order.orderType === "delivery";
   const hasActions = canPrintKitchenTicket || canPrintBill || canCancel;
 
   if (!hasActions) return null;
+
+  function handleCompleteOrder() {
+    if (!confirm(`Mark order ${order.orderNumber} as paid and complete?`)) return;
+    onCompleteBill(paymentMethod);
+  }
 
   return (
     <>
@@ -120,13 +143,34 @@ export function OrderActions({
               ))}
             </select>
 
-            <ActionButton
-              label="Print Bill"
-              icon={<Receipt className="w-3.5 h-3.5" />}
-              onClick={() => setBillOpen(true)}
-              isLoading={isCompletingBill}
-              variant="secondary"
-            />
+            {isDelivery ? (
+              billPrinted ? (
+                <ActionButton
+                  label="Complete Order"
+                  icon={<Receipt className="w-3.5 h-3.5" />}
+                  onClick={handleCompleteOrder}
+                  isLoading={isCompletingBill}
+                  variant="primary"
+                  disabled={!canCompleteBill}
+                />
+              ) : (
+                <ActionButton
+                  label="Print Bill"
+                  icon={<Receipt className="w-3.5 h-3.5" />}
+                  onClick={() => setBillOpen(true)}
+                  isLoading={false}
+                  variant="secondary"
+                />
+              )
+            ) : (
+              <ActionButton
+                label="Print Bill"
+                icon={<Receipt className="w-3.5 h-3.5" />}
+                onClick={() => setBillOpen(true)}
+                isLoading={isCompletingBill}
+                variant="secondary"
+              />
+            )}
           </>
         )}
 
@@ -155,13 +199,19 @@ export function OrderActions({
       <BillModal
         open={billOpen}
         order={order}
+        branch={branch}
         paymentMethod={paymentMethod}
         isConfirming={isCompletingBill}
         onConfirm={() => {
-          onCompleteBill(paymentMethod);
           setBillOpen(false);
+          if (isDelivery) {
+            setBillPrinted(true);
+          } else {
+            onCompleteBill(paymentMethod);
+          }
         }}
         onClose={() => setBillOpen(false)}
+        mode={isDelivery ? "printOnly" : "printAndComplete"}
       />
 
       <CancelConfirmModal

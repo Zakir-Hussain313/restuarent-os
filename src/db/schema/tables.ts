@@ -46,6 +46,8 @@ export const restaurantTables = pgTable("restaurant_tables", {
   positionX: integer("position_x"), // for floor-plan UI, matches existing Table.positionX/Y
   positionY: integer("position_y"),
 
+  notes: text("notes"),
+
   isActive: boolean("is_active").notNull().default(true),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

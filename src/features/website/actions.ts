@@ -5,6 +5,7 @@ import { tenantSettings, branches, Staff } from "@/db/schema";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { eq, and } from "drizzle-orm";
 import { hasPermission } from "@/types/staff";
+import { logAudit } from "@/lib/audit";
 
 async function getAuthorizedActor(): Promise <
     | { ok: true; actor: Staff }
@@ -55,14 +56,16 @@ export async function setWebsiteBranchSettingAction(
     if (!auth.ok) return { error: auth.error };
     const { actor } = auth;
 
-    // Verify the branch actually belongs to this tenant before saving —
-    // never trust a client-supplied ID as-is.
     if (branchId) {
         const target = await db.query.branches.findFirst({
             where: and(eq(branches.id, branchId), eq(branches.tenantId, actor.tenantId)),
         });
         if (!target) return { error: "Branch not found." };
     }
+
+    const previous = await db.query.tenantSettings.findFirst({
+        where: eq(tenantSettings.tenantId, actor.tenantId),
+    });
 
     await db
         .insert(tenantSettings)
@@ -71,6 +74,11 @@ export async function setWebsiteBranchSettingAction(
             target: tenantSettings.tenantId,
             set: { websiteBranchId: branchId, updatedAt: new Date() },
         });
+
+    await logAudit(db, actor, "tenant_settings", actor.tenantId, "update", {
+        oldValue: { websiteBranchId: previous?.websiteBranchId ?? null },
+        newValue: { websiteBranchId: branchId },
+    });
 
     return { success: true };
 }

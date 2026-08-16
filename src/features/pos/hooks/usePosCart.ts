@@ -17,21 +17,17 @@ export interface CartTotals {
 
 export function usePosCart(): CartTotals {
   const cartItems = usePosStore((s) => s.cartItems);
-  const discountValue = usePosStore((s) => s.discountValue);
-  const discountType = usePosStore((s) => s.discountType);
+
+  // Delegates to the store's own getDiscountAmount() instead of
+  // reimplementing coupon math here a second time — this hook just
+  // needs the result, and duplicating the scoping/percentage logic
+  // in two places is how they'd silently drift apart later. Selected
+  // reactively (not via getState()) so it's a real, honest dependency
+  // for the useMemo below rather than an imperative read hidden inside it.
+  const discountAmount = usePosStore((s) => s.getDiscountAmount());
 
   return useMemo((): CartTotals => {
     const subtotal = cartItems.reduce((acc, item) => acc + item.itemTotal, 0);
-
-    let discountAmount = 0;
-    if (discountValue > 0) {
-      if (discountType === "percentage") {
-        discountAmount = subtotal * (Math.min(discountValue, 100) / 100);
-      } else {
-        discountAmount = Math.min(discountValue, subtotal);
-      }
-    }
-
     const grandTotal = subtotal - discountAmount;
 
     const itemCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
@@ -44,5 +40,5 @@ export function usePosCart(): CartTotals {
       itemCount,
       uniqueItemCount,
     };
-  }, [cartItems, discountValue, discountType]);
+  }, [cartItems, discountAmount]);
 }

@@ -3,6 +3,7 @@ import {
     uuid,
     text,
     integer,
+    boolean,
     timestamp,
     jsonb,
     index,
@@ -74,6 +75,19 @@ export const orders = pgTable(
 
         notes: text("notes"),
 
+        // Client-generated UUID, one per distinct order attempt. Lets the
+        // server recognize and discard a duplicate request that lands late
+        // (e.g. a background retry from an offline client) instead of
+        // creating a second order. Nullable — non-POS-originated orders
+        // (if any ever exist) simply won't participate in this check.
+        idempotencyKey: text("idempotency_key"),
+
+        // True only for orders that were originally placed while the POS
+        // was offline (queued locally, then synced by OfflineSyncManager).
+        // NOT the same as "has an idempotencyKey" — every order gets one
+        // of those, online or offline. This flag is the real signal.
+        wasOfflineOrder: boolean("was_offline_order").notNull().default(false),
+
         // Staff member who created / took the order.
         // onDelete: "restrict" — prevents deleting a staff record that has orders.
         staffId: uuid("staff_id")
@@ -110,14 +124,22 @@ export const orders = pgTable(
             t.branchId,
             t.status
         ),
-        // Analytics / reporting: tenant + date range scans
-        index("orders_tenant_created_at_idx").on(t.tenantId, t.createdAt),
+        // Sales report: tenant + completedAt range scans (completedAt, not
+        // createdAt, since revenue is recognized at completion — see
+        // reports feature design notes)
+        index("orders_tenant_completed_at_idx").on(t.tenantId, t.completedAt),
         // orderNumber must be unique within a branch (not tenant-wide —
         // each branch runs its own independent order number sequence)
         uniqueIndex("orders_branch_order_number_udx").on(
             t.branchId,
             t.orderNumber
         ),
+        // Enforces the dedup guarantee at the DB level too, not just in
+        // application code — protects against two near-simultaneous
+        // requests both passing the "does it exist" check before either
+        // has inserted. Multiple NULLs are allowed by Postgres unique
+        // indexes, so orders without a key are unaffected.
+        uniqueIndex("orders_idempotency_key_udx").on(t.idempotencyKey),
     ]
 );
 
@@ -201,6 +223,89 @@ export const orderItems = pgTable(
     ]
 );
 
+export const coupons = pgTable(
+    "coupons",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        tenantId: uuid("tenant_id")
+            .notNull()
+            .references(() => tenants.id, { onDelete: "cascade" }),
+
+        name: text("name").notNull(),
+        description: text("description"),
+        discountType: discountTypeEnum("discount_type").notNull(),
+        discountValue: integer("discount_value").notNull(),
+
+        validFrom: timestamp("valid_from", { withTimezone: true }),
+        validTo: timestamp("valid_to", { withTimezone: true }),
+        maxUses: integer("max_uses"),
+        usesCount: integer("uses_count").notNull().default(0),
+
+        branchIds: uuid("branch_ids").array(),
+        menuItemIds: uuid("menu_item_ids").array(),
+        categoryIds: uuid("category_ids").array(),
+
+        isActive: boolean("is_active").notNull().default(true),
+        createdBy: uuid("created_by")
+            .notNull()
+            .references(() => staff.id, { onDelete: "restrict" }),
+
+        createdAt: timestamp("created_at", { withTimezone: true })
+            .notNull()
+            .defaultNow(),
+        updatedAt: timestamp("updated_at", { withTimezone: true })
+            .notNull()
+            .defaultNow(),
+    },
+    (t) => [
+        index("coupons_tenant_id_idx").on(t.tenantId),
+    ]
+);
+
+export const couponBranchAllocations = pgTable(
+    "coupon_branch_allocations",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        tenantId: uuid("tenant_id")
+            .notNull()
+            .references(() => tenants.id, { onDelete: "cascade" }),
+        couponId: uuid("coupon_id")
+            .notNull()
+            .references(() => coupons.id, { onDelete: "cascade" }),
+        branchId: uuid("branch_id")
+            .notNull()
+            .references(() => branches.id, { onDelete: "cascade" }),
+
+        // Fixed at coupon creation time — never recalculated afterward,
+        // even if maxUses or the branch list changes later (see note below).
+        allocatedUses: integer("allocated_uses").notNull(),
+        usedCount: integer("used_count").notNull().default(0),
+
+        createdAt: timestamp("created_at", { withTimezone: true })
+            .notNull()
+            .defaultNow(),
+        updatedAt: timestamp("updated_at", { withTimezone: true })
+            .notNull()
+            .defaultNow(),
+    },
+    (t) => [
+        index("coupon_branch_allocations_tenant_id_idx").on(t.tenantId),
+        index("coupon_branch_allocations_coupon_id_idx").on(t.couponId),
+        index("coupon_branch_allocations_branch_id_idx").on(t.branchId),
+        // One allocation row per branch per coupon — never two.
+        uniqueIndex("coupon_branch_allocations_coupon_branch_udx").on(
+            t.couponId,
+            t.branchId
+        ),
+    ]
+);
+
+export type CouponBranchAllocation = typeof couponBranchAllocations.$inferSelect;
+export type NewCouponBranchAllocation = typeof couponBranchAllocations.$inferInsert;
+
+export type Coupon = typeof coupons.$inferSelect;
+export type NewCoupon = typeof coupons.$inferInsert;
+
 export const orderDiscounts = pgTable(
     "order_discounts",
     {
@@ -221,6 +326,8 @@ export const orderDiscounts = pgTable(
             .notNull()
             .references(() => staff.id, { onDelete: "restrict" }),
 
+        couponId: uuid("coupon_id").references(() => coupons.id, { onDelete: "set null" }),
+
         createdAt: timestamp("created_at", { withTimezone: true })
             .notNull()
             .defaultNow(),
@@ -228,6 +335,7 @@ export const orderDiscounts = pgTable(
     (t) => [
         index("order_discounts_order_id_idx").on(t.orderId),
         index("order_discounts_tenant_id_idx").on(t.tenantId),
+        index("order_discounts_coupon_id_idx").on(t.couponId),
     ]
 );
 

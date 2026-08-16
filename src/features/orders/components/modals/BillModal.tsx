@@ -5,19 +5,22 @@ import { Printer, X, Loader2, Receipt } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils";
 import type { Order, PaymentMethod } from "@/types";
+import type { Branch } from "@/db/schema";
 import { RESTAURANT_CONFIG } from "@/config/restaurant";
 
 interface BillModalProps {
   open: boolean;
   order: Order;
+  branch?: Branch;
   paymentMethod: PaymentMethod;
   isConfirming: boolean;
   onConfirm: () => void;
   onClose: () => void;
+  mode?: "printAndComplete" | "printOnly" | "completeOnly";
 }
 
 const ORDER_TYPE_LABELS: Record<string, string> = {
-  dine_in:  "Dine In",
+  dine_in: "Dine In",
   takeaway: "Takeaway",
   delivery: "Delivery",
 };
@@ -32,7 +35,7 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 };
 
 function formatTime(dateStr: string): string {
-  return new Date(dateStr).toLocaleTimeString("en-PK", {
+  return new Date(dateStr).toLocaleTimeString(RESTAURANT_CONFIG.locale, {
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
@@ -40,7 +43,7 @@ function formatTime(dateStr: string): string {
 }
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-PK", {
+  return new Date(dateStr).toLocaleDateString(RESTAURANT_CONFIG.locale, {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -50,16 +53,23 @@ function formatDate(dateStr: string): string {
 export function BillModal({
   open,
   order,
+  branch,
   paymentMethod,
   isConfirming,
   onConfirm,
   onClose,
+  mode = "printAndComplete",
 }: BillModalProps) {
   const billRef = useRef<HTMLDivElement>(null);
 
   if (!open) return null;
 
-  function handlePrint() {
+  function handleAction() {
+    if (mode === "completeOnly") {
+      onConfirm();
+      return;
+    }
+
     const billHtml = billRef.current?.innerHTML;
     if (!billHtml) return;
 
@@ -149,12 +159,21 @@ export function BillModal({
               <h1 className="text-base font-black tracking-widest uppercase">
                 {RESTAURANT_CONFIG.name}
               </h1>
-              <p className="text-[10px] text-gray-500">
-                Karachi, Pakistan
-              </p>
-              <p className="text-[10px] text-gray-500">
-                Tel: +92 21 1234 5678
-              </p>
+              {branch?.address && (
+                <p className="text-[10px] text-gray-500">
+                  {branch.address}
+                </p>
+              )}
+              {branch?.phone && (
+                <p className="text-[10px] text-gray-500">
+                  Tel: {branch.phone}
+                </p>
+              )}
+              {branch?.email && (
+                <p className="text-[10px] text-gray-500">
+                  {branch.email}
+                </p>
+              )}
             </div>
 
             <div className="border-t border-dashed border-gray-400" />
@@ -164,6 +183,12 @@ export function BillModal({
                 <span className="font-bold">Order</span>
                 <span>{order.orderNumber}</span>
               </div>
+              {order.wasOfflineOrder && order.offlineRef && (
+                <div className="flex justify-between text-xs">
+                  <span className="font-bold">Offline Ref</span>
+                  <span>{order.offlineRef}</span>
+                </div>
+              )}
               <div className="flex justify-between text-xs">
                 <span className="font-bold">Type</span>
                 <span>{ORDER_TYPE_LABELS[order.orderType] ?? order.orderType}</span>
@@ -178,6 +203,12 @@ export function BillModal({
                 <div className="flex justify-between text-xs">
                   <span className="font-bold">Phone</span>
                   <span>{order.customerPhone}</span>
+                </div>
+              )}
+              {order.riderName && (
+                <div className="flex justify-between text-xs">
+                  <span className="font-bold">Rider</span>
+                  <span>{order.riderName}</span>
                 </div>
               )}
               <div className="flex justify-between text-xs">
@@ -295,7 +326,7 @@ export function BillModal({
             Close
           </button>
           <button
-            onClick={handlePrint}
+            onClick={handleAction}
             disabled={isConfirming}
             className={cn(
               "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
@@ -307,7 +338,9 @@ export function BillModal({
             ) : (
               <Printer className="w-3.5 h-3.5" />
             )}
-            Print & Complete
+            {mode === "printOnly" && "Print Bill"}
+            {mode === "completeOnly" && "Complete Order"}
+            {mode === "printAndComplete" && "Print & Complete"}
           </button>
         </div>
       </div>

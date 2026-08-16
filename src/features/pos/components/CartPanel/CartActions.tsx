@@ -8,10 +8,14 @@ import { usePosOrder } from "../../hooks/usePosOrder";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function CartActions() {
+interface CartActionsProps {
+  autoConfirmOnPlace?: boolean;
+}
+
+export function CartActions({ autoConfirmOnPlace }: CartActionsProps) {
   const cartItems = usePosStore((s) => s.cartItems);
   const { itemCount } = usePosCart();
-  const { placeOrder, holdOrder, isSubmitting } = usePosOrder();
+  const { placeOrder, holdOrder, isSubmitting } = usePosOrder(autoConfirmOnPlace);
 
   const hasItems = cartItems.length > 0;
 

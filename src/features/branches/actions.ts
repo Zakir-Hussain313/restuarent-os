@@ -65,6 +65,7 @@ export async function createBranchAction(input: CreateBranchInput) {
           phone: parsed.data.phone ?? null,
           email: parsed.data.email ?? null,
           address: parsed.data.address ?? null,
+          city: parsed.data.city,
           isMainBranch: parsed.data.isMainBranch ?? false,
         })
         .returning();
@@ -73,7 +74,7 @@ export async function createBranchAction(input: CreateBranchInput) {
     });
 
     await logAudit(db, actor, "branch", newBranch.id, "create", {
-      newValue: { name: newBranch.name, isMainBranch: newBranch.isMainBranch },
+      newValue: { name: newBranch.name, city: newBranch.city, isMainBranch: newBranch.isMainBranch },
       description: `Created branch ${newBranch.name}`,
     });
 
@@ -122,6 +123,7 @@ export async function updateBranchAction(branchId: string, input: UpdateBranchIn
     phone: target.phone,
     email: target.email,
     address: target.address,
+    city: target.city,
     isMainBranch: target.isMainBranch,
   };
 
@@ -147,6 +149,7 @@ export async function updateBranchAction(branchId: string, input: UpdateBranchIn
           phone: parsed.data.phone ?? target.phone,
           email: parsed.data.email ?? target.email,
           address: parsed.data.address ?? target.address,
+          city: parsed.data.city ?? target.city,
           image: parsed.data.image ?? target.image,
           isMainBranch: parsed.data.isMainBranch ?? target.isMainBranch,
           updatedAt: new Date(),
@@ -164,6 +167,7 @@ export async function updateBranchAction(branchId: string, input: UpdateBranchIn
         phone: updated.phone,
         email: updated.email,
         address: updated.address,
+        city: updated.city,
         isMainBranch: updated.isMainBranch,
       },
       description: `Updated branch ${updated.name}`,

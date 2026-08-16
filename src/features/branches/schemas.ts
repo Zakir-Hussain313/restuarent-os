@@ -5,6 +5,7 @@ export const createBranchSchema = z.object({
   phone: z.string().trim().optional(),
   email: z.string().trim().toLowerCase().email("Enter a valid email address.").optional(),
   address: z.string().trim().optional(),
+  city: z.string().trim().min(1, "City is required."),
   isMainBranch: z.boolean().optional(),
 });
 
@@ -15,6 +16,7 @@ export const updateBranchSchema = z.object({
   phone: z.string().trim().optional(),
   email: z.string().trim().toLowerCase().email("Enter a valid email address.").optional(),
   address: z.string().trim().optional(),
+  city: z.string().trim().min(1, "City is required.").optional(),
   isMainBranch: z.boolean().optional(),
   image: z.string().url().optional(),
 });

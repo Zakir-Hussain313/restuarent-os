@@ -26,6 +26,7 @@ import {
   LogOut,
   Building2,
   MapPin,
+  Table2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NAV_GROUPS } from "@/config/nav";
@@ -33,6 +34,8 @@ import type { NavItem, NavChild } from "@/config/nav";
 import { useAuthStore } from "@/store/useAuthStore";
 import { logoutAction } from "@/features/auth/actions";
 import { hasPermission } from "@/types/staff";
+import { usePendingOrdersCount } from "@/features/orders/hooks/usePendingOrdersCount";
+import { NotificationBell } from "@/features/notifications/components/NotificationBell";
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard,
@@ -47,7 +50,8 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Bike,
   History,
   Building2,
-  MapPin
+  MapPin,
+  Table2,
 };
 
 function isChildActive(children: NavChild[], pathname: string): boolean {
@@ -94,9 +98,15 @@ interface SidebarNavItemProps {
   item: NavItem;
   sidebarOpen: boolean;
   pathname: string;
+  pendingOrdersCount: number;
 }
 
-function SidebarNavItem({ item, sidebarOpen, pathname }: SidebarNavItemProps) {
+function SidebarNavItem({
+  item,
+  sidebarOpen,
+  pathname,
+  pendingOrdersCount,
+}: SidebarNavItemProps) {
   const Icon = ICON_MAP[item.icon];
   const hasChildren = !!item.children?.length;
 
@@ -180,15 +190,25 @@ function SidebarNavItem({ item, sidebarOpen, pathname }: SidebarNavItemProps) {
           sidebarOpen ? "gap-3 px-2.5" : "justify-center w-10 mx-auto"
         )}
       >
-        <Icon
-          className={cn(
-            "w-4 h-4 shrink-0",
-            isActive ? "text-[#e8570e]" : "text-[#8a8680]"
+        <span className="relative shrink-0">
+          <Icon
+            className={cn(
+              "w-4 h-4",
+              isActive ? "text-[#e8570e]" : "text-[#8a8680]"
+            )}
+          />
+          {!sidebarOpen && item.href === "/pos" && pendingOrdersCount > 0 && (
+            <span className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-[#e8570e] ring-2 ring-white" />
           )}
-        />
+        </span>
         {sidebarOpen && (
           <>
             <span className="flex-1 truncate">{item.label}</span>
+            {item.href === "/pos" && pendingOrdersCount > 0 && (
+              <span className="shrink-0 min-w-4.5 h-4.5 px-1 rounded-full bg-[#e8570e] text-white text-[10px] font-semibold flex items-center justify-center">
+                {pendingOrdersCount > 99 ? "99+" : pendingOrdersCount}
+              </span>
+            )}
             {item.badge === "live" && (
               <Circle className="w-1.5 h-1.5 fill-emerald-400 text-emerald-400 animate-pulse shrink-0" />
             )}
@@ -216,6 +236,8 @@ export function Sidebar() {
       return res.data;
     },
   });
+
+  const pendingOrdersCount = usePendingOrdersCount();
 
   const visibleGroups = NAV_GROUPS
     .map((group) => ({
@@ -283,6 +305,7 @@ export function Sidebar() {
                   item={item}
                   sidebarOpen={open}
                   pathname={pathname}
+                  pendingOrdersCount={pendingOrdersCount}
                 />
               ))}
             </ul>
@@ -290,7 +313,8 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="border-t border-[#ebe9e4] p-2 shrink-0">
+      <div className="border-t border-[#ebe9e4] p-2 shrink-0 space-y-1">
+        <NotificationBell sidebarOpen={open} />
         <div
           className={cn(
             "flex items-center gap-2.5 px-2 py-2 rounded-lg",

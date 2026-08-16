@@ -1,13 +1,16 @@
 export const RESTAURANT_CONFIG = {
   name: process.env.NEXT_PUBLIC_RESTAURANT_NAME,
   tagline: "Taste the Tradition",
-  currency: "PKR",
-  currencySymbol: "Rs.",
+  currency: process.env.NEXT_PUBLIC_RESTAURANT_CURRENCY || "PKR",
+  currencySymbol: process.env.NEXT_PUBLIC_RESTAURANT_CURRENCY_SYMBOL || "Rs.",
+  locale: process.env.NEXT_PUBLIC_RESTAURANT_LOCALE || "en-PK",
   defaultDeliveryFee: 150,
   freeDeliveryThreshold: 2000,
   enableFreeDelivery: false,
   maxTableCapacity: 20,
   orderNumberPrefix: "ORD",
+  address: process.env.NEXT_PUBLIC_RESTAURANT_ADDRESS,
+  phone: process.env.NEXT_PUBLIC_RESTAURANT_PHONE,
 } as const;
 
 export const ORDER_STATUS_LABELS: Record<string, string> = {

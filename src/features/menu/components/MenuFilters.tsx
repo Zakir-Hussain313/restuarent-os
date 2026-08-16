@@ -37,6 +37,7 @@ interface MenuFiltersProps {
     isSuperAdmin: boolean;
     canManageMenu: boolean;
     branches: Branch[];
+    ownBranchId?: string;
     children: React.ReactNode;
 }
 
@@ -97,9 +98,10 @@ export function MenuFilters({
     isSuperAdmin,
     canManageMenu,
     branches,
+    ownBranchId,
     children,
 }: MenuFiltersProps) {
-    const [branchId, setBranchId] = useState<string | undefined>(undefined);
+    const [branchId, setBranchId] = useState<string | undefined>(ownBranchId);
 
     return (
         <MenuFilterContext.Provider value={{ branchId, branches, isSuperAdmin, canManageMenu }}>

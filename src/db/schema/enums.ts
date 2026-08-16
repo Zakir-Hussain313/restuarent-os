@@ -36,9 +36,18 @@ export const tableStatusEnum = pgEnum("table_status", [
   "available",
   "occupied",
   "reserved",
+  "out_of_service"
 ]);
 
 export const tableShapeEnum = pgEnum("table_shape", ["square", "rectangle", "circle", "oval"]);
+
+export const reservationStatusEnum = pgEnum("reservation_status", [
+  "pending",
+  "confirmed",
+  "seated",
+  "cancelled",
+  "no_show",
+]);
 
 // ── Orders ────────────────────────────────────────────────────────────────
 export const orderTypeEnum = pgEnum("order_type", ["dine_in", "takeaway", "delivery"]);
@@ -73,6 +82,7 @@ export const paymentStatusEnum = pgEnum("payment_status", [
 
 // ── Deliveries ────────────────────────────────────────────────────────────
 export const deliveryStatusEnum = pgEnum("delivery_status", [
+  "unassigned",
   "assigned",
   "out_for_delivery",
   "delivered",

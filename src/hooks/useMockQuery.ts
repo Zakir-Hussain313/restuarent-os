@@ -62,12 +62,21 @@ export const queryKeys = {
   deliveryAreas: {
     list: (branchId?: string) => ["deliveryAreas", branchId] as const,
   },
+  coupons: {
+    list: ["coupons"] as const,
+  },
   onlineOrdering: {
     branchInfo: ["onlineOrdering", "branchInfo"] as const,
     deliveryAreas: ["onlineOrdering", "deliveryAreas"] as const,
+    cities: ["onlineOrdering", "cities"] as const,
+    areasForCity: (city: string) => ["onlineOrdering", "areasForCity", city] as const,
+    branchesByCity: (city: string) => ["onlineOrdering", "branchesByCity", city] as const,
     menu: (branchId: string) => ["onlineOrdering", "menu", branchId] as const,
   },
   website: {
     branchSetting: ["website", "branchSetting"] as const,
+  },
+  notifications: {
+    all: ["notifications"] as const,
   },
 } as const;

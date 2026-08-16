@@ -107,6 +107,9 @@ export function BranchesTable({ branches }: BranchesTableProps) {
                   <p className="text-sm text-[#8a8680] line-clamp-2">
                     {branch.address ?? "—"}
                   </p>
+                  <p className="text-sm text-[#8a8680] line-clamp-2">
+                    {branch.city}{branch.address ? ` · ${branch.address}` : ""}
+                  </p>
                 </div>
 
                 <div className="flex flex-wrap gap-1.5">

@@ -9,12 +9,14 @@ import {
   cancelOrderAction,
 } from "@/features/orders/actions";
 import type { Order, PaymentMethod } from "@/types";
+import { useAlertModal } from "@/components/providers/AlertModalProvider";
 
 interface UseOrderDetailReturn {
   order: Order | undefined;
   isLoading: boolean;
   canPrintKitchenTicket: boolean;
   canPrintBill: boolean;
+  canCompleteBill: boolean;
   canCancel: boolean;
   printKitchenTicket: () => void;
   isPrintingKitchenTicket: boolean;
@@ -25,6 +27,7 @@ interface UseOrderDetailReturn {
 }
 
 export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
+  const { showAlert } = useAlertModal();
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -54,7 +57,7 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
         return id;
       },
       onSuccess: (id) => invalidateOrderQueries(id),
-      onError: (err: Error) => alert(err.message),
+      onError: (err: Error) => showAlert(err.message),
     });
 
   const { mutate: mutateCompleteBill, isPending: isCompletingBill } =
@@ -71,7 +74,7 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
         return id;
       },
       onSuccess: (id) => invalidateOrderQueries(id),
-      onError: (err: Error) => alert(err.message),
+      onError: (err: Error) => showAlert(err.message),
     });
 
   const { mutate: mutateCancelled, isPending: isCancelling } = useMutation({
@@ -81,11 +84,15 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
       return id;
     },
     onSuccess: (id) => invalidateOrderQueries(id),
-    onError: (err: Error) => alert(err.message),
+    onError: (err: Error) => showAlert(err.message),
   });
 
   const canPrintKitchenTicket = !!order && order.status === "pending";
   const canPrintBill = !!order && order.status === "confirmed";
+  const canCompleteBill =
+    !!order &&
+    order.status === "confirmed" &&
+    (order.orderType !== "delivery" || order.deliveryStatus === "delivered");
   const canCancel =
     !!order && (order.status === "pending" || order.status === "confirmed");
 
@@ -94,6 +101,7 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
     isLoading,
     canPrintKitchenTicket,
     canPrintBill,
+    canCompleteBill,
     canCancel,
     printKitchenTicket: () => {
       if (!orderId || !canPrintKitchenTicket) return;

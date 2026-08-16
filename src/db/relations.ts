@@ -4,7 +4,7 @@ import { branches } from "./schema/branches";
 import { staff } from "./schema/staff";
 import { menuCategories, menuItems, menuItemVariants, modifierGroups, modifierOptions } from "./schema/menu";
 import { tableSections, restaurantTables } from "./schema/tables";
-import { orders, orderItems, orderDiscounts, payments } from "./schema/orders";
+import { orders, orderItems, orderDiscounts, coupons, couponBranchAllocations, payments } from "./schema/orders";
 import { deliveries } from "./schema/deliveries";
 import { attendance } from "./schema/attendance";
 import { auditLogs } from "./schema/audit_logs";
@@ -248,6 +248,42 @@ export const orderDiscountsRelations = relations(orderDiscounts, ({ one }) => ({
     appliedBy: one(staff, {
         fields: [orderDiscounts.appliedBy],
         references: [staff.id],
+    }),
+    coupon: one(coupons, {
+        fields: [orderDiscounts.couponId],
+        references: [coupons.id],
+    }),
+}));
+
+// ── Coupons ───────────────────────────────────────────────────────────────
+
+export const couponsRelations = relations(coupons, ({ one, many }) => ({
+    tenant: one(tenants, {
+        fields: [coupons.tenantId],
+        references: [tenants.id],
+    }),
+    createdByStaff: one(staff, {
+        fields: [coupons.createdBy],
+        references: [staff.id],
+    }),
+    redemptions: many(orderDiscounts),
+    branchAllocations: many(couponBranchAllocations),
+}));
+
+// ── Coupon Branch Allocations ────────────────────────────────────────────
+
+export const couponBranchAllocationsRelations = relations(couponBranchAllocations, ({ one }) => ({
+    tenant: one(tenants, {
+        fields: [couponBranchAllocations.tenantId],
+        references: [tenants.id],
+    }),
+    coupon: one(coupons, {
+        fields: [couponBranchAllocations.couponId],
+        references: [coupons.id],
+    }),
+    branch: one(branches, {
+        fields: [couponBranchAllocations.branchId],
+        references: [branches.id],
     }),
 }));
 

@@ -5,6 +5,7 @@ import { Printer, X, Loader2, ChefHat } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Order } from "@/types";
 import { RESTAURANT_CONFIG } from "@/config/restaurant";
+import { printKitchenTicket } from "@/features/orders/lib/printKitchenTicket";
 
 interface KitchenTicketModalProps {
   open: boolean;
@@ -21,7 +22,7 @@ const ORDER_TYPE_LABELS: Record<string, string> = {
 };
 
 function formatTime(dateStr: string): string {
-  return new Date(dateStr).toLocaleTimeString("en-PK", {
+  return new Date(dateStr).toLocaleTimeString(RESTAURANT_CONFIG.locale, {
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
@@ -29,7 +30,7 @@ function formatTime(dateStr: string): string {
 }
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-PK", {
+  return new Date(dateStr).toLocaleDateString(RESTAURANT_CONFIG.locale, {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -48,51 +49,7 @@ export function KitchenTicketModal({
   if (!open) return null;
 
   function handlePrint() {
-    const ticketHtml = ticketRef.current?.innerHTML;
-    if (!ticketHtml) return;
-
-    const printWindow = window.open("", "_blank", "width=400,height=600");
-    if (!printWindow) return;
-
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Kitchen Ticket — ${order.orderNumber}</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body {
-              font-family: 'Courier New', Courier, monospace;
-              font-size: 13px;
-              color: #000;
-              background: #fff;
-              padding: 16px;
-              width: 300px;
-            }
-            .ticket-header { text-align: center; margin-bottom: 12px; }
-            .ticket-header h1 { font-size: 18px; font-weight: 700; letter-spacing: 2px; }
-            .ticket-header p { font-size: 11px; margin-top: 2px; }
-            .divider { border-top: 1px dashed #000; margin: 8px 0; }
-            .meta-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
-            .meta-label { font-weight: 600; }
-            .items-header { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
-            .item { margin-bottom: 10px; }
-            .item-main { display: flex; gap: 8px; font-weight: 700; font-size: 14px; }
-            .item-qty { min-width: 24px; }
-            .item-modifier { font-size: 11px; padding-left: 32px; color: #333; margin-top: 2px; }
-            .item-notes { font-size: 11px; padding-left: 32px; font-style: italic; color: #555; margin-top: 2px; }
-            .footer { text-align: center; font-size: 10px; margin-top: 12px; color: #555; }
-          </style>
-        </head>
-        <body>${ticketHtml}</body>
-      </html>
-    `);
-
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-    printWindow.close();
-
+    printKitchenTicket(order);
     onConfirm();
   }
 

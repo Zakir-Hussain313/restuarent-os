@@ -1,14 +1,17 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getAttendanceForDateAction, markAttendanceAction } from "@/features/attendance/actions";
+import { getAttendanceForDateAction, markAttendanceAction, endShiftAction } from "@/features/attendance/actions";
 import { useAttendanceFilters } from "./AttendanceFilters";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import type { Attendance } from "@/db/schema/attendance";
-import { useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { branchChannel } from "@/lib/realtime/channels";
+import { useAlertModal } from "@/components/providers/AlertModalProvider";
 
 const STATUS_OPTIONS: { value: Attendance["status"]; label: string }[] = [
     { value: "present", label: "Present" },
@@ -27,9 +30,13 @@ const STATUS_STYLES: Record<Attendance["status"], string> = {
 };
 
 export function AttendanceTable() {
+  const { showAlert } = useAlertModal();
     const { date, branchId, roleFilter } = useAttendanceFilters();
     const queryClient = useQueryClient();
-    const queryKey = ["attendance", date, branchId, roleFilter];
+    const queryKey = useMemo(
+        () => ["attendance", date, branchId, roleFilter],
+        [date, branchId, roleFilter]
+    );
     const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
 
     const { data, isLoading } = useQuery({
@@ -40,6 +47,22 @@ export function AttendanceTable() {
             return res.data;
         },
     });
+
+    useEffect(() => {
+        if (!branchId) return;
+
+        const supabase = getSupabaseBrowserClient();
+        const channel = supabase
+            .channel(branchChannel(branchId, "attendance"))
+            .on("broadcast", { event: "changed" }, () => {
+                queryClient.invalidateQueries({ queryKey });
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [branchId, queryClient, queryKey]);
 
     const mutation = useMutation({
         mutationFn: async ({
@@ -56,6 +79,26 @@ export function AttendanceTable() {
             queryClient.invalidateQueries({ queryKey });
         },
     });
+
+    const endShiftMutation = useMutation({
+        mutationFn: async (staffId: string) => {
+            const res = await endShiftAction(staffId);
+            if (res.error) throw new Error(res.error);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey });
+        },
+        onError: (err) => {
+            showAlert(`Failed to end shift: ${err.message}`, "Error");
+        },
+    });
+
+    function handleEndShift(staffId: string, firstName: string, lastName: string) {
+        if (!confirm(`End shift for ${firstName} ${lastName}? This sets their check-out time to now.`)) {
+            return;
+        }
+        endShiftMutation.mutate(staffId);
+    }
 
     function handleMark(staffId: string, status: Attendance["status"]) {
         queryClient.setQueryData<typeof data>(queryKey, (old) =>
@@ -105,7 +148,7 @@ export function AttendanceTable() {
                             </div>
                         </TableCell>
                         <TableCell>
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 items-center">
                                 {STATUS_OPTIONS.map((opt) => (
                                     <Button
                                         key={opt.value}
@@ -117,6 +160,17 @@ export function AttendanceTable() {
                                         {opt.label}
                                     </Button>
                                 ))}
+                                {row.hasOpenSession && (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="text-muted-foreground hover:text-destructive"
+                                        disabled={endShiftMutation.isPending}
+                                        onClick={() => handleEndShift(row.staffId, row.firstName, row.lastName)}
+                                    >
+                                        End Shift
+                                    </Button>
+                                )}
                             </div>
                         </TableCell>
                     </TableRow>

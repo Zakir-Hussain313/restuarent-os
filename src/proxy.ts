@@ -4,16 +4,18 @@ import { NextResponse, type NextRequest } from "next/server";
 type Role = "SUPER_ADMIN" | "ADMIN" | "STAFF" | "RIDER";
 
 // Routes restricted to SUPER_ADMIN only
-const SUPER_ADMIN_ONLY_ROUTES = ["/admins", "/branches", "/settings"];
+const SUPER_ADMIN_ONLY_ROUTES = ["/admins", "/branches"];
 
 // Routes shared by SUPER_ADMIN + ADMIN
-const ADMIN_ROUTES = ["/dashboard", "/analytics", "/attendance", "/staff"];
+const ADMIN_ROUTES = ["/dashboard", "/attendance", "/staff", "/settings" , "/audit-logs"];
 
 // Routes shared by SUPER_ADMIN + ADMIN + STAFF
 const STAFF_ROUTES = ["/pos", "/orders", "/tables", "/menu"];
 
 // Routes shared by SUPER_ADMIN + RIDER
 const RIDER_ROUTES = ["/riders"];
+
+const SUPER_ADMIN_BLOCKED_ROUTES = ["/tables"];
 
 const PROTECTED_ROUTES = [
   ...SUPER_ADMIN_ONLY_ROUTES,
@@ -60,9 +62,21 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] = null;
+
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch (err) {
+    // getUser() failed to reach Supabase at all (network/timeout), not
+    // "Supabase said no session." Don't force a logout for this — fall
+    // back to reading the session locally from the cookie instead.
+    // getSession() does NOT make a network round-trip unless the token
+    // needs refreshing, so this still works while offline.
+    console.warn("[proxy] getUser() unreachable, falling back to cached session:", err);
+    const { data } = await supabase.auth.getSession();
+    user = data.session?.user ?? null;
+  }
 
   const { pathname } = request.nextUrl;
   const role = user?.app_metadata?.role as Role | undefined;
@@ -81,6 +95,13 @@ export async function proxy(request: NextRequest) {
     const dashboardUrl = request.nextUrl.clone();
     dashboardUrl.pathname = defaultRouteFor(role);
     dashboardUrl.searchParams.delete("redirectTo");
+    return NextResponse.redirect(dashboardUrl);
+  }
+
+  // ── SUPER_ADMIN explicit route block ──────────────────────────────────
+  if (user && role === "SUPER_ADMIN" && matches(SUPER_ADMIN_BLOCKED_ROUTES, pathname)) {
+    const dashboardUrl = request.nextUrl.clone();
+    dashboardUrl.pathname = defaultRouteFor(role); // "/dashboard" for SUPER_ADMIN
     return NextResponse.redirect(dashboardUrl);
   }
 

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { MenuItem, OrderType, SelectedModifier, SelectedVariant } from "@/types";
+import type { Coupon } from "@/db/schema/orders";
 import { calculateOrderTotals, generateId } from "@/lib/utils";
 import { RESTAURANT_CONFIG } from "@/config/restaurant";
 
@@ -21,9 +22,10 @@ interface PosState {
   tableNumber?: string;
   customerId?: string;
   customerPhone?: string;
-  discountType?: "percentage" | "fixed";
-  discountValue: number;
+  deliveryAddress?: string;
+  appliedCoupon: Coupon | null;
   notes?: string;
+  selectedRiderId?: string | "auto";
 
   // Cart actions
   addItem: (
@@ -42,8 +44,11 @@ interface PosState {
   clearTable: () => void;
   setCustomer: (id: string, name: string, phone: string) => void;
   clearCustomer: () => void;
-  setDiscount: (type: "percentage" | "fixed", value: number) => void;
-  clearDiscount: () => void;
+  setCustomerPhone: (phone: string) => void;
+  setDeliveryAddress: (address: string) => void;
+  setSelectedRiderId: (riderId: string | "auto" | undefined) => void;
+  setCoupon: (coupon: Coupon) => void;
+  clearCoupon: () => void;
   setNotes: (notes: string) => void;
 
   // Computed
@@ -56,12 +61,13 @@ interface PosState {
     total: number;
   };
   getItemCount: () => number;
+  isCouponEligible: (coupon: Coupon) => boolean;
 }
 
 export const usePosStore = create<PosState>((set, get) => ({
   cartItems: [],
   orderType: "dine_in",
-  discountValue: 0,
+  appliedCoupon: null,
 
   addItem: (menuItem, selectedVariant, selectedModifiers = [], notes) => {
     const variantAdjustment = selectedVariant?.priceAdjustment ?? 0;
@@ -123,8 +129,9 @@ export const usePosStore = create<PosState>((set, get) => ({
       tableNumber: undefined,
       customerId: undefined,
       customerPhone: undefined,
-      discountValue: 0,
-      discountType: undefined,
+      deliveryAddress: undefined,
+      selectedRiderId: undefined,
+      appliedCoupon: null,
       notes: undefined,
     }),
 
@@ -135,19 +142,47 @@ export const usePosStore = create<PosState>((set, get) => ({
     set({ customerId, customerPhone }),
   clearCustomer: () =>
     set({ customerId: undefined, customerPhone: undefined }),
-  setDiscount: (discountType, discountValue) => set({ discountType, discountValue }),
-  clearDiscount: () => set({ discountType: undefined, discountValue: 0 }),
+  setCustomerPhone: (customerPhone) => set({ customerPhone }),
+  setDeliveryAddress: (deliveryAddress) => set({ deliveryAddress }),
+  setSelectedRiderId: (selectedRiderId) => set({ selectedRiderId }),
+  setCoupon: (appliedCoupon) => set({ appliedCoupon }),
+  clearCoupon: () => set({ appliedCoupon: null }),
   setNotes: (notes) => set({ notes }),
 
   getSubtotal: () =>
     get().cartItems.reduce((sum, ci) => sum + ci.itemTotal, 0),
 
+  isCouponEligible: (coupon) => {
+    const { menuItemIds, categoryIds } = coupon;
+    if (!menuItemIds && !categoryIds) return true; // whole-order coupon, always eligible
+    return get().cartItems.some(
+      (ci) =>
+        (menuItemIds?.includes(ci.menuItem.id) ?? false) ||
+        (categoryIds?.includes(ci.menuItem.categoryId) ?? false)
+    );
+  },
+
   getDiscountAmount: () => {
-    const { discountType, discountValue } = get();
-    const subtotal = get().getSubtotal();
-    if (!discountType || discountValue === 0) return 0;
-    if (discountType === "percentage") return Math.round(subtotal * (discountValue / 100));
-    return Math.min(discountValue, subtotal);
+    const { appliedCoupon, cartItems } = get();
+    if (!appliedCoupon) return 0;
+
+    const { discountType, discountValue, menuItemIds, categoryIds } = appliedCoupon;
+
+    let base: number;
+    if (menuItemIds || categoryIds) {
+      base = cartItems.reduce((sum, ci) => {
+        const eligible =
+          (menuItemIds?.includes(ci.menuItem.id) ?? false) ||
+          (categoryIds?.includes(ci.menuItem.categoryId) ?? false);
+        return eligible ? sum + ci.itemTotal : sum;
+      }, 0);
+    } else {
+      base = get().getSubtotal();
+    }
+
+    if (base === 0) return 0;
+    if (discountType === "percentage") return Math.round(base * (Math.min(discountValue, 100) / 100));
+    return Math.min(discountValue, base);
   },
 
   getTotals: () => {

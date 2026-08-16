@@ -12,6 +12,7 @@ import { uploadEntityImage } from "@/features/uploads/actions";
 import { useMenuFilters } from "./MenuFilters";
 import type { MenuCategory, MenuItem } from "@/types";
 import type { ItemFormInput } from "@/features/menu/actions";
+import { useAlertModal } from "@/components/providers/AlertModalProvider";
 
 // ─── Modal State Shapes ───────────────────────────────────────────────────────
 
@@ -31,6 +32,8 @@ const CLOSED_ITEM: ItemModalState = { isOpen: false, item: null };
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function MenuLayout() {
+  const { showAlert } = useAlertModal();
+  
   // ── Filter/permission context ─────────────────────────────────────────────
   const { branchId, canManageMenu, isSuperAdmin } = useMenuFilters();
 
@@ -68,22 +71,22 @@ export function MenuLayout() {
   // ── Category modal callbacks ───────────────────────────────────────────────
   const openAddCategory = useCallback(() => {
     if (isSuperAdmin && branchId === undefined) {
-      alert("Please select a specific branch before adding a category.");
+      showAlert("Please select a specific branch before adding a category.");
       return;
     }
     setCategoryModal({ isOpen: true, category: null });
-  }, [isSuperAdmin, branchId]);
+  }, [isSuperAdmin, branchId , showAlert]);
   const openEditCategory = useCallback((cat: MenuCategory) => setCategoryModal({ isOpen: true, category: cat }), []);
   const closeCategoryModal = useCallback(() => setCategoryModal(CLOSED_CAT), []);
 
   // ── Item modal callbacks ───────────────────────────────────────────────────
   const openAddItem = useCallback(() => {
     if (isSuperAdmin && branchId === undefined) {
-      alert("Please select a specific branch before adding an item.");
+      showAlert("Please select a specific branch before adding an item.");
       return;
     }
     setItemModal({ isOpen: true, item: null });
-  }, [isSuperAdmin, branchId]);
+  }, [isSuperAdmin, branchId , showAlert]);
   const openEditItem = useCallback((item: MenuItem) => setItemModal({ isOpen: true, item }), []);
   const closeItemModal = useCallback(() => setItemModal(CLOSED_ITEM), []);
 
@@ -130,7 +133,7 @@ export function MenuLayout() {
             onEditCategory={openEditCategory}
             onDeleteCategory={(cat) =>
               deleteCategory(cat.id, {
-                onError: (err) => alert(`Failed to delete category: ${err.message}`),
+                onError: (err) => showAlert(`Failed to delete category: ${err.message}`),
               })
             }
             onToggleActive={toggleCategoryActive}
@@ -147,7 +150,7 @@ export function MenuLayout() {
               onEditItem={openEditItem}
               onDeleteItem={(item) =>
                 deleteItem(item.id, {
-                  onError: (err) => alert(`Failed to delete item: ${err.message}`),
+                  onError: (err) => showAlert(`Failed to delete item: ${err.message}`),
                 })
               }
               onToggleStatus={toggleItemStatus}
@@ -168,13 +171,13 @@ export function MenuLayout() {
               { id: categoryModal.category.id, input: values },
               {
                 onSuccess: closeCategoryModal,
-                onError: (err) => alert(`Failed to save category: ${err.message}`),
+                onError: (err) => showAlert(`Failed to save category: ${err.message}`),
               }
             );
           } else {
             addCategory(values, {
               onSuccess: closeCategoryModal,
-              onError: (err) => alert(`Failed to add category: ${err.message}`),
+              onError: (err) => showAlert(`Failed to add category: ${err.message}`),
             });
           }
         }}
@@ -218,7 +221,7 @@ export function MenuLayout() {
             closeItemModal();
           } catch (err) {
             setIsUploadingImage(false);
-            alert(`Failed to save item: ${err instanceof Error ? err.message : "Something went wrong."}`);
+            showAlert(`Failed to save item: ${err instanceof Error ? err.message : "Something went wrong."}`);
           }
         }}
       />

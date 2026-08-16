@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getOrdersAction } from "../actions";
+import { useRealtimeOrders } from "./useRealtimeOrders";
 import type { Order, OrderStatus, OrderType } from "@/types";
 
 export type OrderStatusFilter = OrderStatus | "all";
@@ -41,7 +42,7 @@ const DEFAULT_FILTERS: OrderFilters = {
 export function useOrders(options: UseOrdersOptions = {}): UseOrdersReturn {
   const { scopeTypes, scopeStatuses } = options;
   const [filters, setFilters] = useState<OrderFilters>(DEFAULT_FILTERS);
-
+  useRealtimeOrders();
   const { data: allOrders = [], isLoading } = useQuery<Order[]>({
     queryKey: ["orders", undefined],
     queryFn: async () => {
@@ -49,7 +50,7 @@ export function useOrders(options: UseOrdersOptions = {}): UseOrdersReturn {
       if (res.data === null) throw new Error(res.error);
       return res.data;
     },
-    refetchInterval: 10000, // simple polling until realtime is wired in
+    refetchInterval: 60000, // safety-net fallback; realtime broadcast drives primary updates
   });
 
   const scopedOrders = useMemo(() => {

@@ -18,6 +18,8 @@ import type {
     MenuItem,
     MenuItemStatus,
 } from "@/types";
+import { logAudit } from "@/lib/audit";
+import { broadcastChange } from "@/lib/realtime/broadcast";
 
 // ─── Shared input types (mirrors useMenuActions.ts exactly) ───────────────
 
@@ -254,6 +256,11 @@ export async function createCategoryAction(
             })
             .returning();
 
+        await logAudit(db, currentStaffRow, "menu_category", created.id, "create", {
+            branchId: created.branchId,
+            newValue: { name: created.name, isActive: created.isActive },
+        });
+
         return {
             success: true,
             category: {
@@ -314,6 +321,12 @@ export async function updateCategoryAction(
         })
         .where(eq(menuCategories.id, id));
 
+    await logAudit(db, currentStaffRow, "menu_category", id, "update", {
+        branchId: target.branchId,
+        oldValue: { name: target.name, isActive: target.isActive },
+        newValue: { name: input.name, isActive: input.isActive },
+    });
+
     return { success: true };
 }
 
@@ -341,6 +354,11 @@ export async function deleteCategoryAction(
     // menuItems.categoryId cascades on delete (per schema), so items in this
     // category are removed automatically at the DB level.
     await db.delete(menuCategories).where(eq(menuCategories.id, id));
+
+    await logAudit(db, currentStaffRow, "menu_category", id, "delete", {
+        branchId: target.branchId,
+        oldValue: { name: target.name },
+    });
 
     return { success: true };
 }
@@ -371,6 +389,12 @@ export async function toggleCategoryActiveAction(
         .update(menuCategories)
         .set({ isActive, updatedAt: new Date() })
         .where(eq(menuCategories.id, id));
+
+    await logAudit(db, currentStaffRow, "menu_category", id, "status_change", {
+        branchId: target.branchId,
+        oldValue: { isActive: target.isActive },
+        newValue: { isActive },
+    });
 
     return { success: true };
 }
@@ -460,6 +484,11 @@ export async function createMenuItemAction(
             }
 
             return { item, variants: insertedVariants, modifierGroups: insertedGroups };
+        });
+
+        await logAudit(db, currentStaffRow, "menu_item", created.item.id, "create", {
+            branchId: created.item.branchId,
+            newValue: { name: created.item.name, basePrice: created.item.basePrice, categoryId: created.item.categoryId, image: created.item.image },
         });
 
         return {
@@ -596,6 +625,12 @@ export async function updateMenuItemAction(
             }
         });
 
+        await logAudit(db, currentStaffRow, "menu_item", id, "update", {
+            branchId: target.branchId,
+            oldValue: { name: target.name, basePrice: target.basePrice, status: target.status, image: target.image },
+            newValue: { name: input.name, basePrice: input.basePrice, status: input.status, image: input.image },
+        });
+
         return { success: true };
     } catch (err) {
         return { error: `Failed to update menu item: ${(err as Error).message}` };
@@ -625,6 +660,11 @@ export async function deleteMenuItemAction(
 
     // variants/modifierGroups/modifierOptions all cascade on menuItemId FK.
     await db.delete(menuItems).where(eq(menuItems.id, id));
+
+    await logAudit(db, currentStaffRow, "menu_item", id, "delete", {
+        branchId: target.branchId,
+        oldValue: { name: target.name, basePrice: target.basePrice },
+    });
 
     return { success: true };
 }
@@ -659,6 +699,14 @@ export async function toggleItemStatusAction(
         .update(menuItems)
         .set({ status, updatedAt: new Date() })
         .where(eq(menuItems.id, id));
+
+    await logAudit(db, currentStaffRow, "menu_item", id, "status_change", {
+        branchId: target.branchId,
+        oldValue: { status: target.status },
+        newValue: { status },
+    });
+
+    await broadcastChange(target.branchId, "menu");
 
     return { success: true };
 }

@@ -8,6 +8,7 @@ import {
   getRecentOrdersAction,
   getTableOccupancyAction,
   getOrderTypeBreakdownAction,
+  getReservationStatsAction,
 } from "../actions";
 
 export function useDashboardStats() {
@@ -112,6 +113,24 @@ export function useOrderTypeBreakdown() {
         throw new Error(result.error ?? "Failed to load order type breakdown.");
       }
       return result.data;
+    },
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+  });
+}
+
+export function useReservationStats() {
+  const searchParams = useSearchParams();
+  const branch = searchParams.get("branch") ?? undefined;
+
+  return useQuery({
+    queryKey: [...queryKeys.analytics.dashboard, "reservation-stats", branch],
+    queryFn: async () => {
+      const result = await getReservationStatsAction(branch);
+      if (result.error || !result.stats) {
+        throw new Error(result.error ?? "Failed to load reservation stats.");
+      }
+      return result.stats;
     },
     staleTime: 60_000,
     gcTime: 5 * 60_000,

@@ -5,15 +5,26 @@ import {
     orders,
     orderItems,
     orderCounters,
+    orderDiscounts,
+    coupons,
+    tenantSettings,
     menuItems,
     staff,
     restaurantTables,
+    tableReservations,
     payments,
+    deliveries,
 } from "@/db/schema";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import type { Order, OrderType } from "@/types";
 import { RESTAURANT_CONFIG } from "@/config/restaurant";
+import { logAudit } from "@/lib/audit";
+import { findFreeRider } from "@/features/deliveries/actions";
+import { getOfflineRef } from "@/features/orders/lib/printKitchenTicket";
+import { broadcastChange } from "@/lib/realtime/broadcast";
+import { sendPushToRider } from "@/lib/push/send";
+import { createNotification } from "../notifications/actions";
 
 // ─── Input shape ────────────────────────────────────────────────────────
 
@@ -30,8 +41,7 @@ export interface CreateOrderInput {
     tableId?: string;
     customerPhone?: string;
     deliveryAddress?: string;
-    discountType?: "percentage" | "fixed";
-    discountValue?: number;
+    couponId?: string;
     notes?: string;
     items: CreateOrderItemInput[];
 }
@@ -53,11 +63,73 @@ async function getCurrentStaff() {
     return { ok: true as const, staff: currentStaffRow };
 }
 
+function buildOrderResponse(
+    order: typeof orders.$inferSelect,
+    items: (typeof orderItems.$inferSelect)[],
+    tableNumber?: string,
+    discounts: (typeof orderDiscounts.$inferSelect)[] = []
+): Order {
+    return {
+        id: order.id,
+        orderNumber: order.orderNumber,
+        branchId: order.branchId,
+        tableId: order.tableId ?? undefined,
+        customerPhone: order.customerPhone ?? undefined,
+        orderType: order.orderType,
+        status: order.status,
+        tableNumber,
+        wasOfflineOrder: order.wasOfflineOrder,
+        offlineRef: order.wasOfflineOrder && order.idempotencyKey ? getOfflineRef(order.idempotencyKey) : undefined,
+        items: items.map((i) => ({
+            id: i.id,
+            orderId: i.orderId,
+            menuItemId: i.menuItemId,
+            menuItemName: i.menuItemName,
+            menuItemImage: i.menuItemImage ?? undefined,
+            categoryId: i.categoryId,
+            categoryName: i.categoryName,
+            quantity: i.quantity,
+            unitPrice: i.unitPrice,
+            selectedVariant: i.selectedVariant ?? undefined,
+            selectedModifiers: i.selectedModifiers,
+            itemTotal: i.itemTotal,
+            notes: i.notes ?? undefined,
+            status: i.status,
+            createdAt: i.createdAt.toISOString(),
+        })),
+        subtotal: order.subtotal,
+        discounts: discounts.map((d) => ({
+            id: d.id,
+            name: d.name,
+            type: d.type,
+            value: d.value,
+            appliedAmount: d.appliedAmount,
+            appliedBy: d.appliedBy,
+        })),
+        totalDiscount: order.totalDiscount,
+        deliveryFee: order.deliveryFee,
+        total: order.total,
+        paymentStatus: order.paymentStatus,
+        payments: [],
+        totalPaid: order.totalPaid,
+        balance: order.total - order.totalPaid,
+        deliveryAddress: order.deliveryAddress ?? undefined,
+        notes: order.notes ?? undefined,
+        staffId: order.staffId,
+        createdAt: order.createdAt.toISOString(),
+        updatedAt: order.updatedAt.toISOString(),
+    };
+}
+
 // ─── Create Order ───────────────────────────────────────────────────────
 
 export async function createOrderAction(
     input: CreateOrderInput,
-    targetBranchId?: string
+    targetBranchId?: string,
+    riderId?: string | "auto",
+    idempotencyKey?: string,
+    queuedAt?: Date,
+    wasOfflineOrder: boolean = false
 ): Promise<{ success: true; order: Order } | { success?: undefined; error: string }> {
     const auth = await getCurrentStaff();
     if (!auth.ok) return { error: auth.error };
@@ -85,21 +157,53 @@ export async function createOrderAction(
         return { error: "Cannot create an order with no items." };
     }
 
+    console.time("[createOrderAction] total");
+
+    // Idempotency check — if this exact order attempt already succeeded
+    // (e.g. the client timed out waiting but the request actually landed,
+    // or a background retry from an offline client duplicated the call),
+    // return the existing order instead of creating a duplicate.
+    if (idempotencyKey) {
+        const existing = await db.query.orders.findFirst({
+            where: and(
+                eq(orders.tenantId, currentStaffRow.tenantId),
+                eq(orders.idempotencyKey, idempotencyKey)
+            ),
+            with: { items: true, table: true, discounts: true },
+        });
+        if (existing) {
+            return {
+                success: true,
+                order: buildOrderResponse(existing, existing.items, existing.table?.tableNumber, existing.discounts),
+            };
+        }
+    }
+
     try {
+        console.time("[createOrderAction] transaction");
         const result = await db.transaction(async (tx) => {
             // ── 1. Fetch real menu items for every line in the cart ──────
+            // Runs in parallel with the table lookup below — independent
+            // queries, no reason to wait for one before starting the other.
             const menuItemIds = [...new Set(input.items.map((i) => i.menuItemId))];
-            const realMenuItems = await tx.query.menuItems.findMany({
-                where: and(
-                    inArray(menuItems.id, menuItemIds),
-                    eq(menuItems.tenantId, currentStaffRow.tenantId),
-                    eq(menuItems.branchId, branchId)
-                ),
-                with: {
-                    variants: true,
-                    modifierGroups: { with: { options: true } },
-                },
-            });
+            const [realMenuItems, preloadedTable] = await Promise.all([
+                tx.query.menuItems.findMany({
+                    where: and(
+                        inArray(menuItems.id, menuItemIds),
+                        eq(menuItems.tenantId, currentStaffRow.tenantId),
+                        eq(menuItems.branchId, branchId)
+                    ),
+                    with: {
+                        variants: true,
+                        modifierGroups: { with: { options: true } },
+                    },
+                }),
+                input.tableId
+                    ? tx.query.restaurantTables.findFirst({
+                          where: eq(restaurantTables.id, input.tableId),
+                      })
+                    : Promise.resolve(null),
+            ]);
 
             const menuItemMap = new Map(realMenuItems.map((m) => [m.id, m]));
 
@@ -176,13 +280,74 @@ export async function createOrderAction(
             // ── 4. Compute totals server-side ─────────────────────────────
             const subtotal = builtItems.reduce((sum, i) => sum + i.itemTotal, 0);
 
+            // Coupon validation happens entirely server-side, inside the
+            // transaction, against live data — the client only ever sends
+            // a couponId, never a discount amount. Fetching the coupon here
+            // (not before the transaction) means its usesCount check and
+            // later increment happen under the same transaction, closing
+            // the window for two concurrent orders to both redeem the last
+            // use of a maxUses-limited coupon.
+            let appliedCoupon: typeof coupons.$inferSelect | null = null;
             let totalDiscount = 0;
-            if (input.discountValue && input.discountValue > 0) {
-                if (input.discountType === "percentage") {
-                    totalDiscount = Math.round(subtotal * (Math.min(input.discountValue, 100) / 100));
-                } else {
-                    totalDiscount = Math.min(input.discountValue, subtotal);
+
+            if (input.couponId) {
+                const now = new Date();
+
+                const settings = await tx.query.tenantSettings.findFirst({
+                    where: eq(tenantSettings.tenantId, currentStaffRow.tenantId),
+                });
+                if (settings && settings.posAllowDiscounts === false) {
+                    throw new Error("Discounts are currently disabled for this restaurant.");
                 }
+
+                const coupon = await tx.query.coupons.findFirst({
+                    where: and(
+                        eq(coupons.id, input.couponId),
+                        eq(coupons.tenantId, currentStaffRow.tenantId)
+                    ),
+                });
+
+                if (!coupon) {
+                    throw new Error("Coupon not found.");
+                }
+                if (!coupon.isActive) {
+                    throw new Error(`Coupon "${coupon.name}" is no longer active.`);
+                }
+                if (coupon.validFrom && coupon.validFrom > now) {
+                    throw new Error(`Coupon "${coupon.name}" is not valid yet.`);
+                }
+                if (coupon.validTo && coupon.validTo < now) {
+                    throw new Error(`Coupon "${coupon.name}" has expired.`);
+                }
+                if (coupon.maxUses !== null && coupon.usesCount >= coupon.maxUses) {
+                    throw new Error(`Coupon "${coupon.name}" has reached its usage limit.`);
+                }
+                if (coupon.branchIds && !coupon.branchIds.includes(branchId)) {
+                    throw new Error(`Coupon "${coupon.name}" is not valid at this branch.`);
+                }
+
+                if (coupon.menuItemIds || coupon.categoryIds) {
+                    const eligibleSubtotal = builtItems.reduce((sum, i) => {
+                        const itemEligible =
+                            (coupon.menuItemIds?.includes(i.menuItemId) ?? false) ||
+                            (coupon.categoryIds?.includes(i.categoryId) ?? false);
+                        return itemEligible ? sum + i.itemTotal : sum;
+                    }, 0);
+                    if (eligibleSubtotal === 0) {
+                        throw new Error(`Coupon "${coupon.name}" doesn't apply to any items in this order.`);
+                    }
+                    totalDiscount =
+                        coupon.discountType === "percentage"
+                            ? Math.round(eligibleSubtotal * (Math.min(coupon.discountValue, 100) / 100))
+                            : Math.min(coupon.discountValue, eligibleSubtotal);
+                } else {
+                    totalDiscount =
+                        coupon.discountType === "percentage"
+                            ? Math.round(subtotal * (Math.min(coupon.discountValue, 100) / 100))
+                            : Math.min(coupon.discountValue, subtotal);
+                }
+
+                appliedCoupon = coupon;
             }
 
             const deliveryFee = input.orderType === "delivery" ? RESTAURANT_CONFIG.defaultDeliveryFee : 0;
@@ -209,15 +374,27 @@ export async function createOrderAction(
 
             let tableNumber: string | undefined;
             if (input.tableId) {
-                const table = await tx.query.restaurantTables.findFirst({
-                    where: eq(restaurantTables.id, input.tableId),
-                });
-                tableNumber = table?.tableNumber;
+                tableNumber = preloadedTable?.tableNumber;
 
-                await tx
-                    .update(restaurantTables)
-                    .set({ status: "occupied", updatedAt: new Date() })
-                    .where(eq(restaurantTables.id, input.tableId));
+                // Independent of each other — run together instead of one after another.
+                await Promise.all([
+                    tx
+                        .update(restaurantTables)
+                        .set({ status: "occupied", updatedAt: new Date() })
+                        .where(eq(restaurantTables.id, input.tableId)),
+                    // If this table had an open reservation, seating an order
+                    // against it resolves that reservation automatically —
+                    // staff aren't required to hit a separate "seat" button.
+                    tx
+                        .update(tableReservations)
+                        .set({ status: "seated", updatedAt: new Date() })
+                        .where(
+                            and(
+                                eq(tableReservations.tableId, input.tableId),
+                                inArray(tableReservations.status, ["pending", "confirmed"])
+                            )
+                        ),
+                ]);
             }
 
             // ── 6. Insert order + items ────────────────────────────────
@@ -238,8 +415,65 @@ export async function createOrderAction(
                     deliveryAddress: input.deliveryAddress ?? null,
                     notes: input.notes ?? null,
                     staffId: currentStaffRow.id,
+                    idempotencyKey: idempotencyKey ?? null,
+                    wasOfflineOrder,
+                    // Offline orders pass their true placement time so the
+                    // kitchen ticket and Orders page reflect when the order
+                    // actually happened, not when it happened to sync.
+                    ...(queuedAt ? { createdAt: queuedAt } : {}),
                 })
                 .returning();
+
+            let assignedRiderId: string | null = null;
+
+            if (input.orderType === "delivery") {
+                let deliveryStatus: "unassigned" | "assigned" = "unassigned";
+
+                if (riderId && riderId !== "auto") {
+                    // Staff picked a specific rider — validate before locking in.
+                    const chosenRider = await tx.query.staff.findFirst({
+                        where: and(
+                            eq(staff.id, riderId),
+                            eq(staff.tenantId, currentStaffRow.tenantId),
+                            eq(staff.branchId, branchId),
+                            eq(staff.role, "RIDER"),
+                            eq(staff.isDeleted, false)
+                        ),
+                    });
+                    if (chosenRider) {
+                        assignedRiderId = chosenRider.id;
+                        deliveryStatus = "assigned";
+                    }
+                    // If invalid/not found, falls through to unassigned rather
+                    // than failing the whole order.
+                } else if (riderId === "auto") {
+                    const freeRiderId = await findFreeRider(tx, currentStaffRow.tenantId, branchId);
+                    if (freeRiderId) {
+                        assignedRiderId = freeRiderId;
+                        deliveryStatus = "assigned";
+                    }
+                }
+
+                await tx.insert(deliveries).values({
+                    tenantId: currentStaffRow.tenantId,
+                    branchId,
+                    orderId: createdOrder.id,
+                    riderId: assignedRiderId,
+                    status: deliveryStatus,
+                    deliveryAddress: {
+                        label: null,
+                        street: input.deliveryAddress ?? "",
+                        area: "",
+                        city: "",
+                        instructions: null,
+                    },
+                    deliveryFee,
+                });
+
+                if (assignedRiderId) {
+                    await tx.update(orders).set({ riderId: assignedRiderId }).where(eq(orders.id, createdOrder.id));
+                }
+            }
 
             const insertedItems = await tx
                 .insert(orderItems)
@@ -262,54 +496,109 @@ export async function createOrderAction(
                 )
                 .returning();
 
-            return { order: createdOrder, items: insertedItems, tableNumber };
+            let insertedDiscounts: (typeof orderDiscounts.$inferSelect)[] = [];
+            if (appliedCoupon) {
+                const [discountRows] = await Promise.all([
+                    tx
+                        .insert(orderDiscounts)
+                        .values({
+                            tenantId: currentStaffRow.tenantId,
+                            orderId: createdOrder.id,
+                            name: appliedCoupon.name,
+                            type: appliedCoupon.discountType,
+                            value: appliedCoupon.discountValue,
+                            appliedAmount: totalDiscount,
+                            appliedBy: currentStaffRow.id,
+                            couponId: appliedCoupon.id,
+                        })
+                        .returning(),
+                    tx
+                        .update(coupons)
+                        .set({ usesCount: sql`${coupons.usesCount} + 1`, updatedAt: new Date() })
+                        .where(eq(coupons.id, appliedCoupon.id)),
+                ]);
+                insertedDiscounts = discountRows;
+            }
+
+            return { order: createdOrder, items: insertedItems, discounts: insertedDiscounts, tableNumber, assignedRiderId };
         });
+        console.timeEnd("[createOrderAction] transaction");
+
+        console.time("[createOrderAction] audit+broadcast");
+        const auditPromises = [
+            logAudit(db, currentStaffRow, "order", result.order.id, "create", {
+                branchId: result.order.branchId,
+                newValue: {
+                    orderNumber: result.order.orderNumber,
+                    orderType: result.order.orderType,
+                    total: result.order.total,
+                    tableNumber: result.tableNumber,
+                },
+            }),
+        ];
+        if (result.assignedRiderId) {
+            auditPromises.push(
+                logAudit(db, currentStaffRow, "delivery", result.order.id, "assign", {
+                    branchId: result.order.branchId,
+                    newValue: { riderId: result.assignedRiderId, orderNumber: result.order.orderNumber, status: "assigned" },
+                })
+            );
+        }
+
+        const broadcastPromises = [
+            broadcastChange(result.order.branchId, "orders"),
+            createNotification({
+                tenantId: result.order.tenantId,
+                branchId: result.order.branchId,
+                type: "order_new",
+                title: "New order",
+                message: `Order ${result.order.orderNumber} placed (${result.order.orderType}).`,
+                resourceType: "order",
+                resourceId: result.order.id,
+            }),
+        ];
+        if (input.tableId) {
+            broadcastPromises.push(broadcastChange(result.order.branchId, "tables"));
+        }
+        if (result.assignedRiderId) {
+            broadcastPromises.push(broadcastChange(result.order.branchId, "riders"));
+            sendPushToRider(result.assignedRiderId, {
+                title: "New Delivery Assigned",
+                body: `Order ${result.order.orderNumber} is ready for you.`,
+                url: "/riders",
+            }).catch((err) => console.error("[createOrderAction] push failed:", err));
+        }
+
+        await Promise.all([...auditPromises, ...broadcastPromises]);
+
+        console.timeEnd("[createOrderAction] audit+broadcast");
+        console.timeEnd("[createOrderAction] total");
 
         return {
             success: true,
-            order: {
-                id: result.order.id,
-                orderNumber: result.order.orderNumber,
-                branchId: result.order.branchId,
-                tableId: result.order.tableId ?? undefined,
-                customerPhone: result.order.customerPhone ?? undefined,
-                orderType: result.order.orderType,
-                status: result.order.status,
-                tableNumber: result.tableNumber,
-                items: result.items.map((i) => ({
-                    id: i.id,
-                    orderId: i.orderId,
-                    menuItemId: i.menuItemId,
-                    menuItemName: i.menuItemName,
-                    menuItemImage: i.menuItemImage ?? undefined,
-                    categoryId: i.categoryId,
-                    categoryName: i.categoryName,
-                    quantity: i.quantity,
-                    unitPrice: i.unitPrice,
-                    selectedVariant: i.selectedVariant ?? undefined,
-                    selectedModifiers: i.selectedModifiers,
-                    itemTotal: i.itemTotal,
-                    notes: i.notes ?? undefined,
-                    status: i.status,
-                    createdAt: i.createdAt.toISOString(),
-                })),
-                subtotal: result.order.subtotal,
-                discounts: [],
-                totalDiscount: result.order.totalDiscount,
-                deliveryFee: result.order.deliveryFee,
-                total: result.order.total,
-                paymentStatus: result.order.paymentStatus,
-                payments: [],
-                totalPaid: result.order.totalPaid,
-                balance: result.order.total,
-                deliveryAddress: result.order.deliveryAddress ?? undefined,
-                notes: result.order.notes ?? undefined,
-                staffId: result.order.staffId,
-                createdAt: result.order.createdAt.toISOString(),
-                updatedAt: result.order.updatedAt.toISOString(),
-            },
+            order: buildOrderResponse(result.order, result.items, result.tableNumber, result.discounts),
         };
     } catch (err) {
+        const pgErr = err as { code?: string };
+        if (idempotencyKey && pgErr.code === "23505") {
+            // Concurrent duplicate — another request with the same
+            // idempotency key won the race and inserted first, after our
+            // pre-check above already passed. This is the safety net for
+            // that narrow window, not the primary defense.
+            const existing = await db.query.orders.findFirst({
+                where: and(
+                    eq(orders.tenantId, currentStaffRow.tenantId),
+                    eq(orders.idempotencyKey, idempotencyKey)
+                ),
+                with: { items: true, table: true, discounts: true },
+            });
+            if (existing) {
+                return {
+                    success: true,
+                    order: buildOrderResponse(existing, existing.items, existing.table?.tableNumber, existing.discounts),
+                };
+            }
+        }
         return { error: `Failed to create order: ${(err as Error).message}` };
     }
 }
@@ -355,6 +644,8 @@ export async function getOrdersAction(
         customerPhone: o.customerPhone ?? undefined,
         orderType: o.orderType,
         status: o.status,
+        wasOfflineOrder: o.wasOfflineOrder,
+        offlineRef: o.wasOfflineOrder && o.idempotencyKey ? getOfflineRef(o.idempotencyKey) : undefined,
         items: o.items.map((i) => ({
             id: i.id,
             orderId: i.orderId,
@@ -424,6 +715,8 @@ export async function getOrderByIdAction(
             discounts: true,
             payments: true,
             table: true,
+            rider: true,
+            delivery: true,
         },
     });
 
@@ -441,9 +734,14 @@ export async function getOrderByIdAction(
             branchId: row.branchId,
             tableId: row.tableId ?? undefined,
             tableNumber: row.table?.tableNumber,
+            riderId: row.riderId ?? undefined,
+            riderName: row.rider ? `${row.rider.firstName} ${row.rider.lastName}` : undefined,
+            deliveryStatus: row.delivery?.status ?? undefined,
             customerPhone: row.customerPhone ?? undefined,
             orderType: row.orderType,
             status: row.status,
+            wasOfflineOrder: row.wasOfflineOrder,
+            offlineRef: row.wasOfflineOrder && row.idempotencyKey ? getOfflineRef(row.idempotencyKey) : undefined,
             items: row.items.map((i) => ({
                 id: i.id,
                 orderId: i.orderId,
@@ -517,10 +815,52 @@ export async function confirmOrderAction(
     }
 
     await db.update(orders).set({ status: "confirmed", updatedAt: new Date() }).where(eq(orders.id, orderId));
+
+    // ── Auto-assign a rider if this is a delivery order and none is locked in yet ──
+    let assignedRiderId: string | null = null;
+    if (target.orderType === "delivery") {
+        const existingDelivery = await db.query.deliveries.findFirst({ where: eq(deliveries.orderId, orderId) });
+        // Skip entirely if a rider was already locked in at POS creation time.
+        if (existingDelivery && existingDelivery.status === "unassigned") {
+            const freeRiderId = await findFreeRider(db, currentStaffRow.tenantId, target.branchId);
+            if (freeRiderId) {
+                assignedRiderId = freeRiderId;
+                await db
+                    .update(deliveries)
+                    .set({ riderId: freeRiderId, status: "assigned", updatedAt: new Date() })
+                    .where(eq(deliveries.orderId, orderId));
+                await db.update(orders).set({ riderId: freeRiderId }).where(eq(orders.id, orderId));
+            }
+        }
+    }
+
+    await logAudit(db, currentStaffRow, "order", orderId, "status_change", {
+        branchId: target.branchId,
+        oldValue: { status: target.status },
+        newValue: { status: "confirmed", orderNumber: target.orderNumber },
+    });
+
+    if (assignedRiderId) {
+        await logAudit(db, currentStaffRow, "delivery", orderId, "assign", {
+            branchId: target.branchId,
+            newValue: { riderId: assignedRiderId, orderNumber: target.orderNumber, status: "assigned" },
+        });
+    }
+
+    await broadcastChange(target.branchId, "orders");
+    if (assignedRiderId) {
+        await broadcastChange(target.branchId, "riders");
+        sendPushToRider(assignedRiderId, {
+            title: "New Delivery Assigned",
+            body: `Order ${target.orderNumber} is ready for you.`,
+            url: "/riders",
+        }).catch((err) => console.error("[confirmOrderAction] push failed:", err));
+    }
+
     return { success: true };
 }
 
-// ─── Complete Bill (mark paid) ───────────────────────────────────────────
+// ─── Complete Bill (mark paid) ──────────────────────────────────────────
 
 export async function completeBillAction(
     orderId: string,
@@ -541,6 +881,15 @@ export async function completeBillAction(
         return { error: `Cannot complete an order that is already "${target.status}".` };
     }
 
+    if (target.orderType === "delivery") {
+        const delivery = await db.query.deliveries.findFirst({ where: eq(deliveries.orderId, orderId) });
+        if (!delivery || delivery.status !== "delivered") {
+            return { error: "This delivery hasn't been marked delivered by the rider yet." };
+        }
+    }
+
+    let paymentId = "";
+
     await db.transaction(async (tx) => {
         const now = new Date();
         await tx
@@ -555,13 +904,15 @@ export async function completeBillAction(
             })
             .where(eq(orders.id, orderId));
 
-        await tx.insert(payments).values({
+        const [payment] = await tx.insert(payments).values({
             tenantId: currentStaffRow.tenantId,
             orderId,
             method: paymentMethod,
             amount: target.total,
             processedBy: currentStaffRow.id,
-        });
+        }).returning();
+
+        paymentId = payment.id;
 
         // Free up the table now that the order is done
         if (target.tableId) {
@@ -571,6 +922,22 @@ export async function completeBillAction(
                 .where(eq(restaurantTables.id, target.tableId));
         }
     });
+
+    await logAudit(db, currentStaffRow, "order", orderId, "status_change", {
+        branchId: target.branchId,
+        oldValue: { status: target.status, paymentStatus: target.paymentStatus },
+        newValue: { status: "completed", paymentStatus: "paid", paymentMethod, amount: target.total, orderNumber: target.orderNumber },
+    });
+
+    await logAudit(db, currentStaffRow, "payment", paymentId, "create", {
+        branchId: target.branchId,
+        newValue: { orderId, method: paymentMethod, amount: target.total, orderNumber: target.orderNumber },
+    });
+
+    await broadcastChange(target.branchId, "orders");
+    if (target.tableId) {
+        await broadcastChange(target.branchId, "tables");
+    }
 
     return { success: true };
 }
@@ -606,5 +973,18 @@ export async function cancelOrderAction(
         }
     });
 
+    await logAudit(db, currentStaffRow, "order", orderId, "status_change", {
+        branchId: target.branchId,
+        oldValue: { status: target.status },
+        newValue: { status: "cancelled", orderNumber: target.orderNumber },
+    });
+
+    await broadcastChange(target.branchId, "orders");
+    if (target.tableId) {
+        await broadcastChange(target.branchId, "tables");
+    }
+
     return { success: true };
 }
+
+

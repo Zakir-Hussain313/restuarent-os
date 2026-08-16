@@ -62,11 +62,17 @@ export interface Order {
   tableId?: string;
   tableNumber?: string;
 
+  riderId?: string;
+  riderName?: string;
+  deliveryStatus?: "unassigned" | "assigned" | "out_for_delivery" | "delivered" | "cancelled";
+
   customerId?: string;
   customerPhone?: string;
 
   orderType: OrderType;
   status: OrderStatus;
+  wasOfflineOrder: boolean;
+  offlineRef?: string;
   items: OrderItem[];
 
   subtotal: number;
@@ -88,7 +94,7 @@ export interface Order {
 
   createdAt: string;
   updatedAt: string;
-  completedAt?: string; 
+  completedAt?: string;
 }
 
-export type OrderSummary = Pick<Order, "id" | "orderNumber" | "orderType" | "status" | "paymentStatus" | "total" | "tableNumber" | "items" | "staffId" | "createdAt">;
+export type OrderSummary = Pick<Order, "id" | "orderNumber" | "orderType" | "status" | "paymentStatus" | "total" | "tableNumber" | "items" | "staffId" | "createdAt" | "wasOfflineOrder" | "offlineRef">;

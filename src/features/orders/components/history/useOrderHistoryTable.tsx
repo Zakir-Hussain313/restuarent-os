@@ -9,7 +9,8 @@ import {
 } from "@tanstack/react-table";
 import { useState } from "react";
 import { OrderStatusBadge } from "../OrderDetail/OrderStatusBadge";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
+import { RESTAURANT_CONFIG } from "@/config/restaurant";
 import type { Order } from "@/types";
 
 const columnHelper = createColumnHelper<Order>();
@@ -38,7 +39,7 @@ function getRelativeTime(dateString: string): string {
 }
 
 function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-PK", {
+  return new Date(dateString).toLocaleDateString(RESTAURANT_CONFIG.locale, {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -48,11 +49,24 @@ function formatDate(dateString: string): string {
 const columns = [
   columnHelper.accessor("orderNumber", {
     header: "Order",
-    cell: (info) => (
-      <span className="font-mono text-xs font-medium text-foreground">
-        {info.getValue()}
-      </span>
-    ),
+    cell: (info) => {
+      const order = info.row.original;
+      return (
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono text-xs font-medium text-foreground">
+            {info.getValue()}
+          </span>
+          {order.wasOfflineOrder && order.offlineRef && (
+            <span
+              title={`Placed offline — ${order.offlineRef}`}
+              className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap"
+            >
+              Offline
+            </span>
+          )}
+        </div>
+      );
+    },
   }),
   columnHelper.accessor("orderType", {
     header: "Type",
@@ -83,7 +97,7 @@ const columns = [
     header: "Total",
     cell: (info) => (
       <span className="text-sm font-medium">
-        Rs. {info.getValue().toLocaleString()}
+        {formatCurrency(info.getValue())}
       </span>
     ),
   }),

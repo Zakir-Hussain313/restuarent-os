@@ -4,7 +4,7 @@ import { persist } from "zustand/middleware";
 export interface CustomerLocation {
   branchId: string;
   city: string;
-  area: string;
+  area?: string; // absent for dine-in (book-a-table) selections
 }
 
 interface LocationState {
