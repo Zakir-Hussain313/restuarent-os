@@ -3,7 +3,7 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { db } from "@/db";
-import { staff } from "@/db/schema";
+import { staff, branches, menuItems } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { hasPermission } from "@/types/staff";
 
@@ -60,6 +60,41 @@ export async function uploadEntityImage(formData: FormData) {
 
     if (!hasPermission(currentStaffRow.role, requiredPermission)) {
       return { error: "You don't have permission to upload this image." };
+    }
+  }
+
+  // ── Guard: entityId must actually belong to caller's tenant/branch scope.
+  // Without this, a branch-scoped ADMIN could overwrite another branch's
+  // image by supplying a different entityId — role check alone isn't enough.
+  if (entityType === "staff") {
+    const targetStaff = await db.query.staff.findFirst({
+      where: eq(staff.id, entityId),
+    });
+    if (!targetStaff || targetStaff.tenantId !== currentStaffRow.tenantId) {
+      return { error: "Staff member not found." };
+    }
+    if (currentStaffRow.role === "ADMIN" && targetStaff.branchId !== currentStaffRow.branchId) {
+      return { error: "You can only upload images for your own branch." };
+    }
+  } else if (entityType === "branch") {
+    const targetBranch = await db.query.branches.findFirst({
+      where: eq(branches.id, entityId),
+    });
+    if (!targetBranch || targetBranch.tenantId !== currentStaffRow.tenantId) {
+      return { error: "Branch not found." };
+    }
+    if (currentStaffRow.role === "ADMIN" && targetBranch.id !== currentStaffRow.branchId) {
+      return { error: "You can only upload an image for your own branch." };
+    }
+  } else if (entityType === "menu_item") {
+    const targetItem = await db.query.menuItems.findFirst({
+      where: eq(menuItems.id, entityId),
+    });
+    if (!targetItem || targetItem.tenantId !== currentStaffRow.tenantId) {
+      return { error: "Menu item not found." };
+    }
+    if (currentStaffRow.role === "ADMIN" && targetItem.branchId !== currentStaffRow.branchId) {
+      return { error: "You can only upload images for your own branch's menu." };
     }
   }
 
