@@ -16,14 +16,14 @@ export function TopDishesWidget() {
   const maxOrders = dishes?.[0]?.quantitySold ?? 1;
 
   return (
-    <div className="bg-white rounded-xl border border-[#ebe9e4] flex flex-col h-86">
-      <div className="flex items-center gap-2 px-5 py-4 border-b border-[#ebe9e4] shrink-0">
-        <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
+    <div className="bg-card rounded-2xl border border-border flex flex-col h-86">
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-border shrink-0">
+        <div className="w-7 h-7 rounded-full bg-amber-50 flex items-center justify-center">
           <Trophy className="w-3.5 h-3.5 text-amber-500" />
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-[#1a1815]">Top Dishes</h3>
-          <p className="text-xs text-[#8a8680]">By orders this month</p>
+          <h3 className="text-sm font-semibold text-foreground">Top Dishes</h3>
+          <p className="text-xs text-muted-foreground">By orders this month</p>
         </div>
       </div>
 
@@ -38,33 +38,33 @@ export function TopDishesWidget() {
             return (
               <div
                 key={dish.menuItemId}
-                className="px-5 py-3.5 hover:bg-[#faf9f7] transition-colors"
+                className="px-5 py-3.5 hover:bg-muted transition-colors"
               >
                 <div className="flex items-center gap-3 mb-2">
                   <span
                     className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
-                      RANK_COLORS[index] ?? "bg-[#f0ede8] text-[#8a8680]"
+                      RANK_COLORS[index] ?? "bg-muted text-muted-foreground"
                     }`}
                   >
                     {index + 1}
                   </span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium text-[#1a1815] truncate">
+                      <span className="text-sm font-medium text-foreground truncate">
                         {dish.name}
                       </span>
-                      <span className="text-xs font-medium text-[#e8570e] shrink-0">
+                      <span className="text-xs font-medium text-primary shrink-0">
                         {formatCurrency(dish.revenue)}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 mt-1">
-                      <div className="flex-1 h-1.5 bg-[#f0ede8] rounded-full overflow-hidden">
+                      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-[#e8570e] rounded-full transition-all duration-500"
+                          className="h-full bg-primary rounded-full transition-all duration-500"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
-                      <span className="text-xs text-[#8a8680] shrink-0">
+                      <span className="text-xs text-muted-foreground shrink-0">
                         {dish.quantitySold} orders
                       </span>
                     </div>

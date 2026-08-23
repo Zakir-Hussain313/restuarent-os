@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -38,10 +39,10 @@ export function MenuSearch({ value, onChange, resultCount }: MenuSearchProps) {
     <div className="relative">
       <Search
         size={15}
-        className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a8680] pointer-events-none"
+        className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
       />
 
-      <input
+      <Input
         ref={inputRef}
         type="text"
         value={value}
@@ -53,18 +54,13 @@ export function MenuSearch({ value, onChange, resultCount }: MenuSearchProps) {
           }
         }}
         placeholder="Search menu… ( / )"
-        className={cn(
-          "w-full h-9 pl-9 pr-8 rounded-lg border text-sm transition-all",
-          "bg-white border-[#ebe9e4] text-[#1a1815] placeholder:text-[#8a8680]",
-          "focus:outline-none focus:ring-2 focus:ring-[#e8570e] focus:border-transparent",
-          value && "pr-14"
-        )}
+        className={cn("h-11 min-[760px]:h-9 text-base min-[760px]:text-sm pl-9 pr-8", value && "pr-14")}
       />
 
       <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
         {/* Result count */}
         {value && resultCount !== undefined && (
-          <span className="text-xs text-[#8a8680] whitespace-nowrap">
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
             {resultCount}
           </span>
         )}
@@ -77,7 +73,7 @@ export function MenuSearch({ value, onChange, resultCount }: MenuSearchProps) {
               onChange("");
               inputRef.current?.focus();
             }}
-            className="text-[#8a8680] hover:text-[#1a1815] transition-colors"
+            className="text-muted-foreground hover:text-foreground transition-colors"
           >
             <X size={14} />
           </button>

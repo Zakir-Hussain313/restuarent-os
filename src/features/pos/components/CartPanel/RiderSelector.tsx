@@ -3,6 +3,13 @@
 import { useEffect, useState } from "react";
 import { usePosStore } from "@/store/usePosStore";
 import { getRidersForBranchAction, type RiderOption } from "@/features/deliveries/actions";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface RiderSelectorProps {
   branchId: string;
@@ -31,28 +38,42 @@ export function RiderSelector({ branchId }: RiderSelectorProps) {
     };
   }, [branchId]);
 
+  const availableRiders = riders.filter((r) => r.isAvailable && !r.isBusy);
+
   return (
     <div className="space-y-1.5">
       <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
         Rider
       </label>
-      <select
-        value={selectedRiderId ?? ""}
-        onChange={(e) => setSelectedRiderId(e.target.value || undefined)}
+      <Select
+        value={selectedRiderId ?? "later"}
+        onValueChange={(value) =>
+          setSelectedRiderId(!value || value === "later" ? undefined : value)
+        }
         disabled={isLoading}
-        className="w-full px-3 py-1.5 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
       >
-        <option value="">Assign later</option>
-        <option value="auto">Automatic</option>
-        {riders
-          .filter((r) => r.isAvailable && !r.isBusy)
-          .map((r) => (
-            <option key={r.id} value={r.id}>
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="Assign later">
+            {(value: string) =>
+              value === "later"
+                ? "Assign later"
+                : value === "auto"
+                  ? "Automatic"
+                  : availableRiders.find((r) => r.id === value)?.name ?? "Assign later"
+            }
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="later">Assign later</SelectItem>
+          <SelectItem value="auto">Automatic</SelectItem>
+          {availableRiders.map((r) => (
+            <SelectItem key={r.id} value={r.id}>
               {r.name}
-            </option>
+            </SelectItem>
           ))}
-      </select>
-      {!isLoading && riders.filter((r) => r.isAvailable && !r.isBusy).length === 0 && (
+        </SelectContent>
+      </Select>
+      {!isLoading && availableRiders.length === 0 && (
         <p className="text-xs text-muted-foreground">
           No riders online and free right now.
         </p>

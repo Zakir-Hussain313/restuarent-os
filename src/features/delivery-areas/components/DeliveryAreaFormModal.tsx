@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
 import type { branchDeliveryAreas } from "@/db/schema";
 import type { DeliveryAreaInput } from "@/features/delivery-areas/actions";
 
@@ -31,10 +32,6 @@ interface DeliveryAreaFormModalProps {
   onSubmit: (values: DeliveryAreaInput) => void;
   onClose: () => void;
 }
-
-// ─── Common input class ───────────────────────────────────────────────────────
-
-const inputClass = "w-full h-9 px-3 text-sm border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -78,7 +75,7 @@ export function DeliveryAreaFormModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/50"
         onClick={onClose}
       />
 
@@ -106,10 +103,10 @@ export function DeliveryAreaFormModal({
             <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
               City <span className="text-destructive">*</span>
             </label>
-            <input
+            <Input
               {...register("city")}
               placeholder="e.g. Quetta"
-              className={cn(inputClass, errors.city && "border-destructive focus:ring-destructive/30")}
+              className={cn(errors.city && "border-destructive focus:ring-destructive/30")}
             />
             {errors.city && (
               <p className="text-xs text-destructive mt-1">{errors.city.message}</p>
@@ -121,10 +118,10 @@ export function DeliveryAreaFormModal({
             <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
               Area <span className="text-destructive">*</span>
             </label>
-            <input
+            <Input
               {...register("area")}
               placeholder="e.g. Jinnah Town"
-              className={cn(inputClass, errors.area && "border-destructive focus:ring-destructive/30")}
+              className={cn(errors.area && "border-destructive focus:ring-destructive/30")}
             />
             {errors.area && (
               <p className="text-xs text-destructive mt-1">{errors.area.message}</p>

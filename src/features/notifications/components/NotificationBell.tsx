@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Bell, X, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNotifications } from "@/features/notifications/hooks/useNotifications";
+import { useAlertModal } from "@/components/providers/AlertModalProvider";
 
 function timeAgo(dateStr: string): string {
     const diffMs = Date.now() - new Date(dateStr).getTime();
@@ -25,11 +26,14 @@ export function NotificationBell({ sidebarOpen }: NotificationBellProps) {
     const [coords, setCoords] = useState({ bottom: 0, left: 0 });
     const buttonRef = useRef<HTMLButtonElement>(null);
     const { notifications, unreadCount, toast, dismissToast, markAllRead, clearAll } = useNotifications();
+    const { showConfirm } = useAlertModal();
 
     useEffect(() => {
         if (panelOpen && buttonRef.current) {
             const rect = buttonRef.current.getBoundingClientRect();
-            setCoords({ bottom: window.innerHeight - rect.bottom, left: rect.right + 8 });
+            const panelWidth = Math.min(384, window.innerWidth - 16); // w-96 = 384px, clamp with 8px margin each side
+            const left = Math.min(rect.right + 8, window.innerWidth - panelWidth - 8);
+            setCoords({ bottom: window.innerHeight - rect.bottom, left: Math.max(8, left) });
         }
     }, [panelOpen]);
 
@@ -55,21 +59,21 @@ export function NotificationBell({ sidebarOpen }: NotificationBellProps) {
                     onClick={() => setPanelOpen((p) => !p)}
                     title="Notifications"
                     className={cn(
-                        "relative flex items-center h-9 rounded-lg text-[#4a4744] hover:bg-[#f4f3f0] hover:text-[#1a1814] transition-colors",
+                        "relative flex items-center h-9 rounded-full text-[#c8b6ec] hover:bg-white/8 hover:text-white transition-colors",
                         sidebarOpen ? "w-full gap-2.5 px-2.5" : "w-9 justify-center mx-auto"
                     )}
                 >
                     <span className="relative shrink-0">
                         <Bell className="w-4 h-4" />
                         {unreadCount > 0 && (
-                            <span className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-[#e8570e] ring-2 ring-white" />
+                            <span className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-coral ring-2 ring-[#5B21B6]" />
                         )}
                     </span>
                     {sidebarOpen && (
                         <>
                             <span className="flex-1 text-left text-sm font-medium">Notifications</span>
                             {unreadCount > 0 && (
-                                <span className="shrink-0 min-w-4.5 h-4.5 px-1 rounded-full bg-[#e8570e] text-white text-[10px] font-semibold flex items-center justify-center">
+                                <span className="shrink-0 min-w-4.5 h-4.5 px-1 rounded-full bg-coral text-white text-[10px] font-semibold flex items-center justify-center">
                                     {unreadCount > 99 ? "99+" : unreadCount}
                                 </span>
                             )}
@@ -77,58 +81,60 @@ export function NotificationBell({ sidebarOpen }: NotificationBellProps) {
                     )}
                 </button>
 
-                </div>
+            </div>
 
             {panelOpen && typeof document !== "undefined" && createPortal(
                 <div
                     id="notification-panel-portal"
                     style={{ position: "fixed", bottom: coords.bottom, left: coords.left }}
-                    className="w-96 max-h-[28rem] overflow-y-auto bg-white border border-[#ebe9e4] rounded-lg shadow-xl z-[200]"
+                    className="w-[calc(100vw-2rem)] max-w-96 max-h-112 overflow-y-auto bg-white border border-border rounded-2xl shadow-xl z-200"
                 >
-                    <div className="flex items-center justify-between px-3 py-2 border-b border-[#ebe9e4] sticky top-0 bg-white">
-                        <span className="text-sm font-semibold text-[#1a1814]">Notifications</span>
+                    <div className="flex items-center justify-between px-3 py-2 border-b border-border sticky top-0 bg-white rounded-t-2xl">
+                        <span className="text-sm font-semibold text-foreground">Notifications</span>
                         <div className="flex items-center gap-3">
                             {unreadCount > 0 && (
                                 <button
                                     onClick={() => markAllRead()}
-                                    className="text-xs text-[#e8570e] hover:underline"
+                                    className="text-xs text-primary hover:underline"
                                 >
                                     Mark all read
                                 </button>
                             )}
                             {notifications.length > 0 && (
                                 <button
-                                    onClick={() => {
-                                        if (confirm("Clear all notifications from your view? Other staff will still see them until they clear too.")) {
-                                            clearAll();
-                                        }
+                                    onClick={async () => {
+                                        const confirmed = await showConfirm(
+                                            "Clear all notifications from your view? Other staff will still see them until they clear too.",
+                                            { title: "Clear all notifications?", confirmLabel: "Clear" }
+                                        );
+                                        if (confirmed) clearAll();
                                     }}
                                     title="Clear all"
-                                    className="text-[#8a8680] hover:text-[#e8570e]"
+                                    className="text-muted-foreground hover:text-primary"
                                 >
                                     <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                             )}
                             <button onClick={() => setPanelOpen(false)}>
-                                <X className="w-3.5 h-3.5 text-[#8a8680]" />
+                                <X className="w-3.5 h-3.5 text-muted-foreground" />
                             </button>
                         </div>
                     </div>
                     {notifications.length === 0 ? (
-                        <p className="px-3 py-6 text-center text-xs text-[#b0ada8]">No notifications yet</p>
+                        <p className="px-3 py-6 text-center text-xs text-muted-foreground">No notifications yet</p>
                     ) : (
                         <ul>
                             {notifications.map((n) => (
                                 <li
                                     key={n.id}
                                     className={cn(
-                                        "px-3 py-2.5 border-b border-[#f4f3f0] last:border-0",
-                                        !n.isRead && "bg-[#fef3ed]"
+                                        "px-3 py-2.5 border-b border-border last:border-0",
+                                        !n.isRead && "bg-primary-light"
                                     )}
                                 >
-                                    <p className="text-xs font-medium text-[#1a1814]">{n.title}</p>
-                                    <p className="text-xs text-[#6b6966] mt-0.5">{n.message}</p>
-                                    <p className="text-[10px] text-[#b0ada8] mt-1">{timeAgo(n.createdAt as unknown as string)}</p>
+                                    <p className="text-xs font-medium text-foreground">{n.title}</p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">{n.message}</p>
+                                    <p className="text-[10px] text-muted-foreground mt-1">{timeAgo(n.createdAt as unknown as string)}</p>
                                 </li>
                             ))}
                         </ul>
@@ -138,14 +144,14 @@ export function NotificationBell({ sidebarOpen }: NotificationBellProps) {
             )}
 
             {toast && (
-                <div className="fixed bottom-4 right-4 z-[100] w-80 bg-white border border-[#ebe9e4] rounded-lg shadow-xl p-3 animate-in slide-in-from-bottom-2">
+                <div className="fixed bottom-4 right-4 left-4 sm:left-auto z-100 w-auto sm:w-80 bg-white border border-border rounded-2xl shadow-xl p-3 animate-in slide-in-from-bottom-2">
                     <div className="flex items-start justify-between gap-2">
                         <div>
-                            <p className="text-sm font-semibold text-[#1a1814]">{toast.title}</p>
-                            <p className="text-xs text-[#6b6966] mt-0.5">{toast.message}</p>
+                            <p className="text-sm font-semibold text-foreground">{toast.title}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">{toast.message}</p>
                         </div>
                         <button onClick={dismissToast} className="shrink-0">
-                            <X className="w-3.5 h-3.5 text-[#8a8680]" />
+                            <X className="w-3.5 h-3.5 text-muted-foreground" />
                         </button>
                     </div>
                 </div>

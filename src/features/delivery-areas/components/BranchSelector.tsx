@@ -54,7 +54,9 @@ export function BranchSelector({ value, onChange }: BranchSelectorProps) {
     return (
         <Select value={value} onValueChange={(v) => onChange(v ?? "")}>
             <SelectTrigger className="sm:w-56">
-                <SelectValue placeholder="Select a branch" />
+                <SelectValue placeholder="Select a branch">
+                    {(v: string) => branches.find((b) => b.id === v)?.name ?? "Select a branch"}
+                </SelectValue>
             </SelectTrigger>
             <SelectContent>
                 {branches.map((b) => (

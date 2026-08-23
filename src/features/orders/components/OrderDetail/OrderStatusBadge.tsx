@@ -1,5 +1,6 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { OrderStatus } from "@/types";
 
@@ -8,41 +9,25 @@ interface OrderStatusBadgeProps {
   size?: "sm" | "md";
 }
 
-const STATUS_CONFIG: Record<OrderStatus, { label: string; className: string }> = {
-  pending: {
-    label: "Pending",
-    className: "bg-yellow-50 text-yellow-800 border-yellow-200",
-  },
-  confirmed: {
-    label: "Confirmed",
-    className: "bg-green-50 text-green-800 border-green-200",
-  },
-  out_for_delivery: {
-    label: "Out for Delivery",
-    className: "bg-purple-50 text-purple-700 border-purple-200",
-  },
-  completed: {
-    label: "Completed",
-    className: "bg-blue-50 text-blue-700 border-blue-200",
-  },
-  cancelled: {
-    label: "Cancelled",
-    className: "bg-red-50 text-red-700 border-red-200",
-  },
+type ChipVariant = "chip-coral" | "chip-blue" | "chip-violet" | "chip-green" | "destructive";
+
+const STATUS_CONFIG: Record<OrderStatus, { label: string; variant: ChipVariant }> = {
+  pending: { label: "Pending", variant: "chip-coral" },
+  confirmed: { label: "Confirmed", variant: "chip-blue" },
+  out_for_delivery: { label: "Out for Delivery", variant: "chip-violet" },
+  completed: { label: "Completed", variant: "chip-green" },
+  cancelled: { label: "Cancelled", variant: "destructive" },
 };
 
 export function OrderStatusBadge({ status, size = "md" }: OrderStatusBadgeProps) {
   const config = STATUS_CONFIG[status];
 
   return (
-    <span
-      className={cn(
-        "inline-flex items-center font-medium border rounded-full whitespace-nowrap",
-        size === "sm" ? "text-[10px] px-1.5 py-0.5" : "text-xs px-2 py-0.5",
-        config.className
-      )}
+    <Badge
+      variant={config.variant}
+      className={cn(size === "sm" && "h-auto text-[10px] px-1.5 py-0.5")}
     >
       {config.label}
-    </span>
+    </Badge>
   );
 }

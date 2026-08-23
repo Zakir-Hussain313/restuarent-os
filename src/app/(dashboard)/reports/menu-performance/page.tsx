@@ -24,8 +24,8 @@ export default async function MenuPerformanceReportPage({
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-[#1a1814]">Menu Performance</h2>
-          <p className="text-sm text-[#8a8680] mt-1">
+          <h2 className="text-lg font-semibold text-foreground">Menu Performance</h2>
+          <p className="text-sm text-[#8a8680] mt-1 hidden sm:block">
             Best and worst selling items
           </p>
         </div>

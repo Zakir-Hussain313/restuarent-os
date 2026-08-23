@@ -24,8 +24,8 @@ export default async function AttendanceReportPage({
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-[#1a1814]">Staff & Attendance</h2>
-          <p className="text-sm text-[#8a8680] mt-1">
+          <h2 className="text-lg font-semibold text-foreground">Staff & Attendance</h2>
+          <p className="text-sm text-[#8a8680] mt-1 hidden sm:block">
             Per-staff attendance breakdown
           </p>
         </div>

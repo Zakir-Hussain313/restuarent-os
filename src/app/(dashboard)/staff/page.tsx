@@ -11,8 +11,8 @@ export default async function StaffPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-[#1a1814]">Staff</h1>
-          <p className="text-sm text-[#8a8680] mt-1">
+          <h1 className="text-2xl font-semibold text-foreground">Staff</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Manage your team — staff and riders
           </p>
         </div>
@@ -33,7 +33,7 @@ export default async function StaffPage() {
       )}
 
       {branchError && (
-        <p className="text-xs text-[#b0ada8]">
+        <p className="text-xs text-muted-foreground/70">
           Note: couldn&apos;t load branches ({branchError})
         </p>
       )}

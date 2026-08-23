@@ -130,9 +130,9 @@ export function BookingModal({ open, onOpenChange, table, onBooked }: BookingMod
                 if (!next) reset();
             }}
         >
-            <DialogContent className="sm:max-w-sm">
+            <DialogContent className="sm:max-w-sm max-h-[85vh] flex flex-col p-0">
                 {success ? (
-                    <>
+                    <div className="overflow-y-auto themed-scrollbar rounded-2xl p-5">
                         <DialogHeader>
                             <DialogTitle>Request sent</DialogTitle>
                             <DialogDescription>
@@ -160,15 +160,15 @@ export function BookingModal({ open, onOpenChange, table, onBooked }: BookingMod
                                 Done
                             </Button>
                         </DialogFooter>
-                    </>
+                    </div>
                 ) : (
-                    <>
-                        <DialogHeader>
+                    <form onSubmit={handleSubmit} className="flex flex-col min-h-0">
+                        <DialogHeader className="px-5 pt-5">
                             <DialogTitle>Table {table?.tableNumber}</DialogTitle>
                             <DialogDescription>Seats {table?.capacity}. Fill in your details to reserve it.</DialogDescription>
                         </DialogHeader>
 
-                        <form onSubmit={handleSubmit} className="space-y-4">
+                        <div className="overflow-y-auto overflow-x-hidden themed-scrollbar rounded-b-2xl px-5 pt-2 pb-2 space-y-4">
                             {error && (
                                 <div className="rounded-md bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
                                     {error}
@@ -251,13 +251,14 @@ export function BookingModal({ open, onOpenChange, table, onBooked }: BookingMod
                                 </p>
                             </div>
 
-                            <DialogFooter>
+                            </div>
+
+                            <DialogFooter className="mx-5 mb-5 rounded-xl">
                                 <Button type="submit" className="w-full bg-[#e8570e] hover:bg-[#d44f0c] text-white" disabled={isLoading}>
                                     {isLoading ? "Booking..." : "Reserve table"}
                                 </Button>
                             </DialogFooter>
                         </form>
-                    </>
                 )}
             </DialogContent>
         </Dialog>

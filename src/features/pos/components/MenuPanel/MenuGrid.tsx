@@ -3,6 +3,7 @@
 import { usePosStore } from "@/store/usePosStore";
 import type { MenuItem } from "@/types";
 import { MenuItemCard } from "./MenuItemCard";
+import { UtensilsCrossed } from "lucide-react";
 
 interface MenuGridProps {
   items: MenuItem[];
@@ -25,7 +26,7 @@ export function MenuGrid({ items, isLoading }: MenuGridProps) {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 p-3">
+      <div className="grid grid-cols-2 min-[1000px]:grid-cols-3 gap-3 p-3">
         {Array.from({ length: 12 }).map((_, i) => <SkeletonCard key={i} />)}
       </div>
     );
@@ -34,7 +35,7 @@ export function MenuGrid({ items, isLoading }: MenuGridProps) {
   if (items.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
-        <span className="text-4xl mb-3">🍽️</span>
+        <UtensilsCrossed className="w-10 h-10 mb-3 text-muted-foreground" />
         <p className="text-sm font-medium text-muted-foreground">No items found</p>
         <p className="text-xs text-muted-foreground mt-1">Try a different category or search</p>
       </div>
@@ -42,7 +43,7 @@ export function MenuGrid({ items, isLoading }: MenuGridProps) {
   }
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 p-3">
+    <div className="grid grid-cols-2 min-[1000px]:grid-cols-3 gap-3 p-3">
       {items.map((item) => {
         const cartItem = cartItems.find((ci) => ci.menuItem.id === item.id);
         return (

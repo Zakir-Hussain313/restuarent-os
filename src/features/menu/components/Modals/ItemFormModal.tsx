@@ -1,13 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { X, Loader2, Plus, Trash2, Upload, ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MenuCategory, MenuItem } from "@/types";
 import type { Control, FieldErrors, UseFormRegister } from "react-hook-form";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
@@ -59,7 +67,6 @@ interface ItemFormModalProps {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const inputClass = "w-full h-9 px-3 text-sm border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground";
 const labelClass = "text-xs font-medium text-muted-foreground mb-1.5 block";
 
 const STATUS_OPTIONS = ["available", "out_of_stock", "unavailable"] as const;
@@ -185,9 +192,9 @@ export function ItemFormModal({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+            <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
-            <div className="relative z-10 w-full max-w-2xl bg-white rounded-2xl shadow-xl border mx-4 flex flex-col max-h-[90vh]">
+            <div className="relative z-10 w-full max-w-2xl bg-card rounded-2xl shadow-xl border border-border mx-4 flex flex-col max-h-[90vh] overflow-hidden">
 
                 {/* Header */}
                 <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b">
@@ -200,8 +207,6 @@ export function ItemFormModal({
                 {/* Body */}
                 <div className="flex-1 overflow-y-auto min-h-0 px-6 py-5">
                     <form id="item-form" onSubmit={handleSubmit(handleFormSubmit)} className="space-y-5">
-
-                        <SectionTitle>Basic Info</SectionTitle>
 
                         <SectionTitle>Basic Info</SectionTitle>
 
@@ -250,19 +255,34 @@ export function ItemFormModal({
                         {/* Category */}
                         <div>
                             <label className={labelClass}>Category <span className="text-destructive">*</span></label>
-                            <select {...register("categoryId")} className={cn(inputClass, errors.categoryId && "border-destructive")}>
-                                <option value="">Select category...</option>
-                                {categories.filter((c) => c.isActive).map((c) => (
-                                    <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
-                                ))}
-                            </select>
+                            <Controller
+                                control={control}
+                                name="categoryId"
+                                render={({ field }) => (
+                                    <Select value={field.value} onValueChange={(v) => v && field.onChange(v)}>
+                                        <SelectTrigger className={cn("w-full", errors.categoryId && "border-destructive")}>
+                                            <SelectValue placeholder="Select category...">
+                                                {(value: string) => {
+                                                    const cat = categories.find((c) => c.id === value);
+                                                    return cat ? `${cat.icon} ${cat.name}` : "Select category...";
+                                                }}
+                                            </SelectValue>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {categories.filter((c) => c.isActive).map((c) => (
+                                                <SelectItem key={c.id} value={c.id}>{c.icon} {c.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                )}
+                            />
                             {errors.categoryId && <p className="text-xs text-destructive mt-1">{errors.categoryId.message}</p>}
                         </div>
 
                         {/* Name */}
                         <div>
                             <label className={labelClass}>Item Name <span className="text-destructive">*</span></label>
-                            <input {...register("name")} placeholder="e.g. Chicken Tikka" className={cn(inputClass, errors.name && "border-destructive")} />
+                            <Input {...register("name")} placeholder="e.g. Chicken Tikka" className={cn(errors.name && "border-destructive")} />
                             {errors.name && <p className="text-xs text-destructive mt-1">{errors.name.message}</p>}
                         </div>
 
@@ -270,16 +290,29 @@ export function ItemFormModal({
                         <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <label className={labelClass}>Base Price (Rs.) <span className="text-destructive">*</span></label>
-                                <input type="number" {...register("basePrice", { valueAsNumber: true })} placeholder="0" className={cn(inputClass, errors.basePrice && "border-destructive")} />
+                                <Input type="number" {...register("basePrice", { valueAsNumber: true })} placeholder="0" className={cn(errors.basePrice && "border-destructive")} />
                                 {errors.basePrice && <p className="text-xs text-destructive mt-1">{errors.basePrice.message}</p>}
                             </div>
                             <div>
                                 <label className={labelClass}>Status</label>
-                                <select {...register("status")} className={inputClass}>
-                                    {STATUS_OPTIONS.map((s) => (
-                                        <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
-                                    ))}
-                                </select>
+                                <Controller
+                                    control={control}
+                                    name="status"
+                                    render={({ field }) => (
+                                        <Select value={field.value} onValueChange={(v) => v && field.onChange(v)}>
+                                            <SelectTrigger className="w-full">
+                                                <SelectValue>
+                                                    {(value: string) => value.replace(/_/g, " ")}
+                                                </SelectValue>
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {STATUS_OPTIONS.map((s) => (
+                                                    <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    )}
+                                />
                             </div>
                         </div>
 
@@ -288,19 +321,19 @@ export function ItemFormModal({
                         <div className="space-y-2">
                             {variantFields.map((field, index) => (
                                 <div key={field.id} className="flex items-center gap-2 p-3 border rounded-lg bg-muted/30">
-                                    <input
+                                    <Input
                                         {...register(`variants.${index}.name`)}
                                         placeholder="e.g. Half kg"
-                                        className={cn(inputClass, "flex-2")}
+                                        className="flex-2"
                                     />
-                                    <input
+                                    <Input
                                         type="number"
                                         {...register(`variants.${index}.price`, { valueAsNumber: true })}
                                         placeholder="Price"
-                                        className={cn(inputClass, "flex-1")}
+                                        className="flex-1"
                                     />
                                     <label className="flex items-center gap-1.5 text-xs shrink-0">
-                                        <input type="checkbox" {...register(`variants.${index}.isDefault`)} className="w-3.5 h-3.5 accent-primary" />
+                                        <input type="checkbox" {...register(`variants.${index}.isDefault`)} className="w-3.5 h-3.5" style={{ accentColor: "var(--primary)" }} />
                                         Default
                                     </label>
                                     <button type="button" onClick={() => removeVariant(index)} className="p-1.5 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors shrink-0">
@@ -324,10 +357,10 @@ export function ItemFormModal({
                             {modifierFields.map((field, groupIndex) => (
                                 <div key={field.id} className="border rounded-xl p-4 space-y-3 bg-muted/20">
                                     <div className="flex items-center gap-2">
-                                        <input
+                                        <Input
                                             {...register(`modifierGroups.${groupIndex}.name`)}
                                             placeholder="e.g. Oil Preference"
-                                            className={cn(inputClass, "flex-1")}
+                                            className="flex-1"
                                         />
                                         {errors.modifierGroups?.[groupIndex]?.name && (
                                             <p className="text-xs text-destructive mt-1">
@@ -335,7 +368,7 @@ export function ItemFormModal({
                                             </p>
                                         )}
                                         <label className="flex items-center gap-1.5 text-xs shrink-0">
-                                            <input type="checkbox" {...register(`modifierGroups.${groupIndex}.isRequired`)} className="w-3.5 h-3.5 accent-primary" />
+                                            <input type="checkbox" {...register(`modifierGroups.${groupIndex}.isRequired`)} className="w-3.5 h-3.5" style={{ accentColor: "var(--primary)" }} />
                                             Required
                                         </label>
                                         <button type="button" onClick={() => removeModifier(groupIndex)} className="p-1.5 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors shrink-0">
@@ -345,11 +378,11 @@ export function ItemFormModal({
                                     <div className="flex gap-3">
                                         <div className="flex-1">
                                             <label className={labelClass}>Min Selections</label>
-                                            <input type="number" {...register(`modifierGroups.${groupIndex}.minSelections`, { valueAsNumber: true })} className={inputClass} />
+                                            <Input type="number" {...register(`modifierGroups.${groupIndex}.minSelections`, { valueAsNumber: true })} />
                                         </div>
                                         <div className="flex-1">
                                             <label className={labelClass}>Max Selections</label>
-                                            <input type="number" {...register(`modifierGroups.${groupIndex}.maxSelections`, { valueAsNumber: true })} className={inputClass} />
+                                            <Input type="number" {...register(`modifierGroups.${groupIndex}.maxSelections`, { valueAsNumber: true })} />
                                         </div>
                                     </div>
                                     <ModifierOptions control={control} register={register} errors={errors} groupIndex={groupIndex} />
@@ -369,7 +402,7 @@ export function ItemFormModal({
                 </div>
 
                 {/* Footer */}
-                <div className="shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t bg-white">
+                <div className="shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-border bg-card">
                     <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium rounded-lg border hover:bg-muted transition-colors">
                         Cancel
                     </button>
@@ -411,24 +444,24 @@ function ModifierOptions({
             <label className={labelClass}>Options</label>
             {fields.map((field, optIndex) => (
                 <div key={field.id} className="flex items-center gap-2">
-                    <input
+                    <Input
                         {...register(`modifierGroups.${groupIndex}.options.${optIndex}.name`)}
                         placeholder="e.g. Desi Ghee"
-                        className={cn(inputClass, "flex-2")}
+                        className="flex-2"
                     />
                     {errors.modifierGroups?.[groupIndex]?.options?.[optIndex]?.name && (
                         <p className="text-xs text-destructive mt-1">
                             {errors.modifierGroups[groupIndex]?.options?.[optIndex]?.name?.message}
                         </p>
                     )}
-                    <input
+                    <Input
                         type="number"
                         {...register(`modifierGroups.${groupIndex}.options.${optIndex}.priceAdjustment`, { valueAsNumber: true })}
                         placeholder="+0"
-                        className={cn(inputClass, "flex-1")}
+                        className="flex-1"
                     />
                     <label className="flex items-center gap-1.5 text-xs shrink-0">
-                        <input type="checkbox" {...register(`modifierGroups.${groupIndex}.options.${optIndex}.isDefault`)} className="w-3.5 h-3.5 accent-primary" />
+                        <input type="checkbox" {...register(`modifierGroups.${groupIndex}.options.${optIndex}.isDefault`)} className="w-3.5 h-3.5" style={{ accentColor: "var(--primary)" }} />
                         Default
                     </label>
                     <button type="button" onClick={() => remove(optIndex)} className="p-1.5 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors shrink-0">

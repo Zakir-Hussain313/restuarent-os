@@ -99,14 +99,14 @@ export function RiderAssignment({ order, onAssigned }: RiderAssignmentProps) {
                             setPickerOpen(next);
                             if (next) loadRiders();
                         }}
-                        className="text-xs font-medium text-blue-600 hover:text-blue-700 shrink-0"
+                        className="text-xs font-medium text-primary hover:text-primary/80 shrink-0"
                     >
                         {order.riderName ? "Reassign" : "Assign"}
                     </button>
                 )}
             </div>
 
-            {error && <p className="text-xs text-red-600">{error}</p>}
+            {error && <p className="text-xs text-destructive">{error}</p>}
 
             {pickerOpen && (
                 <div className="space-y-1.5 pt-1 border-t">

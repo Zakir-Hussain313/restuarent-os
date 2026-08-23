@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { branchChannel } from "@/lib/realtime/channels";
+import { useBranchChannel } from "@/lib/realtime/useBranchChannel";
 import { useAuthStore } from "@/store/useAuthStore";
 import { queryKeys } from "@/hooks/useMockQuery";
 import { getNotificationsAction, markAllReadAction, clearAllNotificationsAction } from "@/features/notifications/actions";
@@ -14,7 +13,7 @@ export function useNotifications() {
     const queryClient = useQueryClient();
     const currentStaff = useAuthStore((s) => s.currentStaff);
     const isHydrated = useAuthStore((s) => s.isHydrated);
-    const branchId = currentStaff?.branchId;
+    const branchId = isHydrated ? currentStaff?.branchId : undefined;
 
     const [toast, setToast] = useState<{ id: string; title: string; message: string } | null>(null);
     const lastSeenIdRef = useRef<string | null>(null);
@@ -56,21 +55,11 @@ export function useNotifications() {
         }
     }, [notificationList]);
 
-    useEffect(() => {
-        if (!isHydrated || !branchId) return;
+    const onRealtimeEvent = useCallback(() => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
+    }, [queryClient]);
 
-        const supabase = getSupabaseBrowserClient();
-        const channel = supabase
-            .channel(branchChannel(branchId, "notifications"))
-            .on("broadcast", { event: "changed" }, () => {
-                queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
-            })
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [isHydrated, branchId, queryClient]);
+    useBranchChannel(branchId, "notifications", onRealtimeEvent);
 
     const { mutate: markAllRead } = useMutation({
         mutationFn: markAllReadAction,

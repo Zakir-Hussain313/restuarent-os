@@ -8,13 +8,21 @@ import {
   type AttendanceReportData,
 } from "@/features/reports/actions";
 import type { ReportPeriod } from "@/features/reports/lib/getReportDateRange";
-import { Loader2 } from "lucide-react";
+import { Loader2, UserCheck, UserX, Clock, CalendarOff, Timer } from "lucide-react";
 import { ExportButtons } from "./ExportButtons";
 
 interface AttendanceReportViewProps {
   branchId: string;
   period: ReportPeriod;
 }
+
+const STAT_STYLES = [
+  { icon: UserCheck, color: "text-emerald-600", bg: "bg-emerald-50" },
+  { icon: UserX, color: "text-red-500", bg: "bg-red-50" },
+  { icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
+  { icon: CalendarOff, color: "text-blue-600", bg: "bg-blue-50" },
+  { icon: Timer, color: "text-violet-600", bg: "bg-violet-50" },
+];
 
 export function AttendanceReportView({ branchId, period }: AttendanceReportViewProps) {
   const [report, setReport] = useState<AttendanceReportData | null>(null);
@@ -45,7 +53,7 @@ export function AttendanceReportView({ branchId, period }: AttendanceReportViewP
   if (isLoading) {
     return (
       <div className="flex justify-center py-8">
-        <Loader2 className="w-5 h-5 animate-spin text-[#8a8680]" />
+        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -56,11 +64,19 @@ export function AttendanceReportView({ branchId, period }: AttendanceReportViewP
 
   if (report.byStaff.length === 0) {
     return (
-      <p className="text-sm text-[#8a8680] py-8 text-center">
+      <p className="text-sm text-muted-foreground py-8 text-center">
         No attendance records in this period yet.
       </p>
     );
   }
+
+  const stats = [
+    { label: "Present", value: report.totals.present },
+    { label: "Absent", value: report.totals.absent },
+    { label: "Late", value: report.totals.late },
+    { label: "Leave", value: report.totals.leave },
+    { label: "Half Day", value: report.totals.halfDay },
+  ];
 
   return (
     <div className="space-y-6">
@@ -69,52 +85,51 @@ export function AttendanceReportView({ branchId, period }: AttendanceReportViewP
         onExportPdf={() => exportAttendanceReportPdfAction(period, { branch: branchId })}
       />
 
-      <div className="grid grid-cols-5 gap-4">
-        <div className="rounded-lg border p-4">
-          <p className="text-sm text-[#8a8680]">Present</p>
-          <p className="text-2xl font-semibold text-[#1a1814]">{report.totals.present}</p>
-        </div>
-        <div className="rounded-lg border p-4">
-          <p className="text-sm text-[#8a8680]">Absent</p>
-          <p className="text-2xl font-semibold text-[#1a1814]">{report.totals.absent}</p>
-        </div>
-        <div className="rounded-lg border p-4">
-          <p className="text-sm text-[#8a8680]">Late</p>
-          <p className="text-2xl font-semibold text-[#1a1814]">{report.totals.late}</p>
-        </div>
-        <div className="rounded-lg border p-4">
-          <p className="text-sm text-[#8a8680]">Leave</p>
-          <p className="text-2xl font-semibold text-[#1a1814]">{report.totals.leave}</p>
-        </div>
-        <div className="rounded-lg border p-4">
-          <p className="text-sm text-[#8a8680]">Half Day</p>
-          <p className="text-2xl font-semibold text-[#1a1814]">{report.totals.halfDay}</p>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+        {stats.map((stat, i) => {
+          const { icon: Icon, color, bg } = STAT_STYLES[i];
+          return (
+            <div
+              key={stat.label}
+              className="bg-card rounded-2xl border border-border p-5 flex flex-col gap-4 hover:shadow-md transition-shadow duration-200"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-muted-foreground">{stat.label}</span>
+                <div className={`w-9 h-9 rounded-full ${bg} flex items-center justify-center`}>
+                  <Icon className={`w-4 h-4 ${color}`} />
+                </div>
+              </div>
+              <span className="text-2xl font-heading font-bold text-foreground tracking-tight">
+                {stat.value}
+              </span>
+            </div>
+          );
+        })}
       </div>
 
-      <div>
-        <h3 className="text-sm font-semibold text-[#1a1814] mb-2">By Staff</h3>
+      <div className="bg-card rounded-2xl border border-border overflow-hidden">
+        <h3 className="text-sm font-semibold text-foreground px-5 pt-5 pb-3">By Staff</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-[#8a8680] border-b">
-                <th className="py-2 pr-4 font-medium">Name</th>
-                <th className="py-2 px-4 font-medium text-right">Present</th>
-                <th className="py-2 px-4 font-medium text-right">Absent</th>
-                <th className="py-2 px-4 font-medium text-right">Late</th>
-                <th className="py-2 px-4 font-medium text-right">Leave</th>
-                <th className="py-2 pl-4 font-medium text-right">Half Day</th>
+              <tr className="text-left text-muted-foreground border-b border-border">
+                <th className="py-2.5 pl-5 pr-4 font-medium">Name</th>
+                <th className="py-2.5 px-4 font-medium text-right">Present</th>
+                <th className="py-2.5 px-4 font-medium text-right">Absent</th>
+                <th className="py-2.5 px-4 font-medium text-right">Late</th>
+                <th className="py-2.5 px-4 font-medium text-right">Leave</th>
+                <th className="py-2.5 pl-4 pr-5 font-medium text-right">Half Day</th>
               </tr>
             </thead>
             <tbody>
               {report.byStaff.map((s) => (
-                <tr key={s.staffId} className="border-b last:border-0">
-                  <td className="py-2 pr-4 text-[#1a1814]">{s.name}</td>
-                  <td className="py-2 px-4 text-right text-[#1a1814]">{s.present}</td>
-                  <td className="py-2 px-4 text-right text-[#1a1814]">{s.absent}</td>
-                  <td className="py-2 px-4 text-right text-[#1a1814]">{s.late}</td>
-                  <td className="py-2 px-4 text-right text-[#1a1814]">{s.leave}</td>
-                  <td className="py-2 pl-4 text-right text-[#1a1814]">{s.halfDay}</td>
+                <tr key={s.staffId} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
+                  <td className="py-2.5 pl-5 pr-4 text-foreground font-medium">{s.name}</td>
+                  <td className="py-2.5 px-4 text-right text-foreground">{s.present}</td>
+                  <td className="py-2.5 px-4 text-right text-foreground">{s.absent}</td>
+                  <td className="py-2.5 px-4 text-right text-foreground">{s.late}</td>
+                  <td className="py-2.5 px-4 text-right text-foreground">{s.leave}</td>
+                  <td className="py-2.5 pl-4 pr-5 text-right text-foreground">{s.halfDay}</td>
                 </tr>
               ))}
             </tbody>

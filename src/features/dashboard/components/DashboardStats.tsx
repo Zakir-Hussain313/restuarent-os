@@ -57,7 +57,7 @@ export function DashboardStats() {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 min-[480px]:grid-cols-2 lg:grid-cols-4 gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <StatCardSkeleton key={i} />
         ))}
@@ -68,7 +68,7 @@ export function DashboardStats() {
   if (!stats) return null;
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 min-[480px]:grid-cols-2 lg:grid-cols-4 gap-4">
       {STAT_CONFIG.map(({ label, icon: Icon, getValue, getTrend, color, bg }) => {
         const trend = getTrend(stats);
         const isPositive = trend >= 0;
@@ -76,17 +76,17 @@ export function DashboardStats() {
         return (
           <div
             key={label}
-            className="bg-white rounded-xl border border-[#ebe9e4] p-5 flex flex-col gap-4 hover:shadow-md transition-shadow duration-200"
+            className="bg-card rounded-2xl border border-border p-5 flex flex-col gap-4 hover:shadow-md transition-shadow duration-200"
           >
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-[#8a8680]">{label}</span>
-              <div className={`w-9 h-9 rounded-lg ${bg} flex items-center justify-center`}>
+              <span className="text-sm font-medium text-muted-foreground">{label}</span>
+              <div className={`w-9 h-9 rounded-full ${bg} flex items-center justify-center`}>
                 <Icon className={`w-4 h-4 ${color}`} />
               </div>
             </div>
 
             <div className="flex items-end justify-between gap-2">
-              <span className="text-2xl font-bold text-[#1a1815] tracking-tight">
+              <span className="text-2xl font-heading font-bold text-foreground tracking-tight">
                 {getValue(stats)}
               </span>
               <div className={`flex items-center gap-1 text-xs font-medium pb-0.5 ${isPositive ? "text-emerald-600" : "text-red-500"}`}>
@@ -98,7 +98,7 @@ export function DashboardStats() {
               </div>
             </div>
 
-            <p className="text-xs text-[#8a8680]">vs last month</p>
+            <p className="text-xs text-muted-foreground">vs last month</p>
           </div>
         );
       })}

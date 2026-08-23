@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import type { MenuCategory } from "@/types";
+import { UtensilsCrossed } from "lucide-react";
 
 interface CategoryTabsProps {
   categories: MenuCategory[];
@@ -27,7 +28,10 @@ export function CategoryTabs({
                 : "text-[#8a8680] hover:text-[#1a1815] hover:bg-[#f4f2ef]"
             )}
           >
-            🍽️ All Items
+            <span className="flex items-center gap-1.5">
+              <UtensilsCrossed className="w-3.5 h-3.5" />
+              All Items
+            </span>
           </button>
           {categories.map((cat) => (
             <button

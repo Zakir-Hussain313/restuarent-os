@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Input } from "@/components/ui/input";
+import { TimePicker } from "@/components/ui/time-picker";
 import { Loader2 } from "lucide-react";
 import type { OperatingHours, DayHours } from "@/db/schema/branches";
 
@@ -58,35 +58,33 @@ export function OperatingHoursForm({ initialHours, isSaving, onSave }: Operating
                     return (
                         <div
                             key={key}
-                            className="flex items-center gap-4 py-2 px-3 rounded-lg border border-[#ebe9e4] bg-white"
+                            className="flex items-center gap-4 py-2 px-3 rounded-lg border border-border bg-card"
                         >
                             <div className="w-28 shrink-0">
-                                <span className="text-sm font-medium text-[#1a1814]">{label}</span>
+                                <span className="text-sm font-medium text-foreground">{label}</span>
                             </div>
 
                             <div className="flex items-center gap-2 w-24 shrink-0">
                                 <Switch checked={day.open} onCheckedChange={(checked) => toggleDay(key, checked)} />
-                                <span className="text-xs text-[#8a8680]">{day.open ? "Open" : "Closed"}</span>
+                                <span className="text-xs text-muted-foreground">{day.open ? "Open" : "Closed"}</span>
                             </div>
 
                             {day.open ? (
                                 <div className="flex items-center gap-2">
-                                    <Input
-                                        type="time"
-                                        value={day.openTime ?? ""}
-                                        onChange={(e) => setTime(key, "openTime", e.target.value)}
+                                    <TimePicker
+                                        value={day.openTime}
+                                        onChange={(v) => setTime(key, "openTime", v)}
                                         className="w-32"
                                     />
-                                    <span className="text-xs text-[#8a8680]">to</span>
-                                    <Input
-                                        type="time"
-                                        value={day.closeTime ?? ""}
-                                        onChange={(e) => setTime(key, "closeTime", e.target.value)}
+                                    <span className="text-xs text-muted-foreground">to</span>
+                                    <TimePicker
+                                        value={day.closeTime}
+                                        onChange={(v) => setTime(key, "closeTime", v)}
                                         className="w-32"
                                     />
                                 </div>
                             ) : (
-                                <span className="text-xs text-[#8a8680]">Closed all day</span>
+                                <span className="text-xs text-muted-foreground">Closed all day</span>
                             )}
                         </div>
                     );

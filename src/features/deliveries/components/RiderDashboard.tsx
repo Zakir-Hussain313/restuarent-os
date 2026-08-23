@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { branchChannel } from "@/lib/realtime/channels";
+import { useBranchChannel } from "@/lib/realtime/useBranchChannel";
 import { subscribeToPush } from "@/lib/push/subscribe";
 import { saveRiderPushSubscriptionAction } from "@/features/deliveries/pushActions";
 import {
@@ -17,6 +16,7 @@ import {
     Clock,
     XCircle,
     Loader2,
+    Bell,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { cn, formatCurrency } from "@/lib/utils";
@@ -70,47 +70,37 @@ export function RiderDashboard({ initialData }: RiderDashboardProps) {
         setHistory(initialData.history);
     }
 
-    useEffect(() => {
-        if (!initialData.branchId) return;
+    const onRealtimeEvent = useCallback(() => {
+        router.refresh();
+    }, [router]);
 
-        const supabase = getSupabaseBrowserClient();
-        const channel = supabase
-            .channel(branchChannel(initialData.branchId, "riders"))
-            .on("broadcast", { event: "changed" }, () => {
-                router.refresh();
-            })
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [initialData.branchId, router]);
+    useBranchChannel(initialData.branchId, "riders", onRealtimeEvent);
 
     const [pushStatus, setPushStatus] = useState<"idle" | "checking" | "asking" | "done" | "error">("checking");
-const [pushError, setPushError] = useState<string | null>(null);
+    const [pushError, setPushError] = useState<string | null>(null);
 
-useEffect(() => {
-    let cancelled = false;
-    async function checkExistingSubscription() {
-        if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-            if (!cancelled) setPushStatus("idle");
-            return;
+    useEffect(() => {
+        let cancelled = false;
+        async function checkExistingSubscription() {
+            if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+                if (!cancelled) setPushStatus("idle");
+                return;
+            }
+            try {
+                const registration = await navigator.serviceWorker.ready;
+                const existing = await registration.pushManager.getSubscription();
+                if (!cancelled) setPushStatus(existing ? "done" : "idle");
+            } catch {
+                if (!cancelled) setPushStatus("idle");
+            }
         }
-        try {
-            const registration = await navigator.serviceWorker.ready;
-            const existing = await registration.pushManager.getSubscription();
-            if (!cancelled) setPushStatus(existing ? "done" : "idle");
-        } catch {
-            if (!cancelled) setPushStatus("idle");
-        }
-    }
-    checkExistingSubscription();
-    return () => {
-        cancelled = true;
-    };
-}, []);
+        checkExistingSubscription();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
-async function handleEnableNotifications() {
+    async function handleEnableNotifications() {
         setPushStatus("asking");
         setPushError(null);
         try {
@@ -225,7 +215,12 @@ async function handleEnableNotifications() {
                         disabled={pushStatus === "asking"}
                         className="w-full px-3 py-2 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium text-center disabled:opacity-50"
                     >
-                        {pushStatus === "asking" ? "Requesting..." : "🔔 Enable delivery notifications"}
+                        {pushStatus === "asking" ? "Requesting..." : (
+                            <span className="flex items-center gap-1.5">
+                                <Bell className="w-3.5 h-3.5" />
+                                Enable delivery notifications
+                            </span>
+                        )}
                     </button>
                     {pushStatus === "error" && pushError && (
                         <p className="text-[11px] text-red-600 mt-1 wrap-break-word">{pushError}</p>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, MapPin, Phone, User, Loader2 } from "lucide-react";
+import { ArrowLeft, MapPin, Phone, User, Loader2, Banknote } from "lucide-react";
 import Link from "next/link";
 import { useCustomerCartStore } from "@/store/useCustomerCartStore";
 import { useLocationStore } from "@/store/useLocationStore";
@@ -186,7 +186,10 @@ export default function CheckoutPage() {
           )}
 
           <p className="text-xs text-[#8a8680] text-center">
-            💵 Cash on delivery — pay when your order arrives.
+            <span className="flex items-center gap-1.5">
+              <Banknote className="w-4 h-4" />
+              Cash on delivery — pay when your order arrives.
+            </span>
           </p>
 
           <button

@@ -1,6 +1,7 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 import withSerwistInit from "@serwist/next";
+import withBundleAnalyzer from "@next/bundle-analyzer";
 
 const withSerwist = withSerwistInit({
   swSrc: "src/app/sw.ts",
@@ -20,14 +21,17 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "ztfqvqacwmnvdvqeqaov.supabase.co",
+        hostname: "povrvnewdnyizlbrayiq.supabase.co",
         pathname: "/storage/v1/object/public/**",
       },
     ],
   },
 };
 
-export default withSentryConfig(withSerwist(nextConfig), {
+const withAnalyzer = withBundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
+});
+export default withSentryConfig(withAnalyzer(withSerwist(nextConfig)), {
   // For all available options, see:
   // https://www.npmjs.com/package/@sentry/webpack-plugin#options
 

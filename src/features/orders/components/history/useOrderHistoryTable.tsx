@@ -22,8 +22,8 @@ const ORDER_TYPE_LABEL: Record<string, string> = {
 };
 
 const PAYMENT_STATUS_STYLES: Record<string, string> = {
-  paid: "text-emerald-600 bg-emerald-50",
-  unpaid: "text-red-600 bg-red-50",
+  paid: "text-emerald-600 bg-emerald-500/10",
+  unpaid: "text-destructive bg-destructive/10",
   partial: "text-amber-600 bg-amber-50",
   refunded: "text-muted-foreground bg-muted",
 };

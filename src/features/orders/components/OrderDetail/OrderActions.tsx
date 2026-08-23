@@ -9,6 +9,8 @@ import { CancelConfirmModal } from "../modals/CancelConfirmModal";
 import { getBranchesAction } from "@/features/staff/actions";
 import type { Branch } from "@/db/schema";
 import type { Order, PaymentMethod } from "@/types";
+import { useAlertModal } from "@/components/providers/AlertModalProvider";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
 interface OrderActionsProps {
   order: Order;
@@ -55,13 +57,13 @@ function ActionButton({
       onClick={onClick}
       disabled={isLoading || disabled}
       className={cn(
-        "flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer",
+        "flex items-center gap-2 px-3 py-2.5 sm:py-2 rounded-lg border text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer",
         variant === "primary" &&
-          "bg-primary text-primary-foreground border-primary hover:bg-primary/90",
+        "bg-primary text-primary-foreground border-primary hover:bg-primary/90",
         variant === "secondary" &&
-          "bg-background text-foreground border-border hover:bg-muted",
+        "bg-background text-foreground border-border hover:bg-muted",
         variant === "danger" &&
-          "border-red-200 text-red-600 hover:bg-red-50 bg-background"
+        "border-red-200 text-red-600 hover:bg-red-50 bg-background"
       )}
     >
       {isLoading ? (
@@ -87,6 +89,7 @@ export function OrderActions({
   onCancelOrder,
   isCancelling,
 }: OrderActionsProps) {
+  const { showConfirm } = useAlertModal();
   const [kitchenTicketOpen, setKitchenTicketOpen] = useState(false);
   const [billOpen, setBillOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -110,8 +113,12 @@ export function OrderActions({
 
   if (!hasActions) return null;
 
-  function handleCompleteOrder() {
-    if (!confirm(`Mark order ${order.orderNumber} as paid and complete?`)) return;
+  async function handleCompleteOrder() {
+    const confirmed = await showConfirm(
+      `Mark order ${order.orderNumber} as paid and complete?`,
+      { title: "Complete order?", confirmLabel: "Mark Paid" }
+    );
+    if (!confirmed) return;
     onCompleteBill(paymentMethod);
   }
 
@@ -130,18 +137,20 @@ export function OrderActions({
 
         {canPrintBill && (
           <>
-            <select
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-              className="h-8 px-2 rounded-lg border text-xs font-medium bg-background text-foreground border-border cursor-pointer"
-              aria-label="Payment method"
-            >
-              {PAYMENT_METHOD_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+            <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}>
+              <SelectTrigger className="h-9 sm:h-8 w-auto text-xs font-medium" aria-label="Payment method">
+                <SelectValue>
+                  {(value: string) =>
+                    PAYMENT_METHOD_OPTIONS.find((opt) => opt.value === value)?.label ?? value
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {PAYMENT_METHOD_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
             {isDelivery ? (
               billPrinted ? (

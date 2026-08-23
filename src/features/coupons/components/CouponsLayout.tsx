@@ -58,12 +58,12 @@ export function CouponsLayout({ isSuperAdmin, branches }: CouponsLayoutProps) {
 
       {isLoading ? (
         <div className="flex justify-center py-8">
-          <Loader2 className="w-5 h-5 animate-spin text-[#8a8680]" />
+          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
         </div>
       ) : error ? (
         <p className="text-sm text-destructive py-8 text-center">{error}</p>
       ) : visibleCoupons.length === 0 ? (
-        <p className="text-sm text-[#8a8680] py-8 text-center">
+        <p className="text-sm text-muted-foreground py-8 text-center">
           {showPast ? "No past coupons." : "No active coupons."}
         </p>
       ) : (

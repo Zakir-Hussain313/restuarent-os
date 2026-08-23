@@ -8,9 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import type { Attendance } from "@/db/schema/attendance";
-import { useEffect, useMemo, useRef } from "react";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { branchChannel } from "@/lib/realtime/channels";
+import { useCallback, useMemo, useRef } from "react";
+import { useBranchChannel } from "@/lib/realtime/useBranchChannel";
 import { useAlertModal } from "@/components/providers/AlertModalProvider";
 
 const STATUS_OPTIONS: { value: Attendance["status"]; label: string }[] = [
@@ -30,7 +29,7 @@ const STATUS_STYLES: Record<Attendance["status"], string> = {
 };
 
 export function AttendanceTable() {
-  const { showAlert } = useAlertModal();
+    const { showAlert, showConfirm } = useAlertModal();
     const { date, branchId, roleFilter } = useAttendanceFilters();
     const queryClient = useQueryClient();
     const queryKey = useMemo(
@@ -48,21 +47,11 @@ export function AttendanceTable() {
         },
     });
 
-    useEffect(() => {
-        if (!branchId) return;
+    const onRealtimeEvent = useCallback(() => {
+        queryClient.invalidateQueries({ queryKey });
+    }, [queryClient, queryKey]);
 
-        const supabase = getSupabaseBrowserClient();
-        const channel = supabase
-            .channel(branchChannel(branchId, "attendance"))
-            .on("broadcast", { event: "changed" }, () => {
-                queryClient.invalidateQueries({ queryKey });
-            })
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [branchId, queryClient, queryKey]);
+    useBranchChannel(branchId, "attendance", onRealtimeEvent);
 
     const mutation = useMutation({
         mutationFn: async ({
@@ -93,10 +82,12 @@ export function AttendanceTable() {
         },
     });
 
-    function handleEndShift(staffId: string, firstName: string, lastName: string) {
-        if (!confirm(`End shift for ${firstName} ${lastName}? This sets their check-out time to now.`)) {
-            return;
-        }
+    async function handleEndShift(staffId: string, firstName: string, lastName: string) {
+        const confirmed = await showConfirm(
+            `End shift for ${firstName} ${lastName}? This sets their check-out time to now.`,
+            { title: "End shift?", confirmLabel: "End Shift" }
+        );
+        if (!confirmed) return;
         endShiftMutation.mutate(staffId);
     }
 
@@ -123,6 +114,7 @@ export function AttendanceTable() {
     }
 
     return (
+        <div className="overflow-x-auto">
         <Table className="w-full">
             <TableHeader>
                 <TableRow>
@@ -177,5 +169,6 @@ export function AttendanceTable() {
                 ))}
             </TableBody>
         </Table>
+        </div>
     );
 }

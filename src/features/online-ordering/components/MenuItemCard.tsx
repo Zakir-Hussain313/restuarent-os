@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Minus } from "lucide-react";
+import { Plus, Minus, UtensilsCrossed } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useCustomerCartStore } from "@/store/useCustomerCartStore";
 import type { MenuItem } from "@/types";
@@ -12,7 +12,7 @@ interface MenuItemCardProps {
   categoryIcon?: string;
 }
 
-export function MenuItemCard({ item, cartQuantity , categoryIcon }: MenuItemCardProps) {
+export function MenuItemCard({ item, cartQuantity, categoryIcon }: MenuItemCardProps) {
   const addItem = useCustomerCartStore((s) => s.addItem);
   const items = useCustomerCartStore((s) => s.items);
   const updateQuantity = useCustomerCartStore((s) => s.updateQuantity);
@@ -43,7 +43,9 @@ export function MenuItemCard({ item, cartQuantity , categoryIcon }: MenuItemCard
             className="object-cover"
           />
         ) : (
-          <span className="text-6xl">{categoryIcon ?? "🍴"}</span>
+          <span className="text-6xl">{categoryIcon ??
+            <UtensilsCrossed className="w-12 h-12 text-muted-foreground" />}
+          </span>
         )}
       </div>
 

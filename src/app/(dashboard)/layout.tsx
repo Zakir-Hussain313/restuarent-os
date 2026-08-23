@@ -1,5 +1,6 @@
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { getCurrentStaff } from "@/features/auth/actions";
+import { DashboardProviders } from "./providers";
 
 export default async function DashboardLayout({
   children,
@@ -13,6 +14,8 @@ export default async function DashboardLayout({
   // user should even reach this layout is a middleware/route-guard concern,
   // not this file's job. Still open from the Step 9 deferred list.
   return (
-    <DashboardShell currentStaff={currentStaff}>{children}</DashboardShell>
+    <DashboardProviders>
+      <DashboardShell currentStaff={currentStaff}>{children}</DashboardShell>
+    </DashboardProviders>
   );
 }

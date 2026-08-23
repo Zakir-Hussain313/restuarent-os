@@ -57,7 +57,7 @@ export function OperatingHoursLayout({ branchId }: OperatingHoursLayoutProps) {
     if (isLoading) {
         return (
             <div className="flex justify-center py-8">
-                <Loader2 className="w-5 h-5 animate-spin text-[#8a8680]" />
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
             </div>
         );
     }

@@ -3,6 +3,7 @@
 
 import { Pencil, Trash2 } from "lucide-react";
 import type { branchDeliveryAreas } from "@/db/schema";
+import { useAlertModal } from "@/components/providers/AlertModalProvider";
 
 type DeliveryArea = typeof branchDeliveryAreas.$inferSelect;
 
@@ -13,6 +14,8 @@ interface DeliveryAreaRowProps {
 }
 
 export function DeliveryAreaRow({ area, onEdit, onDelete }: DeliveryAreaRowProps) {
+  const { showConfirm } = useAlertModal();
+  
   return (
     <div className="flex items-center justify-between px-4 py-3 border rounded-lg bg-background">
       <div>
@@ -29,10 +32,12 @@ export function DeliveryAreaRow({ area, onEdit, onDelete }: DeliveryAreaRowProps
           <Pencil className="w-4 h-4" />
         </button>
         <button
-          onClick={() => {
-            if (confirm(`Delete "${area.area}, ${area.city}"?`)) {
-              onDelete();
-            }
+          onClick={async () => {
+            const confirmed = await showConfirm(
+              `Delete "${area.area}, ${area.city}"?`,
+              { title: "Delete delivery area?", confirmLabel: "Delete", destructive: true }
+            );
+            if (confirmed) onDelete();
           }}
           className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
           aria-label="Delete delivery area"

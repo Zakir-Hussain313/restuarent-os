@@ -3,11 +3,14 @@
 import { cn } from "@/lib/utils";
 import { usePosStore } from "@/store/usePosStore";
 import type { CustomerType } from "@/types";
+import { UtensilsCrossed, ShoppingBag, Bike } from "lucide-react";
+import { LucideIcon } from "lucide-react";
 
-const CUSTOMER_TYPES: { value: CustomerType; label: string; icon: string }[] = [
-  { value: "dine_in", label: "Dine In", icon: "🍽️" },
-  { value: "takeaway", label: "Takeaway", icon: "🥡" },
-  { value: "delivery", label: "Delivery", icon: "🛵" },
+const CUSTOMER_TYPES: { value: CustomerType; label: string; icon: LucideIcon }[] = [
+
+  { value: "dine_in", label: "Dine In", icon: UtensilsCrossed },
+  { value: "takeaway", label: "Takeaway", icon: ShoppingBag },
+  { value: "delivery", label: "Delivery", icon: Bike },
 ];
 
 export function CustomerTypeSelector() {
@@ -29,7 +32,7 @@ export function CustomerTypeSelector() {
                 : "bg-muted text-muted-foreground border-transparent"
             )}
           >
-            <span>{ct.icon}</span>
+            <ct.icon className="w-3.5 h-3.5" />
             <span>{ct.label}</span>
           </div>
         ))}

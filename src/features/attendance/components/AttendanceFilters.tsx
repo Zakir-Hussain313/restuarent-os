@@ -54,7 +54,7 @@ export function AttendanceFilters({
 
     return (
         <AttendanceFilterContext.Provider value={{ date: dateKey, branchId, roleFilter }}>
-            <div className="flex items-center gap-3 mb-6">
+            <div className="flex items-center gap-3 mb-6 flex-wrap">
                 <Popover>
                     <PopoverTrigger
                         render={

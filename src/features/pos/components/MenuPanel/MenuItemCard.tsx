@@ -6,17 +6,17 @@ import { cn } from "@/lib/utils";
 import { usePosStore } from "@/store/usePosStore";
 import { formatCurrency } from "@/lib/utils";
 import type { MenuItem } from "@/types";
+import { Flame, Soup, Wheat, Sandwich, CircleDot, IceCreamBowl, CupSoda, Salad, UtensilsCrossed } from "lucide-react";
 
-// Fallback emojis per category id — matches your mock data
-const CATEGORY_EMOJI: Record<string, string> = {
-  cat_001: "🔥",
-  cat_002: "🍲",
-  cat_003: "🍚",
-  cat_004: "🍔",
-  cat_005: "🫓",
-  cat_006: "🍮",
-  cat_007: "🥤",
-  cat_008: "🥗",
+const CATEGORY_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
+  cat_001: Flame,
+  cat_002: Soup,
+  cat_003: Wheat,
+  cat_004: Sandwich,
+  cat_005: CircleDot,
+  cat_006: IceCreamBowl,
+  cat_007: CupSoda,
+  cat_008: Salad,
 };
 
 interface MenuItemCardProps {
@@ -25,6 +25,7 @@ interface MenuItemCardProps {
 }
 
 export function MenuItemCard({ item, cartQuantity }: MenuItemCardProps) {
+  const CategoryIcon = CATEGORY_ICON[item.categoryId] ?? UtensilsCrossed;
   const addItem = usePosStore((s) => s.addItem);
   const isInCart = cartQuantity > 0;
   const isUnavailable = item.status !== "available";
@@ -41,7 +42,7 @@ export function MenuItemCard({ item, cartQuantity }: MenuItemCardProps) {
       )}
     >
       {/* Image */}
-      <div className="aspect-square rounded-lg bg-muted overflow-hidden relative">
+      <div className="aspect-5/4 min-[760px]:aspect-square rounded-lg bg-muted overflow-hidden relative">
         {item.image && !item.image.startsWith("/images/") ? (
           <Image
             src={item.image}
@@ -52,7 +53,7 @@ export function MenuItemCard({ item, cartQuantity }: MenuItemCardProps) {
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-4xl bg-muted">
-            {CATEGORY_EMOJI[item.categoryId] ?? "🍴"}
+            <CategoryIcon className="w-6 h-6" />
           </div>
         )}
         {isUnavailable && (
@@ -64,13 +65,13 @@ export function MenuItemCard({ item, cartQuantity }: MenuItemCardProps) {
 
       {/* Info */}
       <div>
-        <p className="text-sm font-medium leading-tight line-clamp-2">{item.name}</p>
-        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{item.description}</p>
+        <p className="text-lg min-[760px]:text-sm font-semibold min-[760px]:font-medium leading-tight line-clamp-2">{item.name}</p>
+        <p className="text-sm min-[760px]:text-xs text-muted-foreground mt-0.5 line-clamp-1">{item.description}</p>
       </div>
 
       {/* Price row */}
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-primary">
+        <span className="text-lg min-[760px]:text-sm font-bold min-[760px]:font-semibold text-primary">
           {formatCurrency(item.basePrice)}
         </span>
         <div

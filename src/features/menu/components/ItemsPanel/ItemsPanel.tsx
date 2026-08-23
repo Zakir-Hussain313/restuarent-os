@@ -2,6 +2,14 @@
 
 import { Plus, UtensilsCrossed } from "lucide-react";
 import { ItemCard } from "./ItemCard";
+import { useMenuFilters } from "../MenuFilters";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { MenuCategory, MenuItem, MenuItemStatus } from "@/types";
 
 interface ItemsPanelProps {
@@ -57,6 +65,8 @@ export function ItemsPanel({
   onEditItem,
   onDeleteItem,
 }: ItemsPanelProps) {
+  const { branchId, setBranchId, branches, isSuperAdmin } = useMenuFilters();
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
 
@@ -70,21 +80,45 @@ export function ItemsPanel({
             {items.length} item{items.length !== 1 ? "s" : ""}
           </p>
         </div>
-        {canManage && (
-          <button
-            onClick={onAddItem}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Add Item
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {isSuperAdmin && (
+            <Select
+              value={branchId ?? "all"}
+              onValueChange={(v: string | null) => setBranchId(!v || v === "all" ? undefined : v)}
+            >
+              <SelectTrigger className="w-45">
+                <SelectValue placeholder="All branches">
+                  {(value: string) =>
+                    value === "all" ? "All branches" : branches.find((b) => b.id === value)?.name ?? "All branches"
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All branches</SelectItem>
+                {branches.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {canManage && (
+            <button
+              onClick={onAddItem}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add Item
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Grid ─────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto min-h-0 p-6">
         {isLoading ? (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {Array.from({ length: 6 }).map((_, i) => (
               <SkeletonCard key={i} />
             ))}
@@ -109,7 +143,7 @@ export function ItemsPanel({
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {[...items]
             .sort((a, b) => a.sortOrder - b.sortOrder)
               .map((item) => (

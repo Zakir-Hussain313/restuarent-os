@@ -24,8 +24,8 @@ export default async function SalesReportPage({
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-[#1a1814]">Sales</h2>
-          <p className="text-sm text-[#8a8680] mt-1">
+          <h2 className="text-lg font-semibold text-foreground">Sales</h2>
+          <p className="text-sm text-[#8a8680] mt-1 hidden sm:block">
             Revenue from completed orders
           </p>
         </div>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MapPin, Phone, Mail, Clock } from "lucide-react";
+import { MapPin, Phone, Mail, Clock, Heart } from "lucide-react";
 import { RESTAURANT_CONFIG } from "@/config/restaurant";
 
 export function WebsiteFooter() {
@@ -19,9 +19,9 @@ export function WebsiteFooter() {
           </p>
           <div className="flex items-center gap-3 mt-1">
             {[
-              { label: "IG",  href: "#" },
-              { label: "FB",  href: "#" },
-              { label: "TW",  href: "#" },
+              { label: "IG", href: "#" },
+              { label: "FB", href: "#" },
+              { label: "TW", href: "#" },
             ].map(({ label, href }) => (
               <a
                 key={label}
@@ -39,10 +39,10 @@ export function WebsiteFooter() {
           <h4 className="text-xs font-semibold uppercase tracking-widest text-white/40">Quick Links</h4>
           <nav className="flex flex-col gap-2.5">
             {[
-              { label: "Home",       href: "/" },
-              { label: "Our Menu",   href: "/menu" },
-              { label: "About Us",   href: "/about" },
-              { label: "Contact",    href: "/contact" },
+              { label: "Home", href: "/" },
+              { label: "Our Menu", href: "/menu" },
+              { label: "About Us", href: "/about" },
+              { label: "Contact", href: "/contact" },
               { label: "Order Online", href: "/order" },
             ].map(({ label, href }) => (
               <Link
@@ -63,7 +63,7 @@ export function WebsiteFooter() {
             {[
               { days: "Mon – Thu", hours: "12:00 PM – 11:00 PM" },
               { days: "Fri – Sat", hours: "12:00 PM – 12:00 AM" },
-              { days: "Sunday",    hours: "1:00 PM – 11:00 PM" },
+              { days: "Sunday", hours: "1:00 PM – 11:00 PM" },
             ].map(({ days, hours }) => (
               <div key={days} className="flex items-start gap-2.5">
                 <Clock className="w-3.5 h-3.5 text-[#e8570e] mt-0.5 shrink-0" />
@@ -106,7 +106,9 @@ export function WebsiteFooter() {
       <div className="border-t border-white/10">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <p className="text-xs text-white/30">© {new Date().getFullYear()} {RESTAURANT_CONFIG.name}. All rights reserved.</p>
-          <p className="text-xs text-white/30">Made with ❤️ in Karachi</p>
+          <p className="text-xs text-white/30 flex items-center gap-1">
+            Made with <Heart className="w-3 h-3 fill-current" /> in Karachi
+          </p>
         </div>
       </div>
     </footer>

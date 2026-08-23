@@ -29,15 +29,15 @@ const ACTIONS = [
 
 export function QuickActionsBar() {
   return (
-    <div className="flex items-center gap-3 flex-wrap">
+    <div className="hidden min-[800px]:flex items-center gap-3 flex-wrap">
       {ACTIONS.map(({ label, description, href, icon: Icon, accent }) => (
         <Link
           key={href}
           href={href}
-          className={`flex items-center gap-2.5 px-4 py-2.5 rounded-lg border text-sm font-medium transition-all duration-150 ${
+          className={`flex items-center gap-2.5 px-4 py-2.5 rounded-full border text-sm font-medium transition-all duration-150 ${
             accent
-              ? "bg-[#e8570e] border-[#e8570e] text-white hover:bg-[#c44a0c] hover:border-[#c44a0c] shadow-sm"
-              : "bg-white border-[#ebe9e4] text-[#1a1815] hover:border-[#e8570e] hover:text-[#e8570e]"
+              ? "bg-coral border-coral text-white hover:bg-coral-hover hover:border-coral-hover shadow-sm"
+              : "bg-card border-border text-foreground hover:border-primary hover:text-primary"
           }`}
         >
           <Icon className="w-4 h-4" />
@@ -45,7 +45,7 @@ export function QuickActionsBar() {
             <span>{label}</span>
             <span
               className={`text-[10px] font-normal ${
-                accent ? "text-orange-100" : "text-[#8a8680]"
+                accent ? "text-white/80" : "text-muted-foreground"
               }`}
             >
               {description}

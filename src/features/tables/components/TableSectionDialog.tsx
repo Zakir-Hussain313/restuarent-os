@@ -21,13 +21,21 @@ import type { TableSection } from "@/db/schema";
 interface TableSectionDialogProps {
     branchId?: string;
     section?: TableSection;
+    /** Controlled mode: hides the built-in trigger button, parent owns open state. */
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+    /** Called with the new section's id right after a successful create. */
+    onCreated?: (sectionId: string) => void;
 }
 
-export function TableSectionDialog({ branchId, section: editTarget }: TableSectionDialogProps) {
+export function TableSectionDialog({ branchId, section: editTarget, open: controlledOpen, onOpenChange, onCreated }: TableSectionDialogProps) {
     const router = useRouter();
     const isEditMode = !!editTarget;
+    const isControlled = controlledOpen !== undefined;
 
-    const [open, setOpen] = useState(false);
+    const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+    const open = isControlled ? controlledOpen : uncontrolledOpen;
+    const setOpen = isControlled ? onOpenChange! : setUncontrolledOpen;
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [name, setName] = useState(editTarget?.name ?? "");
@@ -56,6 +64,9 @@ export function TableSectionDialog({ branchId, section: editTarget }: TableSecti
 
             setOpen(false);
             resetForm();
+            if (!isEditMode && result.data) {
+                onCreated?.(result.data.id);
+            }
             router.refresh();
         } catch {
             setError("Something went wrong. Please try again.");
@@ -69,23 +80,34 @@ export function TableSectionDialog({ branchId, section: editTarget }: TableSecti
             open={open}
             onOpenChange={(next) => {
                 setOpen(next);
-                if (!next) resetForm();
+                if (next) {
+                    // Re-sync from the latest editTarget every time the
+                    // dialog opens — state otherwise stays stuck at
+                    // whatever it was on first mount.
+                    setName(editTarget?.name ?? "");
+                    setDescription(editTarget?.description ?? "");
+                    setError(null);
+                } else {
+                    resetForm();
+                }
             }}
         >
-            <DialogTrigger
-                render={
-                    isEditMode ? (
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-[#8a8680] hover:text-[#1a1814]">
-                            <Pencil className="w-3.5 h-3.5" />
-                        </Button>
-                    ) : (
-                        <Button variant="outline" size="sm">
-                            <Plus className="w-4 h-4 mr-1.5" />
-                            Add Section
-                        </Button>
-                    )
-                }
-            />
+            {!isControlled && (
+                <DialogTrigger
+                    render={
+                        isEditMode ? (
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground">
+                                <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                        ) : (
+                            <Button variant="outline" size="sm">
+                                <Plus className="w-4 h-4 mr-1.5" />
+                                Add Section
+                            </Button>
+                        )
+                    }
+                />
+            )}
 
             <DialogContent className="sm:max-w-sm">
                 <DialogHeader>
@@ -124,7 +146,7 @@ export function TableSectionDialog({ branchId, section: editTarget }: TableSecti
                     </div>
 
                     <DialogFooter>
-                        <Button type="submit" className="w-full bg-[#e8570e] hover:bg-[#d44f0c] text-white" disabled={isLoading}>
+                        <Button type="submit" className="w-full" disabled={isLoading}>
                             {isLoading ? "Saving..." : isEditMode ? "Save changes" : "Create section"}
                         </Button>
                     </DialogFooter>

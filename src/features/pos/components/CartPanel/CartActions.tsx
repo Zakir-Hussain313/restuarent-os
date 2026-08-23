@@ -28,11 +28,11 @@ export function CartActions({ autoConfirmOnPlace }: CartActionsProps) {
         disabled={!hasItems || isSubmitting}
         className={cn(
           "flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl",
-          "border border-[#ebe9e4] bg-white text-sm font-medium",
-          "transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8570e]",
+          "border border-border bg-white text-sm font-medium",
+          "transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
           hasItems && !isSubmitting
-            ? "text-[#4a4744] hover:border-[#e8570e]/40 hover:text-[#e8570e]"
-            : "text-[#8a8680] cursor-not-allowed opacity-50"
+            ? "text-foreground/80 hover:border-primary/40 hover:text-primary"
+            : "text-muted-foreground cursor-not-allowed opacity-50"
         )}
       >
         <PauseCircle size={15} />
@@ -44,13 +44,13 @@ export function CartActions({ autoConfirmOnPlace }: CartActionsProps) {
         type="button"
         onClick={placeOrder}
         disabled={!hasItems || isSubmitting}
-        className={cn(
+          className={cn(
           "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl",
-          "text-sm font-semibold text-white transition-all duration-150",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8570e] focus-visible:ring-offset-2",
+          "text-sm font-semibold text-primary-foreground transition-all duration-150",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
           hasItems && !isSubmitting
-            ? "bg-[#e8570e] hover:bg-[#d14d0d] shadow-sm active:scale-[0.98]"
-            : "bg-[#e8570e]/40 cursor-not-allowed"
+            ? "bg-primary hover:bg-primary/90 shadow-sm active:scale-[0.98]"
+            : "bg-primary/40 cursor-not-allowed"
         )}
       >
         {isSubmitting ? (

@@ -5,6 +5,13 @@ import { ChevronDown, ChevronRight, Filter } from "lucide-react";
 import { getAuditLogsAction, type AuditLogFilters } from "@/features/audit-logs/actions";
 import { describeAuditLog } from "@/features/audit-logs/describeLog";
 import type { AuditLog, AuditResource } from "@/db/schema";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Branch {
   id: string;
@@ -73,30 +80,30 @@ function LogRow({
   const hasDiff = Boolean(log.oldValue || log.newValue);
 
   return (
-    <div className="border-b border-[#ebe9e4] last:border-b-0">
+    <div className="border-b border-border last:border-b-0">
       <button
         onClick={() => hasDiff && setExpanded((e) => !e)}
-        className="w-full flex items-start gap-3 py-3 px-1 text-left hover:bg-[#faf9f7] transition-colors"
+        className="w-full flex items-start gap-3 py-3 px-1 text-left hover:bg-muted transition-colors"
       >
         {hasDiff ? (
           expanded ? (
-            <ChevronDown className="w-3.5 h-3.5 mt-1 text-[#8a8680] shrink-0" />
+            <ChevronDown className="w-3.5 h-3.5 mt-1 text-muted-foreground shrink-0" />
           ) : (
-            <ChevronRight className="w-3.5 h-3.5 mt-1 text-[#8a8680] shrink-0" />
+            <ChevronRight className="w-3.5 h-3.5 mt-1 text-muted-foreground shrink-0" />
           )
         ) : (
           <div className="w-3.5 shrink-0" />
         )}
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-[#1a1815]">
+          <p className="text-sm text-foreground">
             <span className="font-semibold">{log.actorName ?? "Someone"}</span>{" "}
             {describeAuditLog(log)}
             {branchName && (
-              <span className="text-[#8a8680]"> · {branchName}</span>
+              <span className="text-muted-foreground"> · {branchName}</span>
             )}
           </p>
         </div>
-        <span className="text-xs text-[#8a8680] shrink-0 pt-0.5">
+        <span className="text-xs text-muted-foreground shrink-0 pt-0.5">
           {formatTime(log.createdAt.toString())}
         </span>
       </button>
@@ -105,16 +112,16 @@ function LogRow({
         <div className="pl-7 pb-3 pr-3 space-y-2">
           {log.oldValue !== null && (
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#8a8680] mb-1">Before</p>
-              <pre className="text-xs bg-[#faf9f7] border rounded-lg p-2.5 overflow-x-auto">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Before</p>
+              <pre className="text-xs bg-muted border border-border rounded-lg p-2.5 overflow-x-auto">
                 {JSON.stringify(log.oldValue, null, 2)}
               </pre>
             </div>
           )}
           {log.newValue !== null && (
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#8a8680] mb-1">After</p>
-              <pre className="text-xs bg-[#faf9f7] border rounded-lg p-2.5 overflow-x-auto">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">After</p>
+              <pre className="text-xs bg-muted border border-border rounded-lg p-2.5 overflow-x-auto">
                 {JSON.stringify(log.newValue, null, 2)}
               </pre>
             </div>
@@ -186,41 +193,51 @@ export function AuditLogFeed({
     <div className="space-y-4">
       {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
-        <Filter className="w-4 h-4 text-[#8a8680]" />
+        <span className="flex items-center justify-center w-8 h-8 rounded-full bg-primary-light shrink-0">
+          <Filter className="w-4 h-4 text-primary" />
+        </span>
         {branches.length > 1 && (
-          <select
-            value={branchFilter}
-            onChange={(e) => applyFilters(e.target.value, resourceFilter)}
-            className="h-9 px-3 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+          <Select
+            value={branchFilter || "all"}
+            onValueChange={(value) => applyFilters(!value || value === "all" ? "" : value, resourceFilter)}
           >
-            <option value="">All branches</option>
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
+            <SelectTrigger className="h-9 w-auto">
+              <SelectValue placeholder="All branches" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All branches</SelectItem>
+              {branches.map((b) => (
+                <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )}
-        <select
-          value={resourceFilter}
-          onChange={(e) => applyFilters(branchFilter, e.target.value)}
-          className="h-9 px-3 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+        <Select
+          value={resourceFilter || "all"}
+          onValueChange={(value) => applyFilters(branchFilter, !value || value === "all" ? "" : value)}
         >
-          <option value="">All activity types</option>
-          {RESOURCE_OPTIONS.map((r) => (
-            <option key={r.value} value={r.value}>{r.label}</option>
-          ))}
-        </select>
+          <SelectTrigger className="h-9 w-auto">
+            <SelectValue placeholder="All activity types" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All activity types</SelectItem>
+            {RESOURCE_OPTIONS.map((r) => (
+              <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Feed */}
-      <div className="bg-white border rounded-2xl overflow-hidden">
+      <div className="bg-card border border-border rounded-2xl overflow-hidden">
         {logs.length === 0 ? (
-          <div className="text-center py-16 text-sm text-[#8a8680]">
+          <div className="text-center py-16 text-sm text-muted-foreground">
             No activity found.
           </div>
         ) : (
           grouped.map((group) => (
             <div key={group.heading}>
-              <div className="px-4 py-2 bg-[#faf9f7] border-b text-xs font-semibold uppercase tracking-wide text-[#8a8680]">
+              <div className="px-4 py-2 bg-primary-light border-b border-border text-xs font-semibold uppercase tracking-wide text-primary">
                 {group.heading}
               </div>
               <div className="px-4">

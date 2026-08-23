@@ -41,6 +41,8 @@ export const tableStatusEnum = pgEnum("table_status", [
 
 export const tableShapeEnum = pgEnum("table_shape", ["square", "rectangle", "circle", "oval"]);
 
+export const tableSeatingTypeEnum = pgEnum("table_seating_type", ["chairs", "sofa"]);
+
 export const reservationStatusEnum = pgEnum("reservation_status", [
   "pending",
   "confirmed",

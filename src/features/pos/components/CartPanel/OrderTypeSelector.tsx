@@ -3,11 +3,13 @@
 import { cn } from "@/lib/utils";
 import { usePosStore } from "@/store/usePosStore";
 import type { OrderType } from "@/types";
+import { UtensilsCrossed, ShoppingBag, Bike } from "lucide-react";
+import { LucideIcon } from "lucide-react";
 
-const ORDER_TYPES: { value: OrderType; label: string; icon: string }[] = [
-  { value: "dine_in", label: "Dine In", icon: "🍽️" },
-  { value: "takeaway", label: "Takeaway", icon: "🥡" },
-  { value: "delivery", label: "Delivery", icon: "🛵" },
+const ORDER_TYPES: { value: OrderType; label: string; icon: LucideIcon }[] = [
+  { value: "dine_in", label: "Dine In", icon: UtensilsCrossed },
+  { value: "takeaway", label: "Takeaway", icon: ShoppingBag },
+  { value: "delivery", label: "Delivery", icon: Bike },
 ];
 
 export function OrderTypeSelector() {
@@ -27,14 +29,14 @@ export function OrderTypeSelector() {
           key={ot.value}
           onClick={() => handleSelect(ot.value)}
           className={cn(
-            "flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-sm font-medium transition-all",
+            "flex-1 min-w-0 flex items-center justify-center gap-1.5 py-3 min-[760px]:py-2 px-1.5 sm:px-3 rounded-md min-[760px]:text-sm font-medium transition-all",
             orderType === ot.value
               ? "bg-background text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground"
           )}
         >
-          <span>{ot.icon}</span>
-          <span>{ot.label}</span>
+          <ot.icon className="w-4 h-4 shrink-0" />
+          <span className="truncate">{ot.label}</span>
         </button>
       ))}
     </div>

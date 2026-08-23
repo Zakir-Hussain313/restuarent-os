@@ -132,8 +132,8 @@ export function BranchDeactivateDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md">
-                <DialogHeader>
+            <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col p-0">
+                <DialogHeader className="px-5 pt-5">
                     <DialogTitle>Deactivate {branch.name}?</DialogTitle>
                     <DialogDescription>
                         {isChecking
@@ -144,6 +144,8 @@ export function BranchDeactivateDialog({
                     </DialogDescription>
                 </DialogHeader>
 
+                <div className="overflow-y-auto overflow-x-hidden themed-scrollbar rounded-b-2xl px-5 pt-2 pb-2 space-y-4">
+
                 {error && (
                     <div className="rounded-md bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
                         {error}
@@ -151,12 +153,12 @@ export function BranchDeactivateDialog({
                 )}
 
                 {isChecking ? (
-                    <div className="py-6 text-center text-sm text-[#8a8680]">Loading...</div>
+                    <div className="py-6 text-center text-sm text-muted-foreground">Loading...</div>
                 ) : hasActiveStaff ? (
                     <div className="space-y-3">
                         {activeStaff!.map((s) => (
                             <div key={s.id} className="flex items-center justify-between gap-3">
-                                <span className="text-sm text-[#1a1814]">
+                                <span className="text-sm text-foreground">
                                     {s.firstName} {s.lastName}
                                 </span>
                                 <Select
@@ -182,10 +184,12 @@ export function BranchDeactivateDialog({
                     </div>
                 ) : null}
 
-                <DialogFooter>
+                </div>
+
+                <DialogFooter className="mx-5 mb-5 rounded-xl">
                     {hasActiveStaff ? (
                         <Button
-                            className="w-full bg-[#e8570e] hover:bg-[#d44f0c] text-white"
+                            className="w-full"
                             disabled={isSubmitting || isChecking}
                             onClick={handleReassignAndContinue}
                         >

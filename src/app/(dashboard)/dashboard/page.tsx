@@ -46,20 +46,20 @@ export default async function DashboardPage() {
         <div className="flex flex-col gap-6 min-w-0">
           <DashboardStats />
 
-          <div className="grid grid-cols-5 gap-6">
-            <div className="col-span-3">
+          <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+            <div className="xl:col-span-3">
               <RevenueChart />
             </div>
-            <div className="col-span-2">
+            <div className="xl:col-span-2">
               <TopDishesWidget />
             </div>
           </div>
 
-          <div className="grid grid-cols-5 gap-6 items-stretch">
-            <div className="col-span-3 flex flex-col h-full">
+          <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 items-stretch">
+            <div className="xl:col-span-3 flex flex-col xl:h-full">
               <RecentOrdersWidget />
             </div>
-            <div className="col-span-2 flex flex-col gap-6">
+            <div className="xl:col-span-2 flex flex-col gap-6">
               <OrderTypeBreakdownWidget />
               <ReservationStatsWidget />
             </div>

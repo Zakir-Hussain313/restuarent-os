@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Users, Phone, StickyNote, Clock, Hash, KeyRound } from "lucide-react";
+import { Users, Phone, StickyNote, Clock, Hash, KeyRound, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
     confirmReservationAction,
     markSeatedAction,
@@ -21,14 +22,14 @@ function formatReservationWindow(startTime: Date, durationMinutes: number): stri
     return `${dateStr}, ${startStr} – ${endStr}`;
 }
 
-const RESERVATION_STATUS_STYLES: Record<
+const RESERVATION_STATUS_STYLES: Record <
     TableReservation["status"],
     { bg: string; border: string; text: string; label: string }
 > = {
     pending: { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", label: "Pending" },
     confirmed: { bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", label: "Confirmed" },
     seated: { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700", label: "Seated" },
-    cancelled: { bg: "bg-[#f4f2ef]", border: "border-[#ebe9e4]", text: "text-[#8a8680]", label: "Cancelled" },
+    cancelled: { bg: "bg-muted", border: "border-border", text: "text-muted-foreground", label: "Cancelled" },
     no_show: { bg: "bg-red-50", border: "border-red-200", text: "text-red-700", label: "No-show" },
 };
 
@@ -41,6 +42,7 @@ export function ReservationsTab({ reservations, tables }: ReservationsTabProps) 
     const router = useRouter();
     const [pendingId, setPendingId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [historyOpen, setHistoryOpen] = useState(false);
 
     const tableById = new Map(tables.map((t) => [t.id, t]));
 
@@ -63,7 +65,7 @@ export function ReservationsTab({ reservations, tables }: ReservationsTabProps) 
     const past = reservations.filter((r) => r.status !== "pending" && r.status !== "confirmed");
 
     if (reservations.length === 0) {
-        return <p className="text-sm text-[#8a8680] py-12 text-center">No reservations yet.</p>;
+        return <p className="text-sm text-muted-foreground py-12 text-center">No reservations yet.</p>;
     }
 
     return (
@@ -93,15 +95,28 @@ export function ReservationsTab({ reservations, tables }: ReservationsTabProps) 
 
             {past.length > 0 && (
                 <div className="space-y-2">
-                    <p className="text-xs font-medium text-[#8a8680] uppercase tracking-wide">History</p>
-                    {past.map((r) => (
-                        <ReservationRow
-                            key={r.id}
-                            reservation={r}
-                            table={tableById.get(r.tableId)}
-                            isPending={false}
+                    <button
+                        type="button"
+                        onClick={() => setHistoryOpen((v) => !v)}
+                        className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors"
+                    >
+                        <ChevronDown
+                            className={cn("w-3.5 h-3.5 transition-transform", historyOpen ? "rotate-0" : "-rotate-90")}
                         />
-                    ))}
+                        History ({past.length})
+                    </button>
+                    {historyOpen && (
+                        <div className="space-y-2">
+                            {past.map((r) => (
+                                <ReservationRow
+                                    key={r.id}
+                                    reservation={r}
+                                    table={tableById.get(r.tableId)}
+                                    isPending={false}
+                                />
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
         </div>
@@ -130,10 +145,10 @@ function ReservationRow({
     const isActive = reservation.status === "pending" || reservation.status === "confirmed";
 
     return (
-        <div className="flex items-center justify-between gap-4 rounded-xl border border-[#ebe9e4] bg-white px-4 py-3">
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-white px-4 py-3">
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold text-[#1a1815]">
+                    <span className="text-sm font-semibold text-foreground">
                         {reservation.customerName || "Guest"}
                     </span>
                     <span className={`text-[11px] px-2 py-0.5 rounded-full border ${s.bg} ${s.border} ${s.text}`}>
@@ -146,8 +161,8 @@ function ReservationRow({
                     )}
                 </div>
 
-                <div className="flex items-center gap-3 mt-1 text-xs text-[#8a8680] flex-wrap">
-                    <span className="flex items-center gap-1 font-medium text-[#4a4744]">
+                <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                    <span className="flex items-center gap-1 font-medium text-foreground/80">
                         <Hash className="w-3 h-3" />
                         {reservation.reservationNumber}
                     </span>
@@ -161,7 +176,7 @@ function ReservationRow({
                     </span>
                 </div>
 
-                <div className="flex items-center gap-3 mt-1 text-xs text-[#8a8680] flex-wrap">
+                <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
                     <span className="flex items-center gap-1">
                         <Phone className="w-3 h-3" />
                         {reservation.customerPhone}
@@ -182,7 +197,7 @@ function ReservationRow({
             {isActive && (
                 <div className="flex items-center gap-2 shrink-0">
                     {reservation.status === "pending" && (
-                        <Button size="sm" disabled={isPending} onClick={onConfirm} className="bg-[#e8570e] hover:bg-[#d44f0c] text-white">
+                        <Button size="sm" disabled={isPending} onClick={onConfirm}>
                             Confirm
                         </Button>
                     )}

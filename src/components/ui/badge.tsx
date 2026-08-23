@@ -19,6 +19,10 @@ const badgeVariants = cva(
         ghost:
           "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
         link: "text-primary underline-offset-4 hover:underline",
+        "chip-violet": "bg-primary-light text-primary",
+        "chip-coral": "bg-coral-light text-coral",
+        "chip-blue": "bg-[#EAF0FF] text-[#4C6FFF]",
+        "chip-green": "bg-[#E7F9EE] text-[#22C55E]",
       },
     },
     defaultVariants: {

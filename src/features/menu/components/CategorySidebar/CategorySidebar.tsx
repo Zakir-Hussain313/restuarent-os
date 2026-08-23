@@ -1,7 +1,8 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Plus, UtensilsCrossed } from "lucide-react";
 import { CategoryRow } from "./CategoryRow";
+import { CategoryPillBar } from "./CategoryPillBar";
 import type { MenuCategory, MenuItem } from "@/types";
 
 interface CategorySidebarProps {
@@ -46,10 +47,29 @@ export function CategorySidebar({
   const getItemCount = (categoryId: string) =>
     items.filter((i) => i.categoryId === categoryId).length;
 
-  return (
-    <div className="flex flex-col h-full border-r overflow-hidden w-68 shrink-0">
+  const sortedCategories = [...categories].sort((a, b) => a.sortOrder - b.sortOrder);
+  const itemCounts = Object.fromEntries(sortedCategories.map((c) => [c.id, getItemCount(c.id)]));
 
-      {/* ── Header ───────────────────────────────────────────────── */}
+  return (
+    <>
+    <div className="lg:hidden border-b shrink-0">
+      <CategoryPillBar
+        categories={sortedCategories}
+        itemCounts={itemCounts}
+        totalItemCount={items.length}
+        selectedCategoryId={selectedCategoryId}
+        isLoading={isLoading}
+        isTogglingCategory={isTogglingCategory}
+        canManage={canManage}
+        onSelectCategory={onSelectCategory}
+        onEditCategory={onEditCategory}
+        onDeleteCategory={onDeleteCategory}
+        onToggleActive={onToggleActive}
+      />
+    </div>
+    <div className="hidden lg:flex flex-col h-full border-r overflow-hidden w-68 shrink-0">
+
+      {/* ── Header ─────────────────────────────────────────────── */}
       <div className="shrink-0 px-4 py-3 border-b flex items-center justify-between">
         <h2 className="text-sm font-semibold">Categories</h2>
         {canManage && (
@@ -73,7 +93,7 @@ export function CategorySidebar({
         }`}
       >
         <div className="shrink-0 w-9 h-9 rounded-lg bg-muted flex items-center justify-center text-lg">
-          🍽️
+          <UtensilsCrossed className="w-4 h-4" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium">All Items</p>
@@ -105,5 +125,6 @@ export function CategorySidebar({
         )}
       </div>
     </div>
+    </>
   );
 }

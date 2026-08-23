@@ -27,11 +27,11 @@ export function MenuStatsBar({ categories, items }: MenuStatsBarProps) {
   ];
 
   return (
-    <div className="grid grid-cols-4 gap-px bg-border border-b shrink-0">
+    <div className="flex sm:grid sm:grid-cols-4 gap-px bg-border border-b shrink-0 overflow-x-auto scrollbar-hide">
       {STAT_CONFIG.map(({ label, value, icon: Icon, color, bg }) => (
         <div
           key={label}
-          className="bg-background px-4 py-4 flex items-center gap-2.5 hover:bg-muted/40 transition-colors"
+          className="bg-background px-4 py-4 flex items-center gap-2.5 hover:bg-muted/40 transition-colors shrink-0 w-44 sm:w-auto"
         >
           <div className={`w-9 h-9 rounded-lg ${bg} flex items-center justify-center shrink-0`}>
             <Icon className={`w-4 h-4 ${color}`} />

@@ -13,7 +13,7 @@ import type { Branch } from "@/db/schema";
 function Badge({ label, className }: { label: string; className: string }) {
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${className}`}
+      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${className}`}
     >
       {label}
     </span>
@@ -49,8 +49,8 @@ export function BranchesTable({ branches }: BranchesTableProps) {
 
   if (branches.length === 0) {
     return (
-      <div className="rounded-lg border border-[#ebe9e4] bg-white py-16 text-center">
-        <p className="text-sm text-[#8a8680]">
+      <div className="rounded-2xl border border-border bg-card py-16 text-center">
+        <p className="text-sm text-muted-foreground">
           No branches yet. Add your first branch to get started.
         </p>
       </div>
@@ -74,9 +74,9 @@ export function BranchesTable({ branches }: BranchesTableProps) {
           return (
             <div
               key={branch.id}
-              className="rounded-lg border border-[#ebe9e4] bg-white overflow-hidden flex flex-col"
+              className="rounded-2xl border border-border bg-card overflow-hidden flex flex-col"
             >
-              <div className="relative h-36 w-full bg-[#f4f3f0]">
+              <div className="relative h-36 w-full bg-secondary">
                 {branch.image ? (
                   <Image
                     src={branch.image}
@@ -87,27 +87,27 @@ export function BranchesTable({ branches }: BranchesTableProps) {
                   />
                 ) : (
                   <div className="h-full w-full flex items-center justify-center">
-                    <Building2 className="w-10 h-10 text-[#8a8680]" />
+                    <Building2 className="w-10 h-10 text-muted-foreground" />
                   </div>
                 )}
               </div>
 
               <div className="p-4 flex flex-col gap-3 flex-1">
                 <div>
-                  <p className="font-medium text-[#1a1814] truncate flex items-center gap-2">
+                  <p className="font-medium text-foreground truncate flex items-center gap-2">
                     {branch.name}
                     {branch.isMainBranch && (
-                      <Badge label="Main" className="bg-[#fef3ed] text-[#e8570e]" />
+                      <Badge label="Main" className="bg-primary-light text-primary" />
                     )}
                   </p>
                   <p className="text-sm text-[#4a4744]">{branch.phone ?? "—"}</p>
                   <p className="text-sm text-[#4a4744] truncate">
                     {branch.email ?? "—"}
                   </p>
-                  <p className="text-sm text-[#8a8680] line-clamp-2">
+                  <p className="text-sm text-muted-foreground line-clamp-2">
                     {branch.address ?? "—"}
                   </p>
-                  <p className="text-sm text-[#8a8680] line-clamp-2">
+                  <p className="text-sm text-muted-foreground line-clamp-2">
                     {branch.city}{branch.address ? ` · ${branch.address}` : ""}
                   </p>
                 </div>
@@ -117,13 +117,13 @@ export function BranchesTable({ branches }: BranchesTableProps) {
                     label={isInactive ? "inactive" : "active"}
                     className={
                       isInactive
-                        ? "bg-[#f4f3f0] text-[#8a8680]"
+                        ? "bg-secondary text-muted-foreground"
                         : "bg-emerald-50 text-emerald-700"
                     }
                   />
                 </div>
 
-                <div className="mt-auto flex items-center justify-between pt-2 border-t border-[#ebe9e4]">
+                <div className="mt-auto flex items-center justify-between pt-2 border-t border-border">
                   <BranchDialog branch={branch} />
 
                   {branch.isMainBranch ? (
@@ -142,7 +142,7 @@ export function BranchesTable({ branches }: BranchesTableProps) {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-8 text-xs px-2 text-[#8a8680] hover:text-destructive hover:bg-destructive/10"
+                      className="h-8 text-xs px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                       onClick={() => setDeactivateTarget(branch)}
                     >
                       Deactivate

@@ -2,12 +2,14 @@
 
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DatePicker } from "@/components/ui/date-picker";
 import type {
   DatePreset,
   DateRange,
   DishOption,
   OrderTypeFilter,
 } from "../../hooks/useOrderHistory";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
 interface OrderHistoryFiltersProps {
   dateFilters: {
@@ -37,19 +39,7 @@ const ORDER_TYPE_OPTIONS: { label: string; value: NonNullable<OrderTypeFilter> }
   { label: "Delivery", value: "delivery" },
 ];
 
-function toInputValue(date: Date | null): string {
-  if (!date) return "";
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-function fromInputValue(value: string): Date | null {
-  if (!value) return null;
-  const [y, m, d] = value.split("-").map(Number);
-  return new Date(y, m - 1, d);
-}
+// toInputValue / fromInputValue removed — no longer needed with DatePicker
 
 export function OrderHistoryFilters({
   dateFilters,
@@ -86,43 +76,25 @@ export function OrderHistoryFilters({
       </div>
 
       {/* Divider */}
-      <div className="h-5 w-px bg-border" />
+      <div className="hidden sm:block h-5 w-px bg-border" />
 
       {/* Date range inputs */}
       <div className="flex items-center gap-2">
-        <input
-          type="date"
-          value={toInputValue(dateFilters.dateRange.from)}
-          max={toInputValue(dateFilters.dateRange.to ?? new Date())}
-          onChange={(e) =>
-            setDateRange({
-              ...dateFilters.dateRange,
-              from: fromInputValue(e.target.value),
-            })
+        <DatePicker
+          value={dateFilters.dateRange.from}
+          max={dateFilters.dateRange.to ?? new Date()}
+          onChange={(date) =>
+            setDateRange({ ...dateFilters.dateRange, from: date })
           }
-          className={cn(
-            "h-8 rounded-lg border border-border bg-background px-2.5 text-xs text-foreground",
-            "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1",
-            "cursor-pointer"
-          )}
         />
         <span className="text-xs text-muted-foreground">to</span>
-        <input
-          type="date"
-          value={toInputValue(dateFilters.dateRange.to)}
-          min={toInputValue(dateFilters.dateRange.from)}
-          max={toInputValue(new Date())}
-          onChange={(e) =>
-            setDateRange({
-              ...dateFilters.dateRange,
-              to: fromInputValue(e.target.value),
-            })
+        <DatePicker
+          value={dateFilters.dateRange.to}
+          min={dateFilters.dateRange.from}
+          max={new Date()}
+          onChange={(date) =>
+            setDateRange({ ...dateFilters.dateRange, to: date })
           }
-          className={cn(
-            "h-8 rounded-lg border border-border bg-background px-2.5 text-xs text-foreground",
-            "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1",
-            "cursor-pointer"
-          )}
         />
       </div>
 
@@ -140,7 +112,7 @@ export function OrderHistoryFilters({
               )
             }
             className={cn(
-              "px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer",
+              "px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer",
               dateFilters.orderType === option.value
                 ? "bg-primary text-primary-foreground border-primary"
                 : "bg-background text-muted-foreground border-border hover:bg-muted"
@@ -155,22 +127,19 @@ export function OrderHistoryFilters({
       <div className="h-5 w-px bg-border" />
 
       {/* Dish dropdown */}
-      <select
-        value={dateFilters.dishId ?? ""}
-        onChange={(e) => setDishId(e.target.value || null)}
-        className={cn(
-          "h-8 rounded-lg border border-border bg-background px-2.5 text-xs text-foreground",
-          "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1",
-          "cursor-pointer"
-        )}
-      >
-        <option value="">All Dishes</option>
-        {dishOptions.map((dish) => (
-          <option key={dish.menuItemId} value={dish.menuItemId}>
-            {dish.menuItemName}
-          </option>
-        ))}
-      </select>
+      <Select value={dateFilters.dishId ?? "all"} onValueChange={(v) => setDishId(v === "all" ? null : v)}>
+        <SelectTrigger className="h-8 w-auto text-xs">
+          <SelectValue placeholder="All Dishes" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All Dishes</SelectItem>
+          {dishOptions.map((dish) => (
+            <SelectItem key={dish.menuItemId} value={dish.menuItemId}>
+              {dish.menuItemName}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
       {/* Clear filters */}
       {isFiltered && (

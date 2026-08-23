@@ -28,12 +28,12 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
   if (!active || !payload?.length) return null;
   const point = payload[0].payload;
   return (
-    <div className="bg-white border border-[#ebe9e4] rounded-lg px-3 py-2 shadow-lg">
-      <p className="text-xs text-[#8a8680] mb-1">
+    <div className="bg-card border border-border rounded-xl px-3 py-2 shadow-lg">
+      <p className="text-xs text-muted-foreground mb-1">
         {new Date(point.date).toLocaleDateString(RESTAURANT_CONFIG.locale, { month: "short", day: "numeric" })}
       </p>
-      <p className="text-sm font-semibold text-[#1a1815]">{formatCurrency(point.revenue)}</p>
-      <p className="text-xs text-[#8a8680]">Orders: {point.orders}</p>
+      <p className="text-sm font-semibold text-foreground">{formatCurrency(point.revenue)}</p>
+      <p className="text-xs text-muted-foreground">Orders: {point.orders}</p>
     </div>
   );
 }
@@ -45,25 +45,25 @@ export function RevenueChart() {
   const totalRevenue = data?.reduce((sum: number, d: RevenueDataPoint) => sum + d.revenue, 0) ?? 0;
 
   return (
-    <div className="bg-white rounded-xl border border-[#ebe9e4] p-5 flex flex-col gap-4">
+    <div className="bg-card rounded-2xl border border-border p-5 flex flex-col gap-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-[#1a1815]">Revenue Overview</h3>
+          <h3 className="text-sm font-semibold text-foreground">Revenue Overview</h3>
           {!isLoading && (
-            <p className="text-xs text-[#8a8680] mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               Total: {formatCurrency(totalRevenue)}
             </p>
           )}
         </div>
-        <div className="flex items-center bg-[#f9f8f6] rounded-lg p-0.5 border border-[#ebe9e4]">
+        <div className="flex items-center bg-muted rounded-full p-0.5 border border-border">
           {RANGES.map(({ label, value }) => (
             <button
               key={value}
               onClick={() => setRange(value)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-150 ${
+              className={`px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-150 ${
                 range === value
-                  ? "bg-white text-[#e8570e] shadow-sm border border-[#ebe9e4]"
-                  : "text-[#8a8680] hover:text-[#1a1815]"
+                  ? "bg-card text-primary shadow-sm border border-border"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {label}
@@ -80,14 +80,14 @@ export function RevenueChart() {
             <AreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#e8570e" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#e8570e" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#5B21B6" stopOpacity={0.18} />
+                  <stop offset="95%" stopColor="#5B21B6" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0ede8" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#edebf4" vertical={false} />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 11, fill: "#8a8680" }}
+                tick={{ fontSize: 11, fill: "#9c96a8" }}
                 tickLine={false}
                 axisLine={false}
                 interval={range === "7d" ? 0 : range === "30d" ? 4 : 9}
@@ -97,7 +97,7 @@ export function RevenueChart() {
                 }}
               />
               <YAxis
-                tick={{ fontSize: 11, fill: "#8a8680" }}
+                tick={{ fontSize: 11, fill: "#9c96a8" }}
                 tickLine={false}
                 axisLine={false}
                 tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`}
@@ -106,11 +106,11 @@ export function RevenueChart() {
               <Area
                 type="monotone"
                 dataKey="revenue"
-                stroke="#e8570e"
+                stroke="#5B21B6"
                 strokeWidth={2}
                 fill="url(#revenueGradient)"
                 dot={false}
-                activeDot={{ r: 4, fill: "#e8570e", strokeWidth: 0 }}
+                activeDot={{ r: 4, fill: "#5B21B6", strokeWidth: 0 }}
               />
             </AreaChart>
           </ResponsiveContainer>

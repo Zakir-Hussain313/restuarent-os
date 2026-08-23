@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 import { TEAM, STATS } from "@/features/website/data/websiteContent";
+import { ChefHat, ArrowRight, Leaf, Handshake, Flame } from "lucide-react";
 
 export default function AboutPage() {
   return (
@@ -44,7 +44,7 @@ export default function AboutPage() {
           {/* Visual */}
           <div className="relative">
             <div className="aspect-4/3 bg-linear-to-br from-[#2d1810] to-[#1a0f08] rounded-2xl flex items-center justify-center overflow-hidden">
-              <span className="text-[120px]">👨‍🍳</span>
+              <ChefHat className="w-24 h-24 text-primary" strokeWidth={1.5} />
               <div className="absolute inset-0 bg-linear-to-t from-black/40 to-transparent" />
               <div className="absolute bottom-4 left-4 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-4 py-3">
                 <p className="text-white text-sm font-semibold">Since 2016</p>
@@ -126,12 +126,12 @@ export default function AboutPage() {
           <h2 className="text-3xl font-bold text-[#1a1815] mb-8">What We Stand For</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-left">
             {[
-              { emoji: "🌿", title: "Freshness First",   body: "No shortcuts. Every ingredient is sourced fresh and prepared the same day." },
-              { emoji: "🤝", title: "Community",         body: "We're part of Karachi's fabric. We give back, we hire local, we care about this city." },
-              { emoji: "🔥", title: "Uncompromising Taste", body: "If it doesn't taste like it should, it doesn't leave our kitchen. Every time." },
-            ].map(({ emoji, title, body }) => (
+              { icon: Leaf, title: "Freshness First", body: "No shortcuts. Every ingredient is sourced fresh and prepared the same day." },
+              { icon: Handshake, title: "Community", body: "We're part of Karachi's fabric. We give back, we hire local, we care about this city." },
+              { icon: Flame, title: "Uncompromising Taste", body: "If it doesn't taste like it should, it doesn't leave our kitchen. Every time." },
+            ].map(({ icon: Icon, title, body }) => (
               <div key={title} className="bg-white rounded-2xl border border-[#ebe9e4] p-5 flex flex-col gap-3">
-                <span className="text-2xl">{emoji}</span>
+                <Icon className="w-6 h-6 text-[#e8570e]" />
                 <h3 className="text-sm font-semibold text-[#1a1815]">{title}</h3>
                 <p className="text-xs text-[#8a8680] leading-relaxed">{body}</p>
               </div>

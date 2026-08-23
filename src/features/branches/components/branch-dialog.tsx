@@ -208,12 +208,12 @@ export function BranchDialog({ branch: editTarget }: BranchDialogProps) {
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0 text-[#8a8680] hover:text-[#1a1814]"
+              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
             >
               <Pencil className="w-3.5 h-3.5" />
             </Button>
           ) : (
-            <Button className="bg-[#e8570e] hover:bg-[#d44f0c] text-white">
+            <Button>
               <Plus className="w-4 h-4 mr-1.5" />
               Add Branch
             </Button>
@@ -221,8 +221,9 @@ export function BranchDialog({ branch: editTarget }: BranchDialogProps) {
         }
       />
 
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col p-0">
+        <form onSubmit={handleSubmit} className="flex flex-col min-h-0">
+        <DialogHeader className="px-5 pt-5">
           <DialogTitle>{isEditMode ? `Edit ${editTarget.name}` : "Add a branch"}</DialogTitle>
           <DialogDescription>
             {isEditMode
@@ -231,7 +232,7 @@ export function BranchDialog({ branch: editTarget }: BranchDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="overflow-y-auto overflow-x-hidden themed-scrollbar rounded-b-2xl px-5 pt-2 pb-2 space-y-4">
           {error && (
             <div className="rounded-md bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
               {error}
@@ -242,7 +243,7 @@ export function BranchDialog({ branch: editTarget }: BranchDialogProps) {
           <div className="space-y-2">
             <Label>Photo (optional)</Label>
             <div className="flex items-center gap-3">
-              <div className="h-16 w-16 rounded-lg overflow-hidden bg-[#f4f3f0] border border-[#ebe9e4] flex items-center justify-center shrink-0">
+              <div className="h-16 w-16 rounded-2xl overflow-hidden bg-secondary border border-border flex items-center justify-center shrink-0">
                 {previewUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -251,7 +252,7 @@ export function BranchDialog({ branch: editTarget }: BranchDialogProps) {
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <Building2 className="w-6 h-6 text-[#8a8680]" />
+                  <Building2 className="w-6 h-6 text-muted-foreground" />
                 )}
               </div>
               <div className="flex gap-2">
@@ -342,10 +343,10 @@ export function BranchDialog({ branch: editTarget }: BranchDialogProps) {
             />
           </div>
 
-          <div className="flex items-center justify-between rounded-md border border-[#ebe9e4] px-4 py-3">
+          <div className="flex items-center justify-between rounded-xl border border-border px-4 py-3">
             <div>
               <Label htmlFor="isMainBranch">Main branch</Label>
-              <p className="text-xs text-[#8a8680] mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Only one branch can be the main branch at a time.
               </p>
             </div>
@@ -357,10 +358,12 @@ export function BranchDialog({ branch: editTarget }: BranchDialogProps) {
             />
           </div>
 
-          <DialogFooter>
+          </div>
+
+          <DialogFooter className="mx-5 mb-5 rounded-xl">
             <Button
               type="submit"
-              className="w-full bg-[#e8570e] hover:bg-[#d44f0c] text-white"
+              className="w-full"
               disabled={isLoading}
             >
               {isLoading

@@ -11,8 +11,8 @@ export default async function CouponsSettingsPage({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-[#1a1814]">Coupons</h2>
-        <p className="text-sm text-[#8a8680] mt-1">
+        <h2 className="text-lg font-semibold text-foreground">Coupons</h2>
+        <p className="text-sm text-muted-foreground mt-1">
           Create and manage discount coupons for POS
         </p>
       </div>

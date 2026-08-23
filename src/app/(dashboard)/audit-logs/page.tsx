@@ -10,7 +10,7 @@ export default async function AuditLogsPage() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-[#1a1814]">Audit Logs</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Audit Logs</h1>
         <p className="text-sm text-[#8a8680] mt-1">
           A history of important actions across your restaurant
         </p>

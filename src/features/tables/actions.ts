@@ -201,6 +201,10 @@ export async function getTablesAction(
         capacity: t.capacity,
         shape: t.shape,
         status: t.status,
+        color: t.color as Table["color"],
+        seatingType: t.seatingType as Table["seatingType"],
+        chairLayout: (t.chairLayout as Table["chairLayout"]) ?? undefined,
+        sofaLayout: (t.sofaLayout as Table["sofaLayout"]) ?? undefined,
         notes: t.notes ?? undefined,
         positionX: t.positionX ?? undefined,
         positionY: t.positionY ?? undefined,
@@ -217,6 +221,9 @@ export async function createTableAction(input: {
     tableNumber: string;
     capacity: number;
     shape?: "square" | "rectangle" | "circle" | "oval";
+    color?: "oak" | "walnut" | "mahogany" | "espresso" | "cherry" | "ash";
+    seatingType?: "chairs" | "sofa";
+    sofaLayout?: { openSides?: ("top" | "bottom" | "left" | "right")[]; gaps?: ("top" | "bottom" | "left" | "right")[] } | null;
     branchId?: string;
     positionX?: number;
     positionY?: number;
@@ -251,11 +258,13 @@ export async function createTableAction(input: {
             tableNumber,
             capacity: input.capacity,
             shape: input.shape ?? "square",
+            color: input.color ?? "oak",
+            seatingType: input.seatingType ?? "chairs",
+            sofaLayout: input.sofaLayout ?? null,
             positionX: input.positionX,
             positionY: input.positionY,
         })
         .returning();
-
     await logAudit(db, auth.staff, "table", row.id, "create", {
         branchId: branch.branchId,
         newValue: row,
@@ -274,6 +283,9 @@ export async function updateTableAction(
         tableNumber?: string;
         capacity?: number;
         shape?: "square" | "rectangle" | "circle" | "oval";
+        color?: "oak" | "walnut" | "mahogany" | "espresso" | "cherry" | "ash";
+        seatingType?: "chairs" | "sofa";
+        sofaLayout?: { openSides?: ("top" | "bottom" | "left" | "right")[]; gaps?: ("top" | "bottom" | "left" | "right")[] } | null;
         positionX?: number;
         positionY?: number;
     }
@@ -297,6 +309,9 @@ export async function updateTableAction(
             ...(input.tableNumber !== undefined ? { tableNumber: input.tableNumber.trim() } : {}),
             ...(input.capacity !== undefined ? { capacity: input.capacity } : {}),
             ...(input.shape !== undefined ? { shape: input.shape } : {}),
+            ...(input.color !== undefined ? { color: input.color } : {}),
+            ...(input.seatingType !== undefined ? { seatingType: input.seatingType } : {}),
+            ...(input.sofaLayout !== undefined ? { sofaLayout: input.sofaLayout } : {}),
             ...(input.positionX !== undefined ? { positionX: input.positionX } : {}),
             ...(input.positionY !== undefined ? { positionY: input.positionY } : {}),
             updatedAt: new Date(),
@@ -345,7 +360,33 @@ export async function deleteTableAction(id: string) {
     return { data: row };
 }
 
-// ── Manual status change (STAFF + ADMIN + SUPER_ADMIN) ──────────────────
+// ── Chair layout (ADMIN/SUPER_ADMIN only — same as CRUD) ───────────────────
+
+export async function updateTableChairLayoutAction(
+    id: string,
+    /** null = reset to the auto-computed default layout for this shape/capacity. */
+    chairLayout: { dx: number; dy: number; angleDeg: number }[] | null
+) {
+    const auth = await requireCrudAccess();
+    if (!auth.ok) return { data: null, error: auth.error };
+
+    const existing = await db.query.restaurantTables.findFirst({
+        where: and(eq(restaurantTables.id, id), eq(restaurantTables.tenantId, auth.staff.tenantId)),
+    });
+    if (!existing) return { data: null, error: "Table not found." };
+
+    const [row] = await db
+        .update(restaurantTables)
+        .set({ chairLayout, updatedAt: new Date() })
+        .where(eq(restaurantTables.id, id))
+        .returning();
+
+    await broadcastChange(existing.branchId, "tables");
+
+    return { data: row };
+}
+
+// ── Manual status change (STAFF + ADMIN + SUPER_ADMIN) ─────────────────────
 
 export async function updateTableStatusAction(
     id: string,

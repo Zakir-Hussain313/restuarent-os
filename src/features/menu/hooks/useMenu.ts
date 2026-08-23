@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/hooks/useMockQuery";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { branchChannel } from "@/lib/realtime/channels";
+import { useBranchChannel } from "@/lib/realtime/useBranchChannel";
 import {
   getMenuCategoriesAction,
   getMenuItemsAction,
@@ -62,21 +61,11 @@ export function useMenu(overrideBranchId?: string): UseMenuReturn {
 
   const isLoading = categoriesLoading || itemsLoading;
 
-  useEffect(() => {
-    if (!overrideBranchId) return;
+  const onRealtimeEvent = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: itemsKey });
+  }, [queryClient, itemsKey]);
 
-    const supabase = getSupabaseBrowserClient();
-    const channel = supabase
-      .channel(branchChannel(overrideBranchId, "menu"))
-      .on("broadcast", { event: "changed" }, () => {
-        queryClient.invalidateQueries({ queryKey: itemsKey });
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [overrideBranchId, queryClient, itemsKey]);
+  useBranchChannel(overrideBranchId, "menu", onRealtimeEvent);
 
   const itemsByCategory = useMemo(() => {
     const map = new Map<string, MenuItem[]>();

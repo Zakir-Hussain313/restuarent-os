@@ -9,7 +9,7 @@ export default async function BranchesPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-[#1a1814]">Branches</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Branches</h1>
           <p className="text-sm text-[#8a8680] mt-1">
             Manage your restaurant locations
           </p>

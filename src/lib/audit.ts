@@ -44,7 +44,7 @@ interface AuditOptions {
   description?: string;
 }
 
-type AuditActor = Staff | { id: string; tenantId: string; branchId?: string | null; firstName: string; lastName: string };
+type AuditActor = Staff | { id: string | null; tenantId: string; branchId?: string | null; firstName: string; lastName: string };
 
 export async function logAudit(
   db: Db,

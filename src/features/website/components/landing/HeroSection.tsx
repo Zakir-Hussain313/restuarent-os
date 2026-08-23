@@ -1,5 +1,12 @@
 import Link from "next/link";
-import { ShoppingBag, ChevronDown, Star } from "lucide-react";
+import { ShoppingBag, ChevronDown, Star, Clock, Leaf, Phone, Bike } from "lucide-react";
+
+const TRUST_PILLS = [
+  { icon: Clock, label: "30 min delivery" },
+  { icon: Leaf, label: "Fresh daily" },
+  { icon: Phone, label: "Order by phone" },
+  { icon: Bike, label: "Free delivery over Rs. 2000" },
+];
 
 export function HeroSection() {
   return (
@@ -91,13 +98,14 @@ export function HeroSection() {
 
         {/* Trust pills */}
         <div className="flex flex-wrap items-center justify-center gap-3 mt-10">
-          {["🕐 30 min delivery", "🌿 Fresh daily", "📞 Order by phone", "🛵 Free delivery over Rs. 2000"].map(
+          {TRUST_PILLS.map(
             (item) => (
               <span
-                key={item}
-                className="text-xs text-white/50 bg-white/5 border border-white/10 rounded-full px-3 py-1.5"
+                key={item.label}
+                className="flex items-center gap-1.5 text-xs text-white/50 bg-white/5 border border-white/10 rounded-full px-3 py-1.5"
               >
-                {item}
+                <item.icon className="w-3.5 h-3.5" />
+                {item.label}
               </span>
             )
           )}

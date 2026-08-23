@@ -13,10 +13,10 @@ export default async function DeliveryAreasSettingsPage({
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-[#1a1814]">
+          <h2 className="text-lg font-semibold text-foreground">
             Delivery Areas
           </h2>
-          <p className="text-sm text-[#8a8680] mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Manage delivery coverage for this branch
           </p>
         </div>

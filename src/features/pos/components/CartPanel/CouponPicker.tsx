@@ -13,6 +13,7 @@ import {
   getOrCreateStaffLedger,
 } from "@/lib/couponTokenStore";
 import { useAlertModal } from "@/components/providers/AlertModalProvider";
+import { X } from "lucide-react";
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -24,7 +25,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-export function CouponPicker() {
+interface CouponPickerProps {
+  branchId?: string;
+}
+
+export function CouponPicker({ branchId }: CouponPickerProps) {
   const { showAlert } = useAlertModal();
   const appliedCoupon = usePosStore((s) => s.appliedCoupon);
   const setCoupon = usePosStore((s) => s.setCoupon);
@@ -65,7 +70,6 @@ export function CouponPicker() {
 
   const currentStaff = useAuthStore((s) => s.currentStaff);
   const staffId = currentStaff?.id;
-  const branchId = currentStaff?.branchId;
 
   // Dropdown is portaled to document.body so it isn't clipped by an
   // ancestor panel's overflow-hidden. These track where to position it.
@@ -225,7 +229,7 @@ export function CouponPicker() {
             onClick={clearCoupon}
             className="shrink-0 px-2 py-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
           >
-            ✕
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       ) : (
@@ -266,7 +270,7 @@ export function CouponPicker() {
               setIsOpen((v) => !v);
             }}
             disabled={loading || pickableCoupons.length === 0}
-            className="w-full flex items-center justify-between px-3 py-1.5 text-sm border rounded-md bg-background disabled:opacity-50 disabled:cursor-not-allowed hover:bg-muted transition-colors"
+            className="w-full flex items-center justify-between px-3 py-3.5 min-[760px]:py-1.5 text-base min-[760px]:text-sm border rounded-md bg-background disabled:opacity-50 disabled:cursor-not-allowed hover:bg-muted transition-colors"
           >
             <span className="text-muted-foreground">
               {loading
@@ -283,7 +287,7 @@ export function CouponPicker() {
               style={{ position: "absolute", top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
               className="z-50 rounded-md border bg-background shadow-md overflow-hidden"
             >
-              <div className="h-30 overflow-y-auto">
+              <div className="h-36 min-[760px]:h-30 overflow-y-auto">
               {pickableCoupons.map((coupon) => (
                 <button
                   key={coupon.id}
@@ -307,7 +311,7 @@ export function CouponPicker() {
                     setIsOpen(false);
                   }}
                   className={cn(
-                    "w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors border-b last:border-b-0"
+                    "w-full text-left px-3 py-3 min-[760px]:py-2 text-base min-[760px]:text-sm hover:bg-muted transition-colors border-b last:border-b-0"
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">

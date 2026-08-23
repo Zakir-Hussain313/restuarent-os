@@ -14,20 +14,20 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ROLE_STYLES: Record<string, string> = {
-  SUPER_ADMIN: "bg-[#fef3ed] text-[#e8570e]",
+  SUPER_ADMIN: "bg-primary-light text-primary",
   ADMIN: "bg-blue-50 text-blue-700",
 };
 
 const STATUS_STYLES: Record<string, string> = {
   active: "bg-emerald-50 text-emerald-700",
-  inactive: "bg-[#f4f3f0] text-[#8a8680]",
+  inactive: "bg-secondary text-muted-foreground",
   on_leave: "bg-amber-50 text-amber-700",
 };
 
 function Badge({ label, className }: { label: string; className: string }) {
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${className}`}
+      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${className}`}
     >
       {label}
     </span>
@@ -73,8 +73,8 @@ export function AdminCards({ admins, branches, currentUserId }: AdminCardsProps)
 
   if (admins.length === 0) {
     return (
-      <div className="rounded-lg border border-[#ebe9e4] bg-white py-16 text-center">
-        <p className="text-sm text-[#8a8680]">
+      <div className="rounded-2xl border border-border bg-card py-16 text-center">
+        <p className="text-sm text-muted-foreground">
           No admins yet. Add your first admin to get started.
         </p>
       </div>
@@ -100,9 +100,9 @@ export function AdminCards({ admins, branches, currentUserId }: AdminCardsProps)
           return (
             <div
               key={member.id}
-              className="rounded-lg border border-[#ebe9e4] bg-white overflow-hidden flex flex-col"
+              className="rounded-2xl border border-border bg-card overflow-hidden flex flex-col"
             >
-              <div className="relative h-36 w-full bg-[#f4f3f0]">
+              <div className="relative h-36 w-full bg-secondary">
                 {member.image ? (
                   <Image
                     src={member.image}
@@ -113,7 +113,7 @@ export function AdminCards({ admins, branches, currentUserId }: AdminCardsProps)
                   />
                 ) : (
                   <div className="h-full w-full flex items-center justify-center">
-                    <span className="h-14 w-14 rounded-full bg-[#e8570e]/10 text-[#e8570e] flex items-center justify-center text-lg font-semibold">
+                    <span className="h-14 w-14 rounded-full bg-primary/10 text-primary flex items-center justify-center text-lg font-semibold">
                       {initials(member.firstName, member.lastName)}
                     </span>
                   </div>
@@ -122,16 +122,16 @@ export function AdminCards({ admins, branches, currentUserId }: AdminCardsProps)
 
               <div className="p-4 flex flex-col gap-3 flex-1">
                 <div>
-                  <p className="font-medium text-[#1a1814] truncate">
+                  <p className="font-medium text-foreground truncate">
                     {member.firstName} {member.lastName}
                     {isSelf && (
-                      <span className="ml-2 text-xs text-[#8a8680] font-normal">
+                      <span className="ml-2 text-xs text-muted-foreground font-normal">
                         (you)
                       </span>
                     )}
                   </p>
                   <p className="text-sm text-[#4a4744] truncate">{member.email}</p>
-                  <p className="text-sm text-[#8a8680]">{member.phone ?? "—"}</p>
+                  <p className="text-sm text-muted-foreground">{member.phone ?? "—"}</p>
                 </div>
 
                 <div className="flex flex-wrap gap-1.5">
@@ -144,22 +144,21 @@ export function AdminCards({ admins, branches, currentUserId }: AdminCardsProps)
                     className={STATUS_STYLES[member.status] ?? ""}
                   />
                   {!isSuperAdmin && branchName && (
-                    <Badge label={branchName} className="bg-[#f4f3f0] text-[#4a4744]" />
+                    <Badge label={branchName} className="bg-secondary text-foreground" />
                   )}
                 </div>
 
-                <div className="mt-auto flex items-center justify-between pt-2 border-t border-[#ebe9e4]">
+                <div className="mt-auto flex items-center justify-between pt-2 border-t border-border">
                   <AdminDialog branches={branches} admin={member} currentUserId={currentUserId} />
 
                   {!isSelf && !isSuperAdmin && (
                     <Button
                       variant="ghost"
                       size="sm"
-                      className={`h-8 text-xs px-2 ${
-                        isInactive
+                      className={`h-8 text-xs px-2 ${isInactive
                           ? "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                          : "text-[#8a8680] hover:text-destructive hover:bg-destructive/10"
-                      }`}
+                          : "text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        }`}
                       disabled={isLoading}
                       onClick={() => handleToggleStatus(member)}
                     >

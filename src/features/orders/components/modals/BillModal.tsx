@@ -132,13 +132,13 @@ export function BillModal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+      <div className="absolute inset-0 bg-black/50" />
 
       <div className="relative z-10 w-full max-w-sm bg-background rounded-xl border shadow-lg flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-              <Receipt className="w-4 h-4 text-blue-600" />
+            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <Receipt className="w-4 h-4 text-primary" />
             </div>
             <h2 className="text-sm font-semibold">Print Bill</h2>
           </div>
@@ -330,20 +330,20 @@ export function BillModal({
             disabled={isConfirming}
             className={cn(
               "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-              "bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              "bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
             )}
           >
-            {isConfirming ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Printer className="w-3.5 h-3.5" />
-            )}
-            {mode === "printOnly" && "Print Bill"}
-            {mode === "completeOnly" && "Complete Order"}
-            {mode === "printAndComplete" && "Print & Complete"}
-          </button>
-        </div>
+          {isConfirming ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Printer className="w-3.5 h-3.5" />
+          )}
+          {mode === "printOnly" && "Print Bill"}
+          {mode === "completeOnly" && "Complete Order"}
+          {mode === "printAndComplete" && "Print & Complete"}
+        </button>
       </div>
     </div>
+    </div >
   );
 }

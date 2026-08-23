@@ -5,7 +5,8 @@ import { useDeliveryOrders } from "@/features/orders/hooks/useDeliveryOrders";
 import { OrderDetail } from "@/features/orders/components/OrderDetail/OrderDetail";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
-import { Bike, Search, Utensils } from "lucide-react";
+import { Bike, Search, Utensils, ChevronLeft } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { OrderListSkeleton } from "@/features/orders/shared/OrderListSkeleton";
 import { OrderCard } from "@/features/orders/shared/OrderCard";
 
@@ -21,6 +22,7 @@ export default function DeliveryOrdersPage() {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
   const effectiveOrderId = selectedOrderId ?? filteredOrders[0]?.id ?? null;
+  const showingDetailOnMobile = selectedOrderId !== null;
 
   const handleSelectOrder = useCallback((id: string) => {
     setSelectedOrderId(id);
@@ -28,8 +30,17 @@ export default function DeliveryOrdersPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-6 py-4 border-b shrink-0">
         <div className="flex items-center gap-3">
+          {showingDetailOnMobile && (
+            <button
+              onClick={() => setSelectedOrderId(null)}
+              className="lg:hidden text-muted-foreground hover:text-foreground -ml-1 p-1"
+              aria-label="Back to delivery list"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+          )}
           <h1 className="text-xl font-semibold text-foreground">
             Delivery Orders
           </h1>
@@ -49,7 +60,12 @@ export default function DeliveryOrdersPage() {
       </div>
 
       <div className="flex flex-1 min-h-0">
-        <div className="w-80 shrink-0 border-r flex flex-col">
+        <div
+          className={cn(
+            "w-full lg:w-80 lg:shrink-0 border-r flex-col",
+            showingDetailOnMobile ? "hidden lg:flex" : "flex"
+          )}
+        >
           <div className="px-3 py-3 border-b shrink-0">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
@@ -85,10 +101,15 @@ export default function DeliveryOrdersPage() {
           </ScrollArea>
         </div>
 
-        <div className="flex-1 min-w-0">
+        <div
+          className={cn(
+            "flex-1 min-w-0",
+            showingDetailOnMobile ? "flex" : "hidden lg:flex"
+          )}
+        >
           {effectiveOrderId ? (
-            <ScrollArea className="h-full">
-              <div className="p-6">
+            <ScrollArea className="h-full w-full">
+              <div className="p-4 sm:p-6">
                 <OrderDetail orderId={effectiveOrderId} />
               </div>
             </ScrollArea>

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ProfileModal } from "./ProfileModal";
 import { useQuery } from "@tanstack/react-query";
 import { getBranchCountAction } from "@/features/delivery-areas/actions";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -36,6 +36,7 @@ import { logoutAction } from "@/features/auth/actions";
 import { hasPermission } from "@/types/staff";
 import { usePendingOrdersCount } from "@/features/orders/hooks/usePendingOrdersCount";
 import { NotificationBell } from "@/features/notifications/components/NotificationBell";
+import { useSidebarStore } from "@/store/useSidebarStore";
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard,
@@ -74,17 +75,17 @@ function SidebarChildItem({ child, isActive }: SidebarChildItemProps) {
       <Link
         href={child.href}
         className={cn(
-          "flex items-center h-9 rounded-lg text-sm font-medium transition-all duration-150 gap-2.5 pl-8 pr-2.5",
+          "flex items-center h-9 rounded-full text-sm font-medium transition-all duration-150 gap-2.5 pl-8 pr-2.5",
           isActive
-            ? "bg-[#fef3ed] text-[#e8570e]"
-            : "text-[#6b6966] hover:bg-[#f4f3f0] hover:text-[#1a1814]"
+            ? "bg-white/12 text-white"
+            : "text-[#c8b6ec] hover:bg-white/8 hover:text-white"
         )}
       >
         {Icon && (
           <Icon
             className={cn(
               "w-3.5 h-3.5 shrink-0",
-              isActive ? "text-[#e8570e]" : "text-[#a09d99]"
+              isActive ? "text-white" : "text-[#b79ee8]"
             )}
           />
         )}
@@ -130,17 +131,17 @@ function SidebarNavItem({
           }}
           title={!sidebarOpen ? item.label : undefined}
           className={cn(
-            "w-full flex items-center h-10 rounded-lg text-sm font-medium transition-all duration-150",
+            "w-full flex items-center h-10 rounded-full text-sm font-medium transition-all duration-150",
             isActive
-              ? "bg-[#fef3ed] text-[#e8570e]"
-              : "text-[#4a4744] hover:bg-[#f4f3f0] hover:text-[#1a1814]",
+              ? "bg-white/12 text-white"
+              : "text-[#c8b6ec] hover:bg-white/8 hover:text-white",
             sidebarOpen ? "gap-3 px-2.5" : "justify-center w-10 mx-auto"
           )}
         >
           <Icon
             className={cn(
               "w-4 h-4 shrink-0",
-              isActive ? "text-[#e8570e]" : "text-[#8a8680]"
+              isActive ? "text-white" : "text-[#b79ee8]"
             )}
           />
           {sidebarOpen && (
@@ -149,7 +150,7 @@ function SidebarNavItem({
               <ChevronDown
                 className={cn(
                   "w-3.5 h-3.5 shrink-0 transition-transform duration-200",
-                  isActive ? "text-[#e8570e]" : "text-[#8a8680]",
+                  isActive ? "text-white" : "text-[#b79ee8]",
                   expanded && "rotate-180"
                 )}
               />
@@ -183,10 +184,10 @@ function SidebarNavItem({
         href={item.href}
         title={!sidebarOpen ? item.label : undefined}
         className={cn(
-          "flex items-center h-10 rounded-lg text-sm font-medium transition-all duration-150",
+          "flex items-center h-10 rounded-full text-sm font-medium transition-all duration-150",
           isActive
-            ? "bg-[#fef3ed] text-[#e8570e]"
-            : "text-[#4a4744] hover:bg-[#f4f3f0] hover:text-[#1a1814]",
+            ? "bg-white/12 text-white"
+            : "text-[#c8b6ec] hover:bg-white/8 hover:text-white",
           sidebarOpen ? "gap-3 px-2.5" : "justify-center w-10 mx-auto"
         )}
       >
@@ -194,18 +195,18 @@ function SidebarNavItem({
           <Icon
             className={cn(
               "w-4 h-4",
-              isActive ? "text-[#e8570e]" : "text-[#8a8680]"
+              isActive ? "text-white" : "text-[#b79ee8]"
             )}
           />
           {!sidebarOpen && item.href === "/pos" && pendingOrdersCount > 0 && (
-            <span className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-[#e8570e] ring-2 ring-white" />
+            <span className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-coral ring-2 ring-[#5B21B6]" />
           )}
         </span>
         {sidebarOpen && (
           <>
             <span className="flex-1 truncate">{item.label}</span>
             {item.href === "/pos" && pendingOrdersCount > 0 && (
-              <span className="shrink-0 min-w-4.5 h-4.5 px-1 rounded-full bg-[#e8570e] text-white text-[10px] font-semibold flex items-center justify-center">
+              <span className="shrink-0 min-w-4.5 h-4.5 px-1 rounded-full bg-coral text-white text-[10px] font-semibold flex items-center justify-center">
                 {pendingOrdersCount > 99 ? "99+" : pendingOrdersCount}
               </span>
             )}
@@ -221,8 +222,25 @@ function SidebarNavItem({
 
 export function Sidebar() {
   const pathname = usePathname();
-  const [open, setOpen] = useState(true);
+  const open = useSidebarStore((s) => s.open);
+  const toggleOpen = useSidebarStore((s) => s.toggleOpen);
+  const close = useSidebarStore((s) => s.close);
   const [profileOpen, setProfileOpen] = useState(false);
+
+  // Auto-close the mobile/tablet overlay on navigation. Desktop uses the
+  // same `open` flag to control push-sidebar width, so this must only
+  // fire below the lg breakpoint (1024px) — otherwise every nav click
+  // would also collapse the desktop sidebar.
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      close();
+    }
+  }, [pathname, close]);
 
   const router = useRouter();
   const currentStaff = useAuthStore((s) => s.currentStaff);
@@ -260,16 +278,24 @@ export function Sidebar() {
   }
 
   return (
-    <aside
-      className={cn(
-        "relative z-40 flex flex-col h-screen bg-white border-r border-[#ebe9e4] transition-all duration-300 ease-in-out shrink-0 overflow-hidden",
-        open ? "w-56" : "w-14"
+    <>
+      {open && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          onClick={close}
+          aria-hidden="true"
+        />
       )}
-    >
-      <div className="h-14 flex items-center shrink-0 border-b border-[#ebe9e4]">
+      <aside
+        className={cn(
+          "flex flex-col h-screen bg-[#5B21B6] transition-all duration-300 ease-in-out shrink-0 overflow-hidden z-40",
+          open ? "fixed inset-y-0 left-0 lg:relative w-56" : "relative w-14"
+        )}
+      >
+      <div className="h-14 flex items-center shrink-0 border-b border-white/10">
         <button
-          onClick={() => setOpen(!open)}
-          className="w-14 h-14 flex items-center justify-center shrink-0 text-[#4a4744] hover:text-[#e8570e] transition-colors"
+          onClick={toggleOpen}
+          className="w-14 h-14 flex items-center justify-center shrink-0 text-[#c8b6ec] hover:text-white transition-colors"
           aria-label="Toggle sidebar"
         >
           {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -281,10 +307,10 @@ export function Sidebar() {
             open ? "opacity-100 w-auto pr-4" : "opacity-0 w-0"
           )}
         >
-          <div className="w-6 h-6 rounded-md bg-[#e8570e] flex items-center justify-center shrink-0">
-            <Flame className="w-3.5 h-3.5 text-white" />
+          <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center shrink-0">
+            <Flame className="w-3.5 h-3.5 text-[#5B21B6]" />
           </div>
-          <span className="text-[#1a1814] font-semibold text-sm tracking-tight whitespace-nowrap">
+          <span className="text-white font-heading text-sm tracking-tight whitespace-nowrap">
             Restaurant OS
           </span>
         </div>
@@ -294,7 +320,7 @@ export function Sidebar() {
         {visibleGroups.map((group) => (
           <div key={group.label}>
             {open && (
-              <p className="px-4 mb-1 text-[10px] font-semibold uppercase tracking-widest text-[#b0ada8]">
+              <p className="px-4 mb-1 text-[10px] font-semibold uppercase tracking-widest text-[#9776cf]">
                 {group.label}
               </p>
             )}
@@ -313,35 +339,35 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="border-t border-[#ebe9e4] p-2 shrink-0 space-y-1">
+      <div className="border-t border-white/10 p-2 shrink-0 space-y-1">
         <NotificationBell sidebarOpen={open} />
         <div
           className={cn(
-            "flex items-center gap-2.5 px-2 py-2 rounded-lg",
+            "flex items-center gap-2.5 px-2 py-2 rounded-full",
             !open && "justify-center px-0"
           )}
         >
           <button
             onClick={() => setProfileOpen(true)}
             className={cn(
-              "flex items-center gap-2.5 min-w-0 rounded-lg hover:bg-[#f4f3f0] transition-colors",
+              "flex items-center gap-2.5 min-w-0 rounded-full hover:bg-white/8 transition-colors",
               open ? "flex-1 text-left" : ""
             )}
           >
-            <div className="w-7 h-7 rounded-full bg-[#fef3ed] border border-[#fde0cc] flex items-center justify-center shrink-0">
-              <span className="text-[#e8570e] text-[11px] font-bold">
+            <div className="w-7 h-7 rounded-full bg-coral flex items-center justify-center shrink-0">
+              <span className="text-white text-[11px] font-bold">
                 {currentStaff?.firstName?.[0]}
                 {currentStaff?.lastName?.[0]}
               </span>
             </div>
             {open && (
               <div className="flex-1 min-w-0">
-                <p className="text-[#1a1814] text-xs font-medium truncate">
+                <p className="text-white text-xs font-medium truncate">
                   {currentStaff
                     ? `${currentStaff.firstName} ${currentStaff.lastName}`
                     : ""}
                 </p>
-                <p className="text-[#b0ada8] text-[10px] capitalize truncate">
+                <p className="text-[#b79ee8] text-[10px] capitalize truncate">
                   {currentStaff?.role}
                 </p>
               </div>
@@ -351,7 +377,7 @@ export function Sidebar() {
             <button
               onClick={handleLogout}
               title="Sign out"
-              className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-[#8a8680] hover:text-[#e8570e] hover:bg-[#fef3ed] transition-colors"
+              className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-[#c8b6ec] hover:text-white hover:bg-white/8 transition-colors"
             >
               <LogOut className="w-3.5 h-3.5" />
             </button>
@@ -359,7 +385,8 @@ export function Sidebar() {
         </div>
       </div>
 
-      <ProfileModal open={profileOpen} onOpenChange={setProfileOpen} />
-    </aside>
+        <ProfileModal open={profileOpen} onOpenChange={setProfileOpen} />
+      </aside>
+    </>
   );
 }

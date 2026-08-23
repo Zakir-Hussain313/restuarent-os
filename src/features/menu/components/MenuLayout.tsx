@@ -120,7 +120,7 @@ export function MenuLayout() {
           items={items}
         />
 
-        <div className="flex flex-1 min-h-0">
+        <div className="flex flex-col lg:flex-row flex-1 min-h-0">
           <CategorySidebar
             categories={categories}
             items={items}

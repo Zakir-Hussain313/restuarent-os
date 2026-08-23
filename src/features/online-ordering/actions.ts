@@ -21,7 +21,7 @@ import { publicOrderRateLimit } from "@/lib/rate-limit";
 import { headers } from "next/headers";
 
 const ONLINE_ORDER_ACTOR = (tenantId: string, branchId: string) => ({
-  id: "system:online-ordering",
+  id: null, // no real staff row — actorId column is uuid, must be null not a placeholder string
   tenantId,
   branchId,
   firstName: "Online",

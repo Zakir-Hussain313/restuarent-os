@@ -34,7 +34,11 @@ export function DashboardBranchFilter({ branches }: DashboardBranchFilterProps) 
   return (
     <Select value={currentBranch} onValueChange={handleChange}>
       <SelectTrigger className="sm:w-56">
-        <SelectValue placeholder="All branches" />
+        <SelectValue placeholder="All branches">
+          {(value: string) =>
+            value === "all" ? "All branches" : branches.find((b) => b.id === value)?.name ?? "All branches"
+          }
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="all">All branches</SelectItem>

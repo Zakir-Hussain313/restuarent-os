@@ -15,8 +15,8 @@ interface SummaryRowProps {
 function SummaryRow({ label, value, muted, negative }: SummaryRowProps) {
   return (
     <div className="flex items-center justify-between text-sm">
-      <span className={muted ? "text-[#8a8680]" : "text-[#4a4744]"}>{label}</span>
-      <span className={negative ? "text-green-600" : muted ? "text-[#8a8680]" : "text-[#1a1815]"}>
+      <span className={muted ? "text-muted-foreground" : "text-foreground/80"}>{label}</span>
+      <span className={negative ? "text-green-600" : muted ? "text-muted-foreground" : "text-foreground"}>
         {value}
       </span>
     </div>
@@ -31,7 +31,7 @@ export function OrderSummary() {
   if (totals.uniqueItemCount === 0) return null;
 
   return (
-    <div className="space-y-2 pt-3 border-t border-[#ebe9e4]">
+    <div className="space-y-2 pt-3 border-t border-border">
       <SummaryRow
         label="Subtotal"
         value={formatCurrency(totals.subtotal)}
@@ -47,9 +47,9 @@ export function OrderSummary() {
       )}
 
       {/* Grand total */}
-      <div className="flex items-center justify-between pt-2 border-t border-[#ebe9e4]">
-        <span className="text-sm font-bold text-[#1a1815]">Total</span>
-        <span className="text-lg font-bold text-[#e8570e] tabular-nums">
+      <div className="flex items-center justify-between pt-2 border-t border-border">
+        <span className="text-sm font-bold text-foreground">Total</span>
+                <span className="text-lg font-bold text-primary tabular-nums">
           {formatCurrency(totals.grandTotal)}
         </span>
       </div>

@@ -19,11 +19,11 @@ export function OrderCard({ order, isSelected, onClick }: OrderCardProps) {
       className={cn(
         "w-full text-left px-4 py-3.5 border-b last:border-0 transition-colors",
         "hover:bg-muted/50 focus:outline-none focus-visible:bg-muted/50",
-        isSelected && "bg-muted/70 border-l-2 border-l-primary"
+        isSelected && "bg-primary-light border-l-4 border-l-primary"
       )}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
-        <span className="text-sm font-semibold text-foreground leading-none">
+        <span className={cn("text-sm font-semibold leading-none", isSelected ? "text-primary" : "text-foreground")}>
           #{order.orderNumber}
         </span>
         <OrderStatusBadge status={order.status} />

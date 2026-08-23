@@ -1,11 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { useForm, useWatch, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { DatePicker, toDateKey, fromDateKey } from "@/components/ui/date-picker";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { Coupon } from "@/db/schema/orders";
 import type { CreateCouponInput, UpdateCouponInput } from "@/features/coupons/hooks/useCouponActions";
 import { useMenu } from "@/features/menu/hooks/useMenu";
@@ -43,7 +53,12 @@ interface CouponFormModalProps {
   onClose: () => void;
 }
 
-const inputClass = "w-full h-9 px-3 text-sm border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground";
+const checkboxClass = "w-4 h-4 rounded border-input cursor-pointer";
+const checkboxStyle = { accentColor: "var(--primary)" } as const;
+const optionRowClass =
+  "flex items-center gap-2 text-sm cursor-pointer rounded-lg px-2 py-1.5 transition-colors hover:bg-primary-light hover:text-primary";
+const groupBoxClass =
+  "space-y-1 rounded-xl border border-input bg-background p-2";
 
 // ─── Component ────────────────────────────────────────────────────────────
 
@@ -57,18 +72,11 @@ export function CouponFormModal({
   onClose,
 }: CouponFormModalProps) {
   const isEdit = !!entity;
-  // Structural fields (discountType, maxUses, branch/dish scope) are only
-  // safely editable before the coupon has ever been used — see
-  // updateCouponAction for the matching server-side guard.
   const structuralFieldsLocked = false;
 
-  // Branch selection — kept outside RHF since the checkbox list is dynamic.
-  // Create-only; branch scope is fixed at creation and never edited later.
   const [applyToAllBranches, setApplyToAllBranches] = useState(entity ? entity.branchIds === null : true);
   const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>(entity?.branchIds ?? []);
 
-  // Dish scope — create-only, same reasoning as branch scope: fixed at
-  // creation, never edited later (structural field, see updateCouponAction).
   const [applyToAllDishes, setApplyToAllDishes] = useState(entity ? entity.menuItemIds === null : true);
   const [selectedMenuItemIds, setSelectedMenuItemIds] = useState<string[]>(entity?.menuItemIds ?? []);
   const { categories, itemsByCategory, isLoading: isMenuLoading } = useMenu();
@@ -104,6 +112,7 @@ export function CouponFormModal({
   });
 
   const discountType = useWatch({ control, name: "discountType" });
+  const validFromValue = useWatch({ control, name: "validFrom" });
 
   if (!isOpen) return null;
 
@@ -154,246 +163,275 @@ export function CouponFormModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
-      <div className="relative z-10 w-full max-w-md bg-background rounded-2xl shadow-xl border p-6 mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-base font-semibold text-red-600">
+      <div className="relative z-10 w-full max-w-md bg-card rounded-2xl shadow-xl border border-border mx-4 max-h-[90vh] flex flex-col">
+        <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-border">
+          <h2 className="text-base font-semibold text-foreground">
             {isEdit ? "Edit Coupon" : "Add Coupon"}
           </h2>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit(submit)} className="space-y-4">
-          {/* Name */}
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-              Name <span className="text-destructive">*</span>
-            </label>
-            <input
-              {...register("name")}
-              placeholder="e.g. Weekend Special"
-              className={cn(inputClass, errors.name && "border-destructive focus:ring-destructive/30")}
-            />
-            {errors.name && <p className="text-xs text-destructive mt-1">{errors.name.message}</p>}
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-              Description
-            </label>
-            <input
-              {...register("description")}
-              placeholder="Shown to staff in the POS picker"
-              className={inputClass}
-            />
-          </div>
-
-          {/* Discount type + value */}
-          <div className="grid grid-cols-2 gap-3">
+        <form onSubmit={handleSubmit(submit)} className="flex flex-col min-h-0">
+          <div className="overflow-y-auto themed-scrollbar px-6 py-5 space-y-4">
+            {/* Name */}
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                Discount Type <span className="text-destructive">*</span>
+                Name <span className="text-destructive">*</span>
+              </label>
+              <Input
+                {...register("name")}
+                placeholder="e.g. Weekend Special"
+                className={cn(errors.name && "border-destructive focus:ring-destructive/30")}
+              />
+              {errors.name && <p className="text-xs text-destructive mt-1">{errors.name.message}</p>}
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                Description
+              </label>
+              <Input
+                {...register("description")}
+                placeholder="Shown to staff in the POS picker"
+              />
+            </div>
+
+            {/* Discount type + value */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                  Discount Type <span className="text-destructive">*</span>
+                </label>
+                {structuralFieldsLocked ? (
+                  <p className="h-9 flex items-center text-sm text-muted-foreground">
+                    {entity!.discountType === "percentage" ? "Percentage" : "Fixed Amount"}
+                  </p>
+                ) : (
+                  <Controller
+                    control={control}
+                    name="discountType"
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={(v) => v && field.onChange(v)}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select type">
+                            {(value: string) => (value === "percentage" ? "Percentage" : "Fixed Amount")}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="percentage">Percentage</SelectItem>
+                          <SelectItem value="fixed">Fixed Amount</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                )}
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                  Value {discountType === "percentage" ? "(%)" : ""} <span className="text-destructive">*</span>
+                </label>
+                <Input
+                  type="number"
+                  step="1"
+                  {...register("discountValue")}
+                  className={cn(errors.discountValue && "border-destructive focus:ring-destructive/30")}
+                />
+                {errors.discountValue && (
+                  <p className="text-xs text-destructive mt-1">{errors.discountValue.message}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Max uses */}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                Max Uses
               </label>
               {structuralFieldsLocked ? (
                 <p className="h-9 flex items-center text-sm text-muted-foreground">
-                  {entity!.discountType === "percentage" ? "Percentage" : "Fixed Amount"}
+                  {entity!.maxUses ?? "Unlimited"}
                 </p>
               ) : (
-                <select {...register("discountType")} className={inputClass}>
-                  <option value="percentage">Percentage</option>
-                  <option value="fixed">Fixed Amount</option>
-                </select>
+                <Input
+                  type="number"
+                  step="1"
+                  placeholder="Leave empty for unlimited"
+                  {...register("maxUses")}
+                />
               )}
             </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                Value {discountType === "percentage" ? "(%)" : ""} <span className="text-destructive">*</span>
-              </label>
-              <input
-                type="number"
-                step="1"
-                {...register("discountValue")}
-                className={cn(inputClass, errors.discountValue && "border-destructive focus:ring-destructive/30")}
-              />
-              {errors.discountValue && (
-                <p className="text-xs text-destructive mt-1">{errors.discountValue.message}</p>
-              )}
-            </div>
-          </div>
 
-          {/* Max uses — create only, structural/locked after creation */}
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-              Max Uses
-            </label>
-            {structuralFieldsLocked ? (
-              <p className="h-9 flex items-center text-sm text-muted-foreground">
-                {entity!.maxUses ?? "Unlimited"}
-              </p>
-            ) : (
-              <input
-                type="number"
-                step="1"
-                placeholder="Leave empty for unlimited"
-                {...register("maxUses")}
-                className={inputClass}
-              />
-            )}
-          </div>
-
-          {/* Valid from / to */}
-          <div className="grid grid-cols-2 gap-3">
+            {/* Valid from / to */}
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
                 Valid From
               </label>
-              <input type="date" {...register("validFrom")} className={inputClass} />
+              <Controller
+                control={control}
+                name="validFrom"
+                render={({ field }) => (
+                  <DatePicker
+                    value={field.value ? fromDateKey(field.value) : null}
+                    onChange={(date) => field.onChange(date ? toDateKey(date) : "")}
+                    min={new Date()}
+                  />
+                )}
+              />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
                 Valid To
               </label>
-              <input type="date" {...register("validTo")} className={inputClass} />
+              <Controller
+                control={control}
+                name="validTo"
+                render={({ field }) => (
+                  <DatePicker
+                    value={field.value ? fromDateKey(field.value) : null}
+                    onChange={(date) => field.onChange(date ? toDateKey(date) : "")}
+                    min={validFromValue ? fromDateKey(validFromValue) : new Date()}
+                  />
+                )}
+              />
             </div>
+
+            {/* Branch scope */}
+            {!structuralFieldsLocked && isSuperAdmin && branches && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                  Branches
+                </label>
+                <div className={groupBoxClass}>
+                  <label className={optionRowClass}>
+                    <input
+                      type="checkbox"
+                      checked={applyToAllBranches}
+                      onChange={(e) => setApplyToAllBranches(e.target.checked)}
+                      className={checkboxClass}
+                      style={checkboxStyle}
+                    />
+                    All branches
+                  </label>
+                  {!applyToAllBranches && (
+                    <div className="pl-3 space-y-1 pt-1 border-t border-border">
+                      {branches.map((b) => (
+                        <label key={b.id} className={optionRowClass}>
+                          <input
+                            type="checkbox"
+                            checked={selectedBranchIds.includes(b.id)}
+                            onChange={() => toggleBranch(b.id)}
+                            className={checkboxClass}
+                            style={checkboxStyle}
+                          />
+                          {b.name}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            {structuralFieldsLocked && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                  Branches
+                </label>
+                <p className="text-sm text-muted-foreground">
+                  {entity!.branchIds === null
+                    ? "All branches"
+                    : `${entity!.branchIds.length} branch${entity!.branchIds.length === 1 ? "" : "es"}`}
+                </p>
+              </div>
+            )}
+
+            {/* Dish scope */}
+            {!structuralFieldsLocked && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                  Applies To
+                </label>
+                <div className={groupBoxClass}>
+                  <label className={optionRowClass}>
+                    <input
+                      type="checkbox"
+                      checked={applyToAllDishes}
+                      onChange={(e) => setApplyToAllDishes(e.target.checked)}
+                      className={checkboxClass}
+                      style={checkboxStyle}
+                    />
+                    Whole order (all dishes)
+                  </label>
+                  {!applyToAllDishes && (
+                    <div className="pl-3 space-y-2 pt-1 border-t border-border max-h-48 overflow-y-auto themed-scrollbar">
+                      {isMenuLoading && (
+                        <p className="text-xs text-muted-foreground px-2">Loading menu...</p>
+                      )}
+                      {categories.map((cat) => {
+                        const catItems = itemsByCategory(cat.id);
+                        if (catItems.length === 0) return null;
+                        return (
+                          <div key={cat.id}>
+                            <p className="text-xs font-medium text-muted-foreground mb-1 px-2">{cat.name}</p>
+                            <div className="space-y-0.5">
+                              {catItems.map((item) => (
+                                <label key={item.id} className={optionRowClass}>
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedMenuItemIds.includes(item.id)}
+                                    onChange={() => toggleMenuItem(item.id)}
+                                    className={checkboxClass}
+                                    style={checkboxStyle}
+                                  />
+                                  {item.name}
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            {structuralFieldsLocked && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                  Applies To
+                </label>
+                <p className="text-sm text-muted-foreground">
+                  {entity!.menuItemIds === null
+                    ? "Whole order"
+                    : `${entity!.menuItemIds.length} dish${entity!.menuItemIds.length === 1 ? "" : "es"}`}
+                </p>
+              </div>
+            )}
+
+            {/* Active toggle */}
+            {isEdit && (
+              <label className={optionRowClass}>
+                <input type="checkbox" {...register("isActive")} className={checkboxClass} style={checkboxStyle} />
+                Active
+              </label>
+            )}
           </div>
 
-          {/* Branch scope — editable only while structural fields are
-              unlocked (never used yet), SUPER_ADMIN only */}
-          {!structuralFieldsLocked && isSuperAdmin && branches && (
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                Branches
-              </label>
-              <div className="space-y-2 border rounded-lg p-3">
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={applyToAllBranches}
-                    onChange={(e) => setApplyToAllBranches(e.target.checked)}
-                  />
-                  All branches
-                </label>
-                {!applyToAllBranches && (
-                  <div className="pl-5 space-y-1.5 pt-1 border-t">
-                    {branches.map((b) => (
-                      <label key={b.id} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={selectedBranchIds.includes(b.id)}
-                          onChange={() => toggleBranch(b.id)}
-                        />
-                        {b.name}
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-          {structuralFieldsLocked && (
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                Branches
-              </label>
-              <p className="text-sm text-muted-foreground">
-                {entity!.branchIds === null
-                  ? "All branches"
-                  : `${entity!.branchIds.length} branch${entity!.branchIds.length === 1 ? "" : "es"}`}
-              </p>
-            </div>
-          )}
-
-          {/* Dish scope — editable only while structural fields are
-              unlocked, same pattern as branch scope above */}
-          {!structuralFieldsLocked && (
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                Applies To
-              </label>
-              <div className="space-y-2 border rounded-lg p-3">
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={applyToAllDishes}
-                    onChange={(e) => setApplyToAllDishes(e.target.checked)}
-                  />
-                  Whole order (all dishes)
-                </label>
-                {!applyToAllDishes && (
-                  <div className="pl-5 space-y-3 pt-1 border-t max-h-48 overflow-y-auto">
-                    {isMenuLoading && (
-                      <p className="text-xs text-muted-foreground">Loading menu...</p>
-                    )}
-                    {categories.map((cat) => {
-                      const catItems = itemsByCategory(cat.id);
-                      if (catItems.length === 0) return null;
-                      return (
-                        <div key={cat.id}>
-                          <p className="text-xs font-medium text-muted-foreground mb-1">{cat.name}</p>
-                          <div className="space-y-1.5">
-                            {catItems.map((item) => (
-                              <label key={item.id} className="flex items-center gap-2 text-sm">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedMenuItemIds.includes(item.id)}
-                                  onChange={() => toggleMenuItem(item.id)}
-                                />
-                                {item.name}
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-          {structuralFieldsLocked && (
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                Applies To
-              </label>
-              <p className="text-sm text-muted-foreground">
-                {entity!.menuItemIds === null
-                  ? "Whole order"
-                  : `${entity!.menuItemIds.length} dish${entity!.menuItemIds.length === 1 ? "" : "es"}`}
-              </p>
-            </div>
-          )}
-
-          {/* Active toggle — edit only */}
-          {isEdit && (
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" {...register("isActive")} />
-              Active
-            </label>
-          )}
-
-          <div className="flex items-center justify-end gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium rounded-lg border hover:bg-muted transition-colors"
-            >
+          <div className="shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-border">
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-2"
-            >
+            </Button>
+            <Button type="submit" disabled={isLoading}>
               {isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               {isEdit ? "Save Changes" : "Add Coupon"}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

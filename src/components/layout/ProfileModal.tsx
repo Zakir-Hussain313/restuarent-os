@@ -30,7 +30,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 const STATUS_STYLES: Record<string, string> = {
     active: "bg-emerald-50 text-emerald-700",
-    inactive: "bg-[#f4f3f0] text-[#8a8680]",
+    inactive: "bg-secondary text-muted-foreground",
     on_leave: "bg-amber-50 text-amber-700",
 };
 
@@ -167,6 +167,7 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
             }
 
             setSuccess(true);
+            window.setTimeout(() => onOpenChange(false), 700);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
         } finally {
@@ -176,7 +177,8 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col p-0">
+                <div className="overflow-y-auto overflow-x-hidden themed-scrollbar px-5 pt-5 pb-2">
                 <DialogHeader>
                     <DialogTitle>My Profile</DialogTitle>
                 </DialogHeader>
@@ -194,7 +196,7 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
                 )}
 
                 <div className="flex flex-col items-center gap-3 pt-2 pb-2">
-                    <div className="h-24 w-24 rounded-full overflow-hidden bg-[#fef3ed] border border-[#fde0cc] flex items-center justify-center shrink-0">
+                    <div className="h-24 w-24 rounded-full overflow-hidden bg-primary-light border border-primary/20 flex items-center justify-center shrink-0">
                         {previewUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
@@ -203,7 +205,7 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
                                 className="h-full w-full object-cover"
                             />
                         ) : (
-                            <span className="text-[#e8570e] text-2xl font-bold">{initials}</span>
+                            <span className="text-primary text-2xl font-bold">{initials}</span>
                         )}
                     </div>
 
@@ -239,22 +241,22 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
                     />
 
                     <div className="flex flex-wrap justify-center gap-1.5 pt-1">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-[#fef3ed] text-[#e8570e]">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary-light text-primary">
                             {ROLE_LABELS[currentStaff.role] ?? currentStaff.role}
                         </span>
                         <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${STATUS_STYLES[currentStaff.status] ?? ""
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[currentStaff.status] ?? ""
                                 }`}
                         >
                             {currentStaff.status?.replace("_", " ")}
                         </span>
                         {branchName && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-[#f4f3f0] text-[#4a4744]">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-secondary text-foreground">
                                 {branchName}
                             </span>
                         )}
                     </div>
-                    <p className="text-[11px] text-[#b0ada8]">
+                    <p className="text-[11px] text-muted-foreground">
                         Role, status, and branch are managed by an administrator.
                     </p>
                 </div>
@@ -301,10 +303,12 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
                     />
                 </div>
 
-                <DialogFooter>
+                </div>
+
+                <DialogFooter className="mx-5 mb-5 rounded-xl">
                     <Button
                         type="button"
-                        className="w-full bg-[#e8570e] hover:bg-[#d44f0c] text-white"
+                        className="w-full"
                         disabled={isLoading}
                         onClick={handleSave}
                     >

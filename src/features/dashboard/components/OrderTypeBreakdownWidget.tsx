@@ -17,7 +17,7 @@ interface OrderTypeConfig {
 }
 
 const ORDER_TYPE_CONFIG: Record<string, OrderTypeConfig> = {
-  "Dine-in": { label: "Dine-in", icon: UtensilsCrossed, barColor: "#e8570e", iconBg: "bg-orange-50", iconColor: "text-[#e8570e]", svgColor: "#e8570e" },
+  "Dine-in": { label: "Dine-in", icon: UtensilsCrossed, barColor: "#5B21B6", iconBg: "bg-primary-light", iconColor: "text-primary", svgColor: "#5B21B6" },
   "Takeaway": { label: "Takeaway", icon: ShoppingBag, barColor: "#3b82f6", iconBg: "bg-blue-50", iconColor: "text-blue-500", svgColor: "#3b82f6" },
   "Delivery": { label: "Delivery", icon: Bike, barColor: "#10b981", iconBg: "bg-emerald-50", iconColor: "text-emerald-500", svgColor: "#10b981" },
 };
@@ -66,14 +66,14 @@ export function OrderTypeBreakdownWidget() {
   const donutSlices = useMemo(() => (breakdown ? buildDonutSlices(breakdown) : []), [breakdown]);
 
   return (
-    <div className="bg-white rounded-xl border border-[#ebe9e4] flex flex-col">
+    <div className="bg-card rounded-2xl border border-border flex flex-col">
       {/* Header */}
-      <div className="flex items-center gap-2 px-5 py-4 border-b border-[#ebe9e4]">
-        <div className="w-7 h-7 rounded-lg bg-[#faf3ee] flex items-center justify-center">
-          <LayoutGrid className="w-3.5 h-3.5 text-[#e8570e]" />
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
+        <div className="w-7 h-7 rounded-full bg-primary-light flex items-center justify-center">
+          <LayoutGrid className="w-3.5 h-3.5 text-primary" />
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-[#1a1815]">Order Types</h3>
+          <h3 className="text-sm font-semibold text-foreground">Order Types</h3>
         </div>
       </div>
 
@@ -82,47 +82,47 @@ export function OrderTypeBreakdownWidget() {
       ) : (
         <>
           {/* Donut + totals */}
-          <div className="flex items-center gap-4 px-5 py-4 border-b border-[#f4f2ef]">
+          <div className="flex items-center gap-4 px-5 py-4 border-b border-border">
             <DonutChart slices={donutSlices} />
             <div className="flex flex-col gap-0.5">
               <span className="flex items-center gap-2">
-                <span className="text-2xl font-bold text-[#1a1815] leading-none">{totalOrders.toLocaleString()}</span> - 
-                <span className="text-xs text-[#8a8680]">Total orders</span>
+                <span className="text-2xl font-heading font-bold text-foreground leading-none">{totalOrders.toLocaleString()}</span> - 
+                <span className="text-xs text-muted-foreground">Total orders</span>
               </span>
               <span className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-[#e8570e]">{formatCurrency(totalRevenue)}</span> -
-                <span className="text-xs text-[#8a8680]">Total revenue</span>
+                <span className="text-sm font-semibold text-primary">{formatCurrency(totalRevenue)}</span> -
+                <span className="text-xs text-muted-foreground">Total revenue</span>
               </span>
             </div>
           </div>
 
           {/* Type rows */}
-          <div className="flex flex-col divide-y divide-[#f4f2ef]">
+          <div className="flex flex-col divide-y divide-border">
             {breakdown?.map((item: OrderTypeBreakdown) => {
               const config = ORDER_TYPE_CONFIG[item.orderType];
               if (!config) return null;
               const Icon = config.icon;
               return (
-                <div key={item.orderType} className="px-5 py-2.5 hover:bg-[#faf9f7] transition-colors">
+                <div key={item.orderType} className="px-5 py-2.5 hover:bg-muted transition-colors">
                   <div className="flex items-center gap-3 ">
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${config.iconBg}`}>
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${config.iconBg}`}>
                       <Icon className={`w-3.5 h-3.5 ${config.iconColor}`} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-medium text-[#1a1815]">{config.label}</span>
-                        <span className="text-xs font-semibold text-[#1a1815] shrink-0">{item.count} orders</span>
+                        <span className="text-sm font-medium text-foreground">{config.label}</span>
+                        <span className="text-xs font-semibold text-foreground shrink-0">{item.count} orders</span>
                       </div>
                       <div className="flex items-center gap-2 ">
-                        <div className="flex-1 h-1.5 bg-[#f0ede8] rounded-full overflow-hidden">
+                        <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                           <div className="h-full rounded-full transition-all duration-500" style={{ width: `${item.percentage}%`, backgroundColor: config.barColor }} />
                         </div>
-                        <span className="text-xs text-[#8a8680] shrink-0 w-9 text-right">{item.percentage}%</span>
+                        <span className="text-xs text-muted-foreground shrink-0 w-9 text-right">{item.percentage}%</span>
                       </div>
                     </div>
                   </div>
                   <div className="pl-10">
-                    <span className="text-xs text-[#8a8680]">{formatCurrency(item.revenue)} revenue</span>
+                    <span className="text-xs text-muted-foreground">{formatCurrency(item.revenue)} revenue</span>
                   </div>
                 </div>
               );

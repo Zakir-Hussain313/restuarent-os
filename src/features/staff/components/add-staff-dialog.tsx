@@ -249,12 +249,12 @@ export function StaffDialog({ branches, staff: editTarget }: StaffDialogProps) {
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0 text-[#8a8680] hover:text-[#1a1814]"
+              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
             >
               <Pencil className="w-3.5 h-3.5" />
             </Button>
           ) : (
-            <Button className="bg-[#e8570e] hover:bg-[#d44f0c] text-white">
+            <Button>
               <Plus className="w-4 h-4 mr-1.5" />
               Add Staff
             </Button>
@@ -262,8 +262,9 @@ export function StaffDialog({ branches, staff: editTarget }: StaffDialogProps) {
         }
       />
 
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col p-0">
+        <form onSubmit={handleSubmit} className="flex flex-col min-h-0">
+        <DialogHeader className="px-5 pt-5">
           <DialogTitle>
             {isEditMode
               ? `Edit ${editTarget.firstName} ${editTarget.lastName}`
@@ -276,7 +277,7 @@ export function StaffDialog({ branches, staff: editTarget }: StaffDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="overflow-y-auto overflow-x-hidden themed-scrollbar rounded-b-2xl px-5 pt-2 pb-2 space-y-4">
           {error && (
             <div className="rounded-md bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
               {error}
@@ -293,7 +294,7 @@ export function StaffDialog({ branches, staff: editTarget }: StaffDialogProps) {
           <div className="space-y-2">
             <Label>Photo (optional)</Label>
             <div className="flex items-center gap-3">
-              <div className="h-16 w-16 rounded-full overflow-hidden bg-[#f4f3f0] border border-[#ebe9e4] flex items-center justify-center shrink-0">
+              <div className="h-16 w-16 rounded-full overflow-hidden bg-primary-light border border-primary/20 flex items-center justify-center shrink-0">
                 {previewUrl ? (
                   // Local blob preview or existing remote URL — plain img is
                   // correct here, next/image doesn't support blob: URLs.
@@ -304,7 +305,7 @@ export function StaffDialog({ branches, staff: editTarget }: StaffDialogProps) {
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <span className="text-lg font-medium text-[#8a8680]">
+                  <span className="text-lg font-medium text-primary">
                     {form.firstName?.[0]?.toUpperCase() ?? "?"}
                   </span>
                 )}
@@ -416,7 +417,11 @@ export function StaffDialog({ branches, staff: editTarget }: StaffDialogProps) {
                 disabled={isLoading}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select branch" />
+                  <SelectValue placeholder="Select branch">
+                    {(value: string) =>
+                      branches.find((b) => b.id === value)?.name ?? "Select branch"
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {branches.map((b) => (
@@ -469,7 +474,9 @@ export function StaffDialog({ branches, staff: editTarget }: StaffDialogProps) {
             </div>
           )}
 
-          <DialogFooter className="flex-col gap-2 sm:flex-col">
+          </div>
+
+          <DialogFooter className="flex-col gap-2 sm:flex-col mx-5 mb-5 rounded-xl">
             {isEditMode && (
               <Button
                 type="button"
@@ -483,7 +490,7 @@ export function StaffDialog({ branches, staff: editTarget }: StaffDialogProps) {
             )}
             <Button
               type="submit"
-              className="w-full bg-[#e8570e] hover:bg-[#d44f0c] text-white"
+              className="w-full"
               disabled={isLoading || isSendingReset}
             >
               {isLoading

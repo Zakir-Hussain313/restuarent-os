@@ -20,7 +20,7 @@ function CategorySkeleton() {
       {Array.from({ length: 7 }).map((_, i) => (
         <div
           key={i}
-          className="h-10 rounded-lg bg-[#ebe9e4] animate-pulse"
+          className="h-10 rounded-lg bg-secondary animate-pulse"
           style={{ opacity: 1 - i * 0.1 }}
         />
       ))}
@@ -46,10 +46,10 @@ export function CategorySidebar({
         onClick={() => onSelect(null)}
         className={cn(
           "w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8570e]",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
           selectedCategoryId === null
-            ? "bg-[#e8570e] text-white shadow-sm"
-            : "text-[#4a4744] hover:bg-[#f9f8f6] hover:text-[#1a1815]"
+            ? "bg-primary text-primary-foreground shadow-sm"
+            : "text-foreground/80 hover:bg-secondary hover:text-foreground"
         )}
       >
         All Items
@@ -63,10 +63,10 @@ export function CategorySidebar({
           onClick={() => onSelect(category.id)}
           className={cn(
             "w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8570e]",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
             selectedCategoryId === category.id
-              ? "bg-[#e8570e] text-white shadow-sm"
-              : "text-[#4a4744] hover:bg-[#f9f8f6] hover:text-[#1a1815]"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-foreground/80 hover:bg-secondary hover:text-foreground"
           )}
         >
           <span className="flex items-center gap-2.5">

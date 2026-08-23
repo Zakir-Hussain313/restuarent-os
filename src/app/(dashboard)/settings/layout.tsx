@@ -16,8 +16,8 @@ export default async function SettingsLayout({
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-[#1a1814]">Settings</h1>
-        <p className="text-sm text-[#8a8680] mt-1">
+        <h1 className="text-2xl font-semibold text-foreground">Settings</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           Manage branch configuration and preferences
         </p>
       </div>

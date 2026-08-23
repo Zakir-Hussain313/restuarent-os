@@ -1,6 +1,8 @@
 "use client";
 
 import { usePosStore } from "@/store/usePosStore";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { RiderSelector } from "./RiderSelector";
 
 interface DeliveryDetailsFormProps {
@@ -22,12 +24,12 @@ export function DeliveryDetailsForm({ branchId }: DeliveryDetailsFormProps) {
         <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           Customer Phone <span className="text-red-500">*</span>
         </label>
-        <input
+        <Input
           type="tel"
           placeholder="03XX-XXXXXXX"
           value={customerPhone ?? ""}
           onChange={(e) => setCustomerPhone(e.target.value)}
-          className="w-full px-3 py-1.5 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+          className="h-auto px-3 py-2.5 min-[760px]:py-1.5 text-base min-[760px]:text-sm"
         />
       </div>
 
@@ -35,12 +37,12 @@ export function DeliveryDetailsForm({ branchId }: DeliveryDetailsFormProps) {
         <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           Delivery Address <span className="text-red-500">*</span>
         </label>
-        <textarea
+        <Textarea
           placeholder="House #, street, area, city..."
           value={deliveryAddress ?? ""}
           onChange={(e) => setDeliveryAddress(e.target.value)}
           rows={2}
-          className="w-full px-3 py-1.5 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+          className="px-3 py-2.5 min-[760px]:py-1.5 text-base min-[760px]:text-sm resize-none"
         />
       </div>
       {branchId && <RiderSelector branchId={branchId} />}

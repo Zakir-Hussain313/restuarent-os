@@ -6,6 +6,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import type { MenuCategory } from "@/types";
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
@@ -28,10 +30,6 @@ interface CategoryFormModalProps {
   onSubmit: (values: CategoryFormValues) => void;
   onClose: () => void;
 }
-
-// ─── Common input class ───────────────────────────────────────────────────────
-
-const inputClass = "w-full h-9 px-3 text-sm border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -75,7 +73,7 @@ export function CategoryFormModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/50"
         onClick={onClose}
       />
 
@@ -103,10 +101,10 @@ export function CategoryFormModal({
             <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
               Category Name <span className="text-destructive">*</span>
             </label>
-            <input
+            <Input
               {...register("name")}
               placeholder="e.g. BBQ & Grill"
-              className={cn(inputClass, errors.name && "border-destructive focus:ring-destructive/30")}
+              className={cn(errors.name && "border-destructive focus:ring-destructive/30")}
             />
             {errors.name && (
               <p className="text-xs text-destructive mt-1">{errors.name.message}</p>
@@ -122,7 +120,7 @@ export function CategoryFormModal({
               <input
                 {...register("icon")}
                 placeholder="🔥"
-                className={inputClass}
+                className="w-full h-9 px-3 text-sm border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground"
               />
             </div>
             <div>
@@ -133,7 +131,8 @@ export function CategoryFormModal({
                 <input
                   type="checkbox"
                   {...register("isActive")}
-                  className="w-4 h-4 accent-primary"
+                  className="w-4 h-4"
+                  style={{ accentColor: "var(--primary)" }}
                 />
               </div>
             </div>
@@ -144,11 +143,11 @@ export function CategoryFormModal({
             <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
               Description
             </label>
-            <textarea
+            <Textarea
               {...register("description")}
               placeholder="Short description of this category..."
               rows={3}
-              className={cn(inputClass, "h-auto py-2 resize-none")}
+              className="resize-none"
             />
           </div>
 

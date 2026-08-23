@@ -19,14 +19,14 @@ export function CartItem({ item }: CartItemProps) {
       {/* Item info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-1">
-          <p className="text-sm font-medium leading-tight">{item.menuItem.name}</p>
+          <p className="text-base min-[760px]:text-sm font-medium leading-tight">{item.menuItem.name}</p>
           {/* Always-visible remove button */}
           <button
             onClick={() => removeItem(item.cartItemId)}
-            className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors mt-0.5"
+            className="shrink-0 w-6 h-6 min-[760px]:w-5 min-[760px]:h-5 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors mt-0.5"
             aria-label="Remove item"
           >
-            <X className="w-3 h-3" />
+            <X className="w-3.5 h-3.5 min-[760px]:w-3 min-[760px]:h-3" />
           </button>
         </div>
 
@@ -48,23 +48,23 @@ export function CartItem({ item }: CartItemProps) {
             <button
               onClick={() => updateQuantity(item.cartItemId, item.quantity - 1)}
               className={cn(
-                "w-6 h-6 rounded-full border flex items-center justify-center transition-colors",
+                "w-8 h-8 min-[760px]:w-6 min-[760px]:h-6 rounded-full border flex items-center justify-center transition-colors",
                 "hover:border-muted-foreground hover:text-foreground"
               )}
             >
-              <Minus className="w-3 h-3" />
+              <Minus className="w-3.5 h-3.5 min-[760px]:w-3 min-[760px]:h-3" />
             </button>
-            <span className="w-5 text-center text-sm font-semibold tabular-nums">
+            <span className="w-6 min-[760px]:w-5 text-center text-base min-[760px]:text-sm font-semibold tabular-nums">
               {item.quantity}
             </span>
             <button
               onClick={() => updateQuantity(item.cartItemId, item.quantity + 1)}
-              className="w-6 h-6 rounded-full border flex items-center justify-center hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors"
+              className="w-8 h-8 min-[760px]:w-6 min-[760px]:h-6 rounded-full border flex items-center justify-center hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors"
             >
-              <Plus className="w-3 h-3" />
+              <Plus className="w-3.5 h-3.5 min-[760px]:w-3 min-[760px]:h-3" />
             </button>
           </div>
-          <span className="text-sm font-semibold">
+          <span className="text-base min-[760px]:text-sm font-semibold">
             {formatCurrency(item.itemTotal)}
           </span>
         </div>

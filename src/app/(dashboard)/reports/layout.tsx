@@ -17,7 +17,7 @@ export default async function ReportsLayout({
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-[#1a1814]">Reports</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Reports</h1>
         <p className="text-sm text-[#8a8680] mt-1">
           Sales, orders, menu, and staff performance
         </p>

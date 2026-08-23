@@ -63,7 +63,11 @@ export function StaffFilters({
         {isSuperAdmin && (
           <Select value={branchId} onValueChange={(v) => setBranchId(v ?? "all")}>
             <SelectTrigger className="sm:w-56">
-              <SelectValue placeholder="All branches" />
+              <SelectValue placeholder="All branches">
+                {(value: string) =>
+                  value === "all" ? "All branches" : branches.find((b) => b.id === value)?.name ?? "All branches"
+                }
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All branches</SelectItem>

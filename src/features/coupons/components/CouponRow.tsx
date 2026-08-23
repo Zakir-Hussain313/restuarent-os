@@ -2,6 +2,7 @@
 
 import { Pencil, Ban, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAlertModal } from "@/components/providers/AlertModalProvider";
 import { RESTAURANT_CONFIG } from "@/config/restaurant";
 import type { Coupon } from "@/db/schema/orders";
 
@@ -16,6 +17,7 @@ interface CouponRowProps {
 
 export function CouponRow({ coupon, branchNameMap, canManage, onEdit, onDeactivate, onDelete }: CouponRowProps) {
   const isUnused = coupon.usesCount === 0;
+  const { showConfirm } = useAlertModal();
   const discountLabel =
     coupon.discountType === "percentage"
       ? `${coupon.discountValue}% off`
@@ -76,11 +78,13 @@ export function CouponRow({ coupon, branchNameMap, canManage, onEdit, onDeactiva
         </button>
         {isUnused ? (
           <button
-            onClick={() => {
+            onClick={async () => {
               if (!canManage) return;
-              if (confirm(`Permanently delete "${coupon.name}"? It has never been used, so this can't be undone.`)) {
-                onDelete();
-              }
+              const confirmed = await showConfirm(
+                `Permanently delete "${coupon.name}"? It has never been used, so this can't be undone.`,
+                { title: "Delete coupon?", confirmLabel: "Delete", destructive: true }
+              );
+              if (confirmed) onDelete();
             }}
             disabled={!canManage}
             className={cn(
@@ -101,11 +105,13 @@ export function CouponRow({ coupon, branchNameMap, canManage, onEdit, onDeactiva
         ) : (
           coupon.isActive && (
             <button
-              onClick={() => {
+              onClick={async () => {
                 if (!canManage) return;
-                if (confirm(`Deactivate "${coupon.name}"? Staff will no longer be able to apply it.`)) {
-                  onDeactivate();
-                }
+                const confirmed = await showConfirm(
+                  `Deactivate "${coupon.name}"? Staff will no longer be able to apply it.`,
+                  { title: "Deactivate coupon?", confirmLabel: "Deactivate" }
+                );
+                if (confirmed) onDeactivate();
               }}
               disabled={!canManage}
               className={cn(
