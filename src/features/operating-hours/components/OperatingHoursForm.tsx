@@ -58,19 +58,21 @@ export function OperatingHoursForm({ initialHours, isSaving, onSave }: Operating
                     return (
                         <div
                             key={key}
-                            className="flex items-center gap-4 py-2 px-3 rounded-lg border border-border bg-card"
+                            className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 py-3 px-3 rounded-lg border border-border bg-card"
                         >
-                            <div className="w-28 shrink-0">
-                                <span className="text-sm font-medium text-foreground">{label}</span>
-                            </div>
+                            <div className="flex items-center justify-between sm:contents">
+                                <div className="w-28 shrink-0">
+                                    <span className="text-sm font-medium text-foreground">{label}</span>
+                                </div>
 
-                            <div className="flex items-center gap-2 w-24 shrink-0">
-                                <Switch checked={day.open} onCheckedChange={(checked) => toggleDay(key, checked)} />
-                                <span className="text-xs text-muted-foreground">{day.open ? "Open" : "Closed"}</span>
+                                <div className="flex items-center gap-2 w-24 shrink-0">
+                                    <Switch checked={day.open} onCheckedChange={(checked) => toggleDay(key, checked)} />
+                                    <span className="text-xs text-muted-foreground">{day.open ? "Open" : "Closed"}</span>
+                                </div>
                             </div>
 
                             {day.open ? (
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                     <TimePicker
                                         value={day.openTime}
                                         onChange={(v) => setTime(key, "openTime", v)}

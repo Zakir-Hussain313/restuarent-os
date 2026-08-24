@@ -31,7 +31,7 @@ export function SettingsBranchFilter({
 
   return (
     <Select value={selectedBranchId} onValueChange={handleChange}>
-      <SelectTrigger className="w-56">
+      <SelectTrigger className="w-full sm:w-56">
         <SelectValue placeholder="Select branch">
           {(value: string) => branches.find((b) => b.id === value)?.name ?? "Select branch"}
         </SelectValue>

@@ -40,7 +40,13 @@ export function WebsiteBranchSelector({ branches }: { branches: Branch[] }) {
         },
     });
 
-    if (activeBranches.length < 2) return null;
+    if (activeBranches.length < 2) {
+        return (
+            <p className="text-sm text-muted-foreground">
+                Add a second branch to choose which one shows on your public website.
+            </p>
+        );
+    }
 
     return (
         <div className="flex items-center gap-2">

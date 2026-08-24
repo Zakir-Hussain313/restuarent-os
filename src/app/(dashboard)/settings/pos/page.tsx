@@ -20,7 +20,7 @@ export default async function PosSettingsPage({
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold text-foreground">POS</h2>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm text-muted-foreground mt-1 hidden sm:block">
             Configure point-of-sale behavior for this branch
           </p>
         </div>

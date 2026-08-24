@@ -16,7 +16,7 @@ export default async function DeliveryAreasSettingsPage({
           <h2 className="text-lg font-semibold text-foreground">
             Delivery Areas
           </h2>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm text-muted-foreground mt-1 hidden sm:block">
             Manage delivery coverage for this branch
           </p>
         </div>

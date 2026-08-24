@@ -16,7 +16,7 @@ export default async function OperatingHoursSettingsPage({
           <h2 className="text-lg font-semibold text-foreground">
             Operating Hours
           </h2>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm text-muted-foreground mt-1 hidden sm:block">
             Set when this branch is open for reservations
           </p>
         </div>

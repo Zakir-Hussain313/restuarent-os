@@ -16,7 +16,7 @@ export default async function StorefrontSettingsPage() {
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-foreground">Storefront</h2>
-        <p className="text-sm text-muted-foreground mt-1">
+        <p className="text-sm text-muted-foreground mt-1 hidden sm:block">
           Control what customers see on the public website
         </p>
       </div>

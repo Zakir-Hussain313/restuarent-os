@@ -288,7 +288,7 @@ export function Sidebar() {
       )}
       <aside
         className={cn(
-          "flex flex-col h-screen bg-[#5B21B6] transition-all duration-300 ease-in-out shrink-0 overflow-hidden z-40",
+          "flex flex-col h-dvh bg-[#5B21B6] transition-all duration-300 ease-in-out shrink-0 overflow-hidden z-40",
           open ? "fixed inset-y-0 left-0 lg:relative w-56" : "relative w-14"
         )}
       >

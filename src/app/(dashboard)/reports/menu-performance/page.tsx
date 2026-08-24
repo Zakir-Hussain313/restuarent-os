@@ -29,7 +29,7 @@ export default async function MenuPerformanceReportPage({
             Best and worst selling items
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2">
           <ReportPeriodFilter selectedPeriod={period} />
           <SettingsBranchHeader context={context} />
         </div>

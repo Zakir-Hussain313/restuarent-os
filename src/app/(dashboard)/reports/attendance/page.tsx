@@ -29,7 +29,7 @@ export default async function AttendanceReportPage({
             Per-staff attendance breakdown
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2">
           <ReportPeriodFilter selectedPeriod={period} />
           <SettingsBranchHeader context={context} />
         </div>

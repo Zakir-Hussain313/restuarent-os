@@ -29,7 +29,7 @@ export function DashboardShell({ children, currentStaff }: DashboardShellProps) 
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f9f8f6]">
+    <div className="flex h-dvh overflow-hidden bg-[#f9f8f6]">
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <main className="flex-1 overflow-y-auto">

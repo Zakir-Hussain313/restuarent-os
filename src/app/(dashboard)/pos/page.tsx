@@ -19,7 +19,7 @@ export default async function PosPage() {
   const autoConfirmOnPlace = settingsResult?.data?.posAutoConfirmOnPlace ?? false;
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
+    <div className="h-dvh flex flex-col overflow-hidden">
       <PosLayout branchId={branchId} autoConfirmOnPlace={autoConfirmOnPlace} />
     </div>
   );
