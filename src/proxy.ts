@@ -15,8 +15,6 @@ const STAFF_ROUTES = ["/pos", "/orders", "/tables", "/menu"];
 // Routes shared by SUPER_ADMIN + RIDER
 const RIDER_ROUTES = ["/riders"];
 
-const SUPER_ADMIN_BLOCKED_ROUTES = ["/tables"];
-
 const PROTECTED_ROUTES = [
   ...SUPER_ADMIN_ONLY_ROUTES,
   ...ADMIN_ROUTES,
@@ -95,13 +93,6 @@ export async function proxy(request: NextRequest) {
     const dashboardUrl = request.nextUrl.clone();
     dashboardUrl.pathname = defaultRouteFor(role);
     dashboardUrl.searchParams.delete("redirectTo");
-    return NextResponse.redirect(dashboardUrl);
-  }
-
-  // ── SUPER_ADMIN explicit route block ──────────────────────────────────
-  if (user && role === "SUPER_ADMIN" && matches(SUPER_ADMIN_BLOCKED_ROUTES, pathname)) {
-    const dashboardUrl = request.nextUrl.clone();
-    dashboardUrl.pathname = defaultRouteFor(role); // "/dashboard" for SUPER_ADMIN
     return NextResponse.redirect(dashboardUrl);
   }
 

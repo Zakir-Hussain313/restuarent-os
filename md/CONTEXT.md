@@ -307,6 +307,13 @@ International readiness (V2, full scope) — Pakistan, Australia, France, Spain,
 - Legal/data-residency/privacy compliance per country (e.g. GDPR for France/Spain/Germany) — requires explicit legal research per country, not just engineering work.
 - Business licensing/registration requirements per country — informational only, verified with local counsel/authorities, not something the app can "build."
 - Never claim a country is compliance-ready without verifying current local legal/tax/licensing requirements at build time — requirements change, and this app cannot self-certify legal compliance.
+
+Legal eligibility gate (non-engineering, must be done by Zakir before operating in a given country — not something this codebase can complete on its own):
+1. GDPR-compliant Privacy Policy + Terms of Service drafted (lawyer or compliance service, e.g. Termly/iubenda).
+2. Business entity registered in home country; local business/tax registration (VAT/GST) completed per country once trading there.
+3. Payment provider (e.g. Stripe) application approved for each target country.
+4. Data export + account deletion features built once policy requirements are known (engineering work, gated on step 1).
+Only once all four are done for a given country should Zaiqa be described as eligible to operate there — engineering readiness (i18n/tax engine/payments adapter) alone is NOT sufficient.
 V3 — Analytics/Intelligence: forecasting (always with confidence intervals), smart inventory, menu intelligence, staff analytics (privacy-conscious), KDS, delivery optimization, waitlists, QR/table ordering, third-party integrations via adapter pattern.
 
 Business notes: founding-customer discounts for early adopters only, not permanent pricing. Migration program scoped to what old systems can actually export. Feedback triage: Critical (security/data-loss) → High (multi-restaurant demand) → Medium → Low → Reject/defer.

@@ -185,6 +185,30 @@ export async function markAttendanceAction(
     let auditInfo: { id: string; isNew: boolean; oldStatus?: string };
 
     await db.transaction(async (tx) => {
+      // A staff member can have at most one truly open session (checkIn
+      // set, checkOut null) at any time — enforced by the
+      // attendance_one_open_session DB constraint. If it belongs to a
+      // PREVIOUS day (not today's row), auto-close it at the end of that
+      // day before opening today's session, instead of failing.
+      if (status === "present") {
+        const openFromPastDay = await tx.query.attendance.findFirst({
+          where: and(
+            eq(attendance.staffId, staffId),
+            sql`${attendance.checkIn} is not null`,
+            sql`${attendance.checkOut} is null`,
+            lt(attendance.date, start)
+          ),
+        });
+        if (openFromPastDay) {
+          const endOfThatDay = new Date(openFromPastDay.date);
+          endOfThatDay.setUTCHours(23, 59, 59, 999);
+          await tx
+            .update(attendance)
+            .set({ checkOut: endOfThatDay, updatedAt: new Date() })
+            .where(eq(attendance.id, openFromPastDay.id));
+        }
+      }
+
       const existing = await tx.query.attendance.findFirst({
         where: and(
           eq(attendance.staffId, staffId),
