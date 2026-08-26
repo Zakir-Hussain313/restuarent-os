@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarCheck, TrendingUp, TrendingDown } from "lucide-react";
-import { useReservationStats } from "../hooks/useDashboardData";
+import type { ReservationStats } from "../actions";
 
 const STATUS_STYLES: Record<string, { label: string; dot: string }> = {
   pending: { label: "Pending", dot: "bg-[#e8a13d]" },
@@ -11,9 +11,12 @@ const STATUS_STYLES: Record<string, { label: string; dot: string }> = {
   no_show: { label: "No-show", dot: "bg-[#8a8680]" },
 };
 
-export function ReservationStatsWidget() {
-  const { data: stats, isLoading } = useReservationStats();
+interface ReservationStatsWidgetProps {
+  stats: ReservationStats | undefined;
+  isLoading: boolean;
+}
 
+export function ReservationStatsWidget({ stats, isLoading }: ReservationStatsWidgetProps) {
   const isPositive = (stats?.reservationsChange ?? 0) >= 0;
 
   return (

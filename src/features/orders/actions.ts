@@ -9,6 +9,7 @@ import {
     coupons,
     tenantSettings,
     menuItems,
+    menuCategories,
     staff,
     restaurantTables,
     tableReservations,
@@ -17,7 +18,7 @@ import {
 } from "@/db/schema";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { eq, and, inArray, sql } from "drizzle-orm";
-import type { Order, OrderType } from "@/types";
+import type { Order, OrderStatus, OrderType } from "@/types";
 import { RESTAURANT_CONFIG } from "@/config/restaurant";
 import { logAudit } from "@/lib/audit";
 import { findFreeRider } from "@/features/deliveries/actions";
@@ -267,10 +268,7 @@ export async function createOrderAction(
             // ── 3. Look up category names for the snapshot ───────────────
             const categoryIds = [...new Set(builtItems.map((i) => i.categoryId))];
             const categories = await tx.query.menuCategories.findMany({
-                where: inArray(
-                    (await import("@/db/schema")).menuCategories.id,
-                    categoryIds
-                ),
+                where: inArray(menuCategories.id, categoryIds),
             });
             const categoryNameMap = new Map(categories.map((c) => [c.id, c.name]));
             for (const item of builtItems) {
@@ -605,8 +603,17 @@ export async function createOrderAction(
 
 // ─── Read Orders ─────────────────────────────────────────────────────────
 
+export interface GetOrdersFilters {
+    statuses?: OrderStatus[];
+    dateFrom?: string; // ISO string
+    dateTo?: string; // ISO string
+}
+
+const MAX_ORDERS_RETURNED = 500;
+
 export async function getOrdersAction(
-    overrideBranchId?: string
+    overrideBranchId?: string,
+    filters?: GetOrdersFilters
 ): Promise<{ data: Order[]; error?: undefined } | { data: null; error: string }> {
     const auth = await getCurrentStaff();
     if (!auth.ok) return { data: null, error: auth.error };
@@ -621,10 +628,13 @@ export async function getOrdersAction(
     const branchId = isBranchLocked ? currentStaffRow.branchId! : overrideBranchId;
 
     const rows = await db.query.orders.findMany({
-        where: (o, { eq: eqOp, and: andOp }) =>
+        where: (o, { eq: eqOp, and: andOp, inArray: inArrayOp, gte: gteOp, lte: lteOp }) =>
             andOp(
                 eqOp(o.tenantId, tenantId),
-                branchId ? eqOp(o.branchId, branchId) : undefined
+                branchId ? eqOp(o.branchId, branchId) : undefined,
+                filters?.statuses?.length ? inArrayOp(o.status, filters.statuses) : undefined,
+                filters?.dateFrom ? gteOp(o.createdAt, new Date(filters.dateFrom)) : undefined,
+                filters?.dateTo ? lteOp(o.createdAt, new Date(filters.dateTo)) : undefined
             ),
         with: {
             items: true,
@@ -633,6 +643,7 @@ export async function getOrdersAction(
             table: true,
         },
         orderBy: (o, { desc }) => [desc(o.createdAt)],
+        limit: MAX_ORDERS_RETURNED,
     });
 
     const data: Order[] = rows.map((o) => ({

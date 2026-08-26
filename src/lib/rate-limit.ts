@@ -38,3 +38,20 @@ export const cronRateLimit = new Ratelimit({
   limiter: Ratelimit.slidingWindow(20, "60 s"),
   prefix: "ratelimit:cron",
 });
+
+// Public reservation creation: 10 per 10 minutes per IP — same shape as
+// public order creation, stops scripted spam bookings.
+export const publicReservationRateLimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, "600 s"),
+  prefix: "ratelimit:public-reservation",
+});
+
+// Reservation lookup: 5 per minute per IP — this endpoint is keyed by
+// phone + a 6-char code, so it must be throttled hard to prevent
+// brute-forcing another customer's reservation details.
+export const reservationLookupRateLimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, "60 s"),
+  prefix: "ratelimit:reservation-lookup",
+});

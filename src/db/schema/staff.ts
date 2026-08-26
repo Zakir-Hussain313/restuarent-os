@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, integer, boolean, index } from "drizzle-orm/pg-core";
 import { tenants } from "./tenants";
 import { branches } from "./branches";
 import { staffRoleEnum, staffStatusEnum } from "./enums";
@@ -40,7 +40,10 @@ export const staff = pgTable("staff", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 
   isDeleted: boolean("is_deleted").notNull().default(false), // soft delete, preserves order/attendance history
-});
+}, (table) => [
+  index("staff_tenant_id_idx").on(table.tenantId),
+  index("staff_branch_id_idx").on(table.branchId),
+]);
 
 export type Staff = typeof staff.$inferSelect;
 export type NewStaff = typeof staff.$inferInsert;

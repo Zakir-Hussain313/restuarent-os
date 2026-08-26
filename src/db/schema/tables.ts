@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, timestamp, boolean, jsonb, index } from "drizzle-orm/pg-core";
 import { tenants } from "./tenants";
 import { branches } from "./branches";
 import { tableStatusEnum, tableShapeEnum, tableSeatingTypeEnum } from "./enums";
@@ -19,7 +19,9 @@ export const tableSections = pgTable("table_sections", {
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("table_sections_branch_id_idx").on(table.branchId),
+]);
 
 // Physical dine-in tables — e.g. "T1", "VIP-1"
 export const restaurantTables = pgTable("restaurant_tables", {
@@ -60,7 +62,10 @@ export const restaurantTables = pgTable("restaurant_tables", {
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("restaurant_tables_branch_id_idx").on(table.branchId),
+  index("restaurant_tables_section_id_idx").on(table.sectionId),
+]);
 
 export type TableSection = typeof tableSections.$inferSelect;
 export type NewTableSection = typeof tableSections.$inferInsert;

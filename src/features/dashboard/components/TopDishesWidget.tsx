@@ -2,8 +2,8 @@
 
 import { Trophy } from "lucide-react";
 import { ChartSkeleton } from "@/components/data-display/LoadingSkeleton";
-import { useTopDishes } from "../hooks/useDashboardData";
 import { formatCurrency } from "@/lib/utils";
+import type { TopMenuItem } from "@/types/analytics";
 
 const RANK_COLORS = [
   "bg-amber-400 text-white",
@@ -11,8 +11,12 @@ const RANK_COLORS = [
   "bg-orange-700 text-white",
 ];
 
-export function TopDishesWidget() {
-  const { data: dishes, isLoading } = useTopDishes();
+interface TopDishesWidgetProps {
+  dishes: TopMenuItem[] | undefined;
+  isLoading: boolean;
+}
+
+export function TopDishesWidget({ dishes, isLoading }: TopDishesWidgetProps) {
   const maxOrders = dishes?.[0]?.quantitySold ?? 1;
 
   return (

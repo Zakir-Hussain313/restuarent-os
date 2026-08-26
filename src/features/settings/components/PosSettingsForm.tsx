@@ -38,7 +38,7 @@ export function PosSettingsForm({ branchId, initialValue }: PosSettingsFormProps
         <div
             className={cn(
                 "border rounded-xl p-5 max-w-xl transition-colors",
-                value ? "border-[#e8570e]/30 bg-[#fef3ed]/40" : "border-[#ebe9e4] bg-white"
+                value ? "border-primary/30 bg-primary-light" : "border-border bg-card"
             )}
         >
             <div className="flex items-start justify-between gap-4">
@@ -46,26 +46,26 @@ export function PosSettingsForm({ branchId, initialValue }: PosSettingsFormProps
                     <div
                         className={cn(
                             "w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-colors",
-                            value ? "bg-[#e8570e]/10" : "bg-[#f4f3f0]"
+                            value ? "bg-primary/10" : "bg-muted"
                         )}
                     >
                         <Zap
                             className={cn(
                                 "w-4 h-4",
-                                value ? "text-[#e8570e]" : "text-[#8a8680]"
+                                value ? "text-primary" : "text-muted-foreground"
                             )}
                         />
                     </div>
 
                     <div className="space-y-0.5">
                         <div className="flex items-center gap-1.5">
-                            <p className="text-sm font-semibold text-[#1a1814]">
+                            <p className="text-sm font-semibold text-foreground">
                                 Auto-confirm orders on placement
                             </p>
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger>
-                                        <Info className="w-3.5 h-3.5 text-[#b0ada8] hover:text-[#1a1814] transition-colors" />
+                                        <Info className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground transition-colors" />
                                     </TooltipTrigger>
                                     <TooltipContent className="max-w-xs text-sm">
                                         When turned on, pressing &quot;Place Order&quot; in POS will
@@ -79,7 +79,7 @@ export function PosSettingsForm({ branchId, initialValue }: PosSettingsFormProps
                                 </Tooltip>
                             </TooltipProvider>
                         </div>
-                        <p className="text-xs text-[#8a8680]">
+                        <p className="text-xs text-muted-foreground">
                             {value
                                 ? "On — orders confirm and print instantly at this branch."
                                 : "Off — orders wait in pending until manually confirmed."}
@@ -91,7 +91,7 @@ export function PosSettingsForm({ branchId, initialValue }: PosSettingsFormProps
                     checked={value}
                     onCheckedChange={handleChange}
                     disabled={isPending}
-                    className="border-gray-300 shrink-0"
+                    className="shrink-0"
                 />
             </div>
 

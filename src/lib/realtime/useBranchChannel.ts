@@ -1,20 +1,18 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { branchChannel, type RealtimeResource } from "@/lib/realtime/channels";
-
-const RECONNECT_DELAY_MS = 3000;
-const MAX_RECONNECT_DELAY_MS = 30000;
+import { subscribeBranchChannel } from "@/lib/realtime/channelRegistry";
+import type { RealtimeResource } from "@/lib/realtime/channels";
 
 /**
  * Subscribes to a branch-scoped Supabase Realtime broadcast channel and
  * calls onEvent whenever a "changed" broadcast is received.
  *
- * Automatically reconnects with backoff if the channel drops into
- * CHANNEL_ERROR / TIMED_OUT / CLOSED (server restart, network blip, etc.).
- * Without this, a dropped channel goes silent until the user manually
- * refreshes the page.
+ * Delegates to the shared, ref-counted channelRegistry so multiple
+ * components watching the same branch/resource topic share exactly one
+ * real channel and one reconnect loop (see Bug Pattern #19 — duplicate
+ * per-component channels re-entering the reconnect handler caused a
+ * "Maximum call stack size exceeded" RangeError).
  */
 export function useBranchChannel(
   branchId: string | undefined | null,
@@ -30,53 +28,10 @@ export function useBranchChannel(
   useEffect(() => {
     if (!branchId) return;
 
-    const supabase = getSupabaseBrowserClient();
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let reconnectAttempt = 0;
-    let cancelled = false;
+    const unsubscribe = subscribeBranchChannel(branchId, resource, () => {
+      onEventRef.current();
+    });
 
-    function connect() {
-      if (cancelled) return;
-
-      channel = supabase
-        .channel(branchChannel(branchId!, resource))
-        .on("broadcast", { event: "changed" }, () => {
-          onEventRef.current();
-        })
-        .subscribe((status: string) => {
-          if (status === "SUBSCRIBED") {
-            reconnectAttempt = 0;
-            return;
-          }
-
-          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-            if (cancelled) return;
-
-            const delay = Math.min(
-              RECONNECT_DELAY_MS * 2 ** reconnectAttempt,
-              MAX_RECONNECT_DELAY_MS
-            );
-            reconnectAttempt += 1;
-
-            if (channel) {
-              supabase.removeChannel(channel);
-              channel = null;
-            }
-
-            reconnectTimer = setTimeout(() => {
-              connect();
-            }, delay);
-          }
-        });
-    }
-
-    connect();
-
-    return () => {
-      cancelled = true;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      if (channel) supabase.removeChannel(channel);
-    };
+    return unsubscribe;
   }, [branchId, resource]);
 }

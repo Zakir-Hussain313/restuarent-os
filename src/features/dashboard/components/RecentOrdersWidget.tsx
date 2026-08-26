@@ -4,9 +4,9 @@ import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import { ArrowRight, Clock, UtensilsCrossed, ShoppingBag, Bike } from "lucide-react";
 import { OrderStatusBadge } from "@/components/data-display/OrderStatusBadge";
-import { useRecentOrders } from "../hooks/useDashboardData";
 import { formatCurrency, formatRelativeTime } from "@/lib/utils";
 import type { OrderType } from "@/types";
+import type { RecentOrder } from "../actions";
 
 function useIsMounted() {
   return useSyncExternalStore(
@@ -52,8 +52,12 @@ function SkeletonRow() {
   );
 }
 
-export function RecentOrdersWidget() {
-  const { data: orders, isLoading } = useRecentOrders();
+interface RecentOrdersWidgetProps {
+  orders: RecentOrder[] | undefined;
+  isLoading: boolean;
+}
+
+export function RecentOrdersWidget({ orders, isLoading }: RecentOrdersWidgetProps) {
   const mounted = useIsMounted();
 
   return (

@@ -5,15 +5,8 @@ import { db } from "@/db";
 import { staff } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getBranchListAction } from "@/features/branches/actions";
-import {
-  DashboardStats,
-  RevenueChart,
-  RecentOrdersWidget,
-  TopDishesWidget,
-  OrderTypeBreakdownWidget,
-  QuickActionsBar,
-  ReservationStatsWidget,
-} from "@/features/dashboard";
+import { QuickActionsBar } from "@/features/dashboard";
+import { DashboardContent } from "@/features/dashboard/components/DashboardContent";
 import { DashboardBranchFilter } from "@/features/dashboard/components/DashboardBranchFilter";
 import { RESTAURANT_CONFIG } from "@/config/restaurant";
 
@@ -43,28 +36,7 @@ export default async function DashboardPage() {
       }
     >
       <Suspense fallback={null}>
-        <div className="flex flex-col gap-6 min-w-0">
-          <DashboardStats />
-
-          <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-            <div className="xl:col-span-3">
-              <RevenueChart />
-            </div>
-            <div className="xl:col-span-2">
-              <TopDishesWidget />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 items-stretch">
-            <div className="xl:col-span-3 flex flex-col xl:h-full">
-              <RecentOrdersWidget />
-            </div>
-            <div className="xl:col-span-2 flex flex-col gap-6">
-              <OrderTypeBreakdownWidget />
-              <ReservationStatsWidget />
-            </div>
-          </div>
-        </div>
+        <DashboardContent />
       </Suspense>
     </PageShell>
   );

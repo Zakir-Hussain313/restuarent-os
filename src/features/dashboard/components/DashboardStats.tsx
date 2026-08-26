@@ -2,7 +2,6 @@
 
 import { TrendingUp, TrendingDown, ShoppingBag, Users, Receipt, DollarSign, LucideIcon } from "lucide-react";
 import { StatCardSkeleton } from "@/components/data-display/LoadingSkeleton";
-import { useDashboardStats } from "../hooks/useDashboardData";
 import { formatCurrency } from "@/lib/utils";
 import type { DashboardStats as DashboardStatsType } from "@/types/analytics";
 
@@ -52,9 +51,12 @@ const STAT_CONFIG: StatConfig[] = [
   },
 ];
 
-export function DashboardStats() {
-  const { data: stats, isLoading } = useDashboardStats();
+interface DashboardStatsProps {
+  stats: DashboardStatsType | undefined;
+  isLoading: boolean;
+}
 
+export function DashboardStats({ stats, isLoading }: DashboardStatsProps) {
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 min-[480px]:grid-cols-2 lg:grid-cols-4 gap-4">

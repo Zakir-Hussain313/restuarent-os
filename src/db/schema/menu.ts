@@ -6,6 +6,7 @@ import {
   timestamp,
   boolean,
   uniqueIndex,
+  index,
 } from "drizzle-orm/pg-core";
 import { tenants } from "./tenants";
 import { menuItemStatusEnum } from "./enums";
@@ -33,6 +34,7 @@ export const menuCategories = pgTable("menu_categories", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex("menu_categories_branch_name_unique").on(table.branchId, table.name),
+  index("menu_categories_branch_id_idx").on(table.branchId),
 ]);
 
 export const menuItems = pgTable("menu_items", {
@@ -62,6 +64,8 @@ export const menuItems = pgTable("menu_items", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex("menu_items_branch_name_unique").on(table.branchId, table.name),
+  index("menu_items_branch_id_idx").on(table.branchId),
+  index("menu_items_category_id_idx").on(table.categoryId),
 ]);
 
 // Mirrors MenuItemVariant — e.g. "Half kg" / "Full kg"
@@ -81,7 +85,9 @@ export const menuItemVariants = pgTable("menu_item_variants", {
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("menu_item_variants_menu_item_id_idx").on(table.menuItemId),
+]);
 
 // Mirrors ModifierGroup — e.g. "Oil Preference"
 export const modifierGroups = pgTable("modifier_groups", {
@@ -100,7 +106,9 @@ export const modifierGroups = pgTable("modifier_groups", {
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("modifier_groups_menu_item_id_idx").on(table.menuItemId),
+]);
 
 // Mirrors ModifierOption — e.g. "Desi Ghee" (+200)
 export const modifierOptions = pgTable("modifier_options", {
@@ -119,7 +127,9 @@ export const modifierOptions = pgTable("modifier_options", {
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("modifier_options_modifier_group_id_idx").on(table.modifierGroupId),
+]);
 
 export type MenuCategory = typeof menuCategories.$inferSelect;
 export type NewMenuCategory = typeof menuCategories.$inferInsert;

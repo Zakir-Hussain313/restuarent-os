@@ -249,6 +249,18 @@ export async function createTableAction(input: {
     });
     if (!section) return { data: null, error: "Section not found for this branch." };
 
+    const duplicate = await db.query.restaurantTables.findFirst({
+        where: and(
+            eq(restaurantTables.branchId, branch.branchId),
+            eq(restaurantTables.sectionId, input.sectionId),
+            eq(restaurantTables.tableNumber, tableNumber),
+            eq(restaurantTables.isActive, true)
+        ),
+    });
+    if (duplicate) {
+        return { data: null, error: `A table named "${tableNumber}" already exists in this section.` };
+    }
+
     const [row] = await db
         .insert(restaurantTables)
         .values({
@@ -300,6 +312,22 @@ export async function updateTableAction(
 
     if (input.capacity !== undefined && (!Number.isInteger(input.capacity) || input.capacity < 1)) {
         return { data: null, error: "Capacity must be a positive whole number." };
+    }
+
+    const nextSectionId = input.sectionId ?? existing.sectionId;
+    const nextTableNumber = input.tableNumber !== undefined ? input.tableNumber.trim() : existing.tableNumber;
+    if (input.sectionId !== undefined || input.tableNumber !== undefined) {
+        const duplicate = await db.query.restaurantTables.findFirst({
+            where: and(
+                eq(restaurantTables.branchId, existing.branchId),
+                eq(restaurantTables.sectionId, nextSectionId),
+                eq(restaurantTables.tableNumber, nextTableNumber),
+                eq(restaurantTables.isActive, true)
+            ),
+        });
+        if (duplicate && duplicate.id !== id) {
+            return { data: null, error: `A table named "${nextTableNumber}" already exists in this section.` };
+        }
     }
 
     const [row] = await db

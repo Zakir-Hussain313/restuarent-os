@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 import { UtensilsCrossed, ShoppingBag, Bike, LayoutGrid } from "lucide-react";
 import { ChartSkeleton } from "@/components/data-display/LoadingSkeleton";
-import { useOrderTypeBreakdown } from "../hooks/useDashboardData";
 import { formatCurrency } from "@/lib/utils";
 import type { OrderTypeBreakdown } from "@/types";
 
@@ -58,9 +57,12 @@ function DonutChart({ slices }: { slices: DonutSlice[] }) {
   );
 }
 
-export function OrderTypeBreakdownWidget() {
-  const { data: breakdown, isLoading } = useOrderTypeBreakdown();
+interface OrderTypeBreakdownWidgetProps {
+  breakdown: OrderTypeBreakdown[] | undefined;
+  isLoading: boolean;
+}
 
+export function OrderTypeBreakdownWidget({ breakdown, isLoading }: OrderTypeBreakdownWidgetProps) {
   const totalOrders = useMemo(() => breakdown?.reduce((s: number, b: OrderTypeBreakdown) => s + b.count, 0) ?? 0, [breakdown]);
   const totalRevenue = useMemo(() => breakdown?.reduce((s: number, b: OrderTypeBreakdown) => s + b.revenue, 0) ?? 0, [breakdown]);
   const donutSlices = useMemo(() => (breakdown ? buildDonutSlices(breakdown) : []), [breakdown]);

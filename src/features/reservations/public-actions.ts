@@ -4,6 +4,8 @@ import { db } from "@/db";
 import { restaurantTables, tableReservations, reservationCounters, branches } from "@/db/schema";
 import { eq, and, sql, lt, notInArray } from "drizzle-orm";
 import { createNotification } from "@/features/notifications/actions";
+import { headers } from "next/headers";
+import { publicReservationRateLimit, reservationLookupRateLimit } from "@/lib/rate-limit";
 
 export interface CreateReservationInput {
     tableId: string;
@@ -87,6 +89,13 @@ function isWithinOperatingHours(
 export async function createReservationAction(
     input: CreateReservationInput
 ): Promise<CreateReservationResult> {
+    const headersList = await headers();
+    const ip = headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const { success: withinLimit } = await publicReservationRateLimit.limit(ip);
+    if (!withinLimit) {
+        return { error: "Too many reservation attempts. Please wait a few minutes and try again." };
+    }
+
     const customerPhone = input.customerPhone.trim();
     if (!customerPhone) {
         return { error: "A phone number is required." };
@@ -286,6 +295,13 @@ type LookupReservationResult =
 export async function getMyReservationAction(
     input: LookupReservationInput
 ): Promise<LookupReservationResult> {
+    const headersList = await headers();
+    const ip = headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const { success: withinLimit } = await reservationLookupRateLimit.limit(ip);
+    if (!withinLimit) {
+        return { error: "Too many attempts. Please wait a minute and try again." };
+    }
+
     const customerPhone = input.customerPhone.trim();
     const reservationCode = input.reservationCode.trim().toUpperCase();
 

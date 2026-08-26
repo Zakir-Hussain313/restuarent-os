@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getOrdersAction } from "../actions";
+import { getOrdersAction, type GetOrdersFilters } from "../actions";
 import { useRealtimeOrders } from "./useRealtimeOrders";
 import type { Order, OrderStatus, OrderType } from "@/types";
 
@@ -18,6 +18,8 @@ export interface OrderFilters {
 interface UseOrdersOptions {
   scopeTypes?: OrderType[];
   scopeStatuses?: OrderStatus[];
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 interface UseOrdersReturn {
@@ -40,13 +42,20 @@ const DEFAULT_FILTERS: OrderFilters = {
 };
 
 export function useOrders(options: UseOrdersOptions = {}): UseOrdersReturn {
-  const { scopeTypes, scopeStatuses } = options;
+  const { scopeTypes, scopeStatuses, dateFrom, dateTo } = options;
   const [filters, setFilters] = useState<OrderFilters>(DEFAULT_FILTERS);
   useRealtimeOrders();
+
+  const serverFilters: GetOrdersFilters = {
+    statuses: scopeStatuses,
+    dateFrom,
+    dateTo,
+  };
+
   const { data: allOrders = [], isLoading } = useQuery<Order[]>({
-    queryKey: ["orders", undefined],
+    queryKey: ["orders", scopeStatuses, dateFrom, dateTo],
     queryFn: async () => {
-      const res = await getOrdersAction(undefined);
+      const res = await getOrdersAction(undefined, serverFilters);
       if (res.data === null) throw new Error(res.error);
       return res.data;
     },
@@ -60,12 +69,8 @@ export function useOrders(options: UseOrdersOptions = {}): UseOrdersReturn {
       result = result.filter((o) => scopeTypes.includes(o.orderType));
     }
 
-    if (scopeStatuses?.length) {
-      result = result.filter((o) => scopeStatuses.includes(o.status));
-    }
-
     return result;
-  }, [allOrders, scopeTypes, scopeStatuses]);
+  }, [allOrders, scopeTypes]);
 
   const filteredOrders = useMemo(() => {
     let result = [...scopedOrders];

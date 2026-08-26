@@ -5,6 +5,7 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 import { useState } from "react";
 import { get, set, del } from "idb-keyval";
 import type { Persister } from "@tanstack/query-persist-client-core";
+import { SerwistProvider } from "@serwist/next/react";
 import { queryKeys } from "@/hooks/useMockQuery";
 import { OfflineSyncManager } from "@/components/OfflineSyncManager";
 import { AlertModalProvider } from "@/components/providers/AlertModalProvider";
@@ -50,34 +51,40 @@ export function DashboardProviders({ children }: { children: React.ReactNode }) 
   const [persister] = useState(() => createIDBPersister());
 
   return (
-    <PersistQueryClientProvider
-      client={queryClient}
-      persistOptions={{
-        persister,
-        maxAge: 1000 * 60 * 60 * 12, // 12 hours — safe upper bound for a shift
-        dehydrateOptions: {
-          shouldDehydrateMutation: () => false,
-          shouldDehydrateQuery: (query) => {
-            if (query.state.status !== "success") return false;
+    // Service worker is scoped to this (dashboard) tree only via where
+    // SerwistProvider is mounted — the public storefront layout never
+    // renders this, so customers never register/precache it. Registering
+    // here (not disabled) is safe: only staff/POS clients ever load it.
+    <SerwistProvider swUrl="/sw.js" register cacheOnNavigation reloadOnOnline>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{
+          persister,
+          maxAge: 1000 * 60 * 60 * 12, // 12 hours — safe upper bound for a shift
+          dehydrateOptions: {
+            shouldDehydrateMutation: () => false,
+            shouldDehydrateQuery: (query) => {
+              if (query.state.status !== "success") return false;
 
-            const key = query.queryKey;
-            const isCategoriesQuery =
-              key.length === queryKeys.menu.categories.length + 1 &&
-              key[0] === queryKeys.menu.categories[0] &&
-              key[1] === queryKeys.menu.categories[1];
+              const key = query.queryKey;
+              const isCategoriesQuery =
+                key.length === queryKeys.menu.categories.length + 1 &&
+                key[0] === queryKeys.menu.categories[0] &&
+                key[1] === queryKeys.menu.categories[1];
 
-            const isItemsQuery =
-              key.length === queryKeys.menu.items.length + 1 &&
-              key[0] === queryKeys.menu.items[0] &&
-              key[1] === queryKeys.menu.items[1];
+              const isItemsQuery =
+                key.length === queryKeys.menu.items.length + 1 &&
+                key[0] === queryKeys.menu.items[0] &&
+                key[1] === queryKeys.menu.items[1];
 
-            return isCategoriesQuery || isItemsQuery;
+              return isCategoriesQuery || isItemsQuery;
+            },
           },
-        },
-      }}
-    >
-      <OfflineSyncManager />
-      <AlertModalProvider>{children}</AlertModalProvider>
-    </PersistQueryClientProvider>
+        }}
+      >
+        <OfflineSyncManager />
+        <AlertModalProvider>{children}</AlertModalProvider>
+      </PersistQueryClientProvider>
+    </SerwistProvider>
   );
 }

@@ -19,6 +19,8 @@ import { getTenantId } from "@/lib/tenant";
 import { logAudit } from "@/lib/audit";
 import { publicOrderRateLimit } from "@/lib/rate-limit";
 import { headers } from "next/headers";
+import { broadcastChange } from "@/lib/realtime/broadcast";
+import { createNotification } from "../notifications/actions";
 
 const ONLINE_ORDER_ACTOR = (tenantId: string, branchId: string) => ({
   id: null, // no real staff row — actorId column is uuid, must be null not a placeholder string
@@ -420,6 +422,19 @@ export async function createPublicOrderAction(
                 },
             }
         );
+
+        await Promise.all([
+            broadcastChange(result.order.branchId, "orders"),
+            createNotification({
+                tenantId,
+                branchId: result.order.branchId,
+                type: "order_new",
+                title: "New order",
+                message: `Order ${result.order.orderNumber} placed (online, ${result.order.orderType}).`,
+                resourceType: "order",
+                resourceId: result.order.id,
+            }),
+        ]);
 
         return {
             success: true,

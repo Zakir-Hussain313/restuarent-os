@@ -1,33 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/hooks/useMockQuery";
 import { useSearchParams } from "next/navigation";
+import { subscribeBranchChannel } from "@/lib/realtime/channelRegistry";
 import {
-  getDashboardStatsAction,
   getRevenueDataAction,
-  getTopDishesAction,
-  getRecentOrdersAction,
   getTableOccupancyAction,
-  getOrderTypeBreakdownAction,
-  getReservationStatsAction,
+  getDashboardBundleAction,
 } from "../actions";
-
-export function useDashboardStats() {
-  const searchParams = useSearchParams();
-  const branch = searchParams.get("branch") ?? undefined;
-
-  return useQuery({
-    queryKey: [...queryKeys.analytics.dashboard, "stats", branch],
-    queryFn: async () => {
-      const result = await getDashboardStatsAction(branch);
-      if (result.error || !result.stats) {
-        throw new Error(result.error ?? "Failed to load dashboard stats.");
-      }
-      return result.stats;
-    },
-    staleTime: 60_000,
-    gcTime: 5 * 60_000,
-  });
-}
 
 export function useRevenueData(range: "7d" | "30d" | "90d" = "30d") {
   const searchParams = useSearchParams();
@@ -39,42 +19,6 @@ export function useRevenueData(range: "7d" | "30d" | "90d" = "30d") {
       const result = await getRevenueDataAction(range, branch);
       if (result.error || !result.data) {
         throw new Error(result.error ?? "Failed to load revenue data.");
-      }
-      return result.data;
-    },
-    staleTime: 60_000,
-    gcTime: 5 * 60_000,
-  });
-}
-
-export function useTopDishes() {
-  const searchParams = useSearchParams();
-  const branch = searchParams.get("branch") ?? undefined;
-
-  return useQuery({
-    queryKey: [...queryKeys.analytics.dashboard, "top-items", branch],
-    queryFn: async () => {
-      const result = await getTopDishesAction(branch);
-      if (result.error || !result.data) {
-        throw new Error(result.error ?? "Failed to load top dishes.");
-      }
-      return result.data;
-    },
-    staleTime: 60_000,
-    gcTime: 5 * 60_000,
-  });
-}
-
-export function useRecentOrders() {
-  const searchParams = useSearchParams();
-  const branch = searchParams.get("branch") ?? undefined;
-
-  return useQuery({
-    queryKey: [...queryKeys.orders.all, "recent", branch],
-    queryFn: async () => {
-      const result = await getRecentOrdersAction(branch);
-      if (result.error || !result.data) {
-        throw new Error(result.error ?? "Failed to load recent orders.");
       }
       return result.data;
     },
@@ -101,38 +45,55 @@ export function useTableOccupancy() {
   });
 }
 
-export function useOrderTypeBreakdown() {
+export function useDashboardBundle(range: "7d" | "30d" | "90d" = "30d") {
   const searchParams = useSearchParams();
   const branch = searchParams.get("branch") ?? undefined;
+  const queryClient = useQueryClient();
+  const queryKey = [...queryKeys.analytics.dashboard, "bundle", range, branch];
 
-  return useQuery({
-    queryKey: [...queryKeys.analytics.dashboard, "order-type-breakdown", branch],
+  const query = useQuery({
+    queryKey,
     queryFn: async () => {
-      const result = await getOrderTypeBreakdownAction(branch);
+      const result = await getDashboardBundleAction(range, branch);
       if (result.error || !result.data) {
-        throw new Error(result.error ?? "Failed to load order type breakdown.");
+        throw new Error(result.error ?? "Failed to load dashboard data.");
       }
       return result.data;
     },
     staleTime: 60_000,
     gcTime: 5 * 60_000,
   });
-}
 
-export function useReservationStats() {
-  const searchParams = useSearchParams();
-  const branch = searchParams.get("branch") ?? undefined;
+  const branchScope = query.data?.branchId ?? null;
+  const allBranchIds = query.data?.allBranchIds;
+  // Stable key so the effect below doesn't re-subscribe on every render.
+  const allBranchIdsKey = allBranchIds?.join(",") ?? "";
 
-  return useQuery({
-    queryKey: [...queryKeys.analytics.dashboard, "reservation-stats", branch],
-    queryFn: async () => {
-      const result = await getReservationStatsAction(branch);
-      if (result.error || !result.stats) {
-        throw new Error(result.error ?? "Failed to load reservation stats.");
-      }
-      return result.stats;
-    },
-    staleTime: 60_000,
-    gcTime: 5 * 60_000,
+  const invalidate = useRef(() => {
+    queryClient.invalidateQueries({ queryKey });
   });
+  useEffect(() => {
+    invalidate.current = () => queryClient.invalidateQueries({ queryKey });
+  });
+
+  useEffect(() => {
+    const branchIds = branchScope
+      ? [branchScope]
+      : allBranchIdsKey
+      ? allBranchIdsKey.split(",")
+      : [];
+
+    if (branchIds.length === 0) return;
+
+    const unsubscribes = branchIds.flatMap((id) => [
+      subscribeBranchChannel(id, "orders", () => invalidate.current()),
+      subscribeBranchChannel(id, "tables", () => invalidate.current()),
+    ]);
+
+    return () => {
+      unsubscribes.forEach((unsub) => unsub());
+    };
+  }, [branchScope, allBranchIdsKey]);
+
+  return query;
 }

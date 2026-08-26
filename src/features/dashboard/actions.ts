@@ -8,6 +8,7 @@ import type { DashboardStats, RevenueDataPoint, TopMenuItem, OrderTypeBreakdown 
 import { staff, orders, orderItems, restaurantTables, tableReservations } from "@/db/schema";
 import type { OrderStatus, OrderType } from "@/types";
 import type { Table } from "@/types/table";
+import { getBranchListAction } from "@/features/branches/actions";
 
 export interface RecentOrder {
   id: string;
@@ -32,31 +33,42 @@ function pctChange(current: number, previous: number): number {
   return Math.round(((current - previous) / previous) * 100);
 }
 
-export async function getDashboardStatsAction(
+/** Single auth+staff lookup shared by every dashboard query, and by the bundle action. */
+async function resolveDashboardAuth(
   overrideBranchId?: string
-): Promise<{ stats: DashboardStats; error?: undefined } | { stats: null; error: string }
+): Promise <
+  | { ok: true; tenantId: string; branchId: string | undefined }
+  | { ok: false; error: string }
 > {
   const supabase = await getSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { stats: null, error: "Not authenticated." };
+  if (!user) return { ok: false, error: "Not authenticated." };
 
   const currentStaffRow = await db.query.staff.findFirst({
     where: eq(staff.id, user.id),
   });
-  if (!currentStaffRow) return { stats: null, error: "Staff record not found." };
+  if (!currentStaffRow) return { ok: false, error: "Staff record not found." };
 
   const isAdmin = currentStaffRow.role === "ADMIN";
   if (isAdmin && !currentStaffRow.branchId) {
-    return { stats: null, error: "Your account has no branch assigned." };
+    return { ok: false, error: "Your account has no branch assigned." };
   }
 
-  const tenantId = currentStaffRow.tenantId;
   // ADMIN is always locked to their own branch, regardless of what's in
   // the URL — overrideBranchId is only ever honored for SUPER_ADMIN.
-  const branchId = isAdmin ? currentStaffRow.branchId! : overrideBranchId;
+  return {
+    ok: true,
+    tenantId: currentStaffRow.tenantId,
+    branchId: isAdmin ? currentStaffRow.branchId! : overrideBranchId,
+  };
+}
 
+async function computeDashboardStats(
+  tenantId: string,
+  branchId: string | undefined
+): Promise<DashboardStats> {
   const { start: curStart, end: curEnd } = getMonthRange(0);
   const { start: prevStart, end: prevEnd } = getMonthRange(-1);
 
@@ -125,6 +137,16 @@ export async function getDashboardStatsAction(
     totalTables: Number(tableAgg.totalTables),
   };
 
+  return stats;
+}
+
+export async function getDashboardStatsAction(
+  overrideBranchId?: string
+): Promise<{ stats: DashboardStats; error?: undefined } | { stats: null; error: string }> {
+  const auth = await resolveDashboardAuth(overrideBranchId);
+  if (!auth.ok) return { stats: null, error: auth.error };
+
+  const stats = await computeDashboardStats(auth.tenantId, auth.branchId);
   return { stats };
 }
 
@@ -139,30 +161,11 @@ function toDateKey(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-export async function getRevenueDataAction(
-  range: "7d" | "30d" | "90d" = "30d",
-  overrideBranchId?: string
-): Promise<{ data: RevenueDataPoint[]; error?: undefined } | { data: null; error: string }
-> {
-  const supabase = await getSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { data: null, error: "Not authenticated." };
-
-  const currentStaffRow = await db.query.staff.findFirst({
-    where: eq(staff.id, user.id),
-  });
-  if (!currentStaffRow) return { data: null, error: "Staff record not found." };
-
-  const isAdmin = currentStaffRow.role === "ADMIN";
-  if (isAdmin && !currentStaffRow.branchId) {
-    return { data: null, error: "Your account has no branch assigned." };
-  }
-
-  const tenantId = currentStaffRow.tenantId;
-  const branchId = isAdmin ? currentStaffRow.branchId! : overrideBranchId;
-
+async function computeRevenueData(
+  tenantId: string,
+  branchId: string | undefined,
+  range: "7d" | "30d" | "90d"
+): Promise<RevenueDataPoint[]> {
   const days = RANGE_DAYS[range];
   const now = new Date();
   const todayUTC = new Date(
@@ -208,32 +211,24 @@ export async function getRevenueDataAction(
     });
   }
 
-  return { data: result };
+  return result;
 }
 
-export async function getTopDishesAction(
+export async function getRevenueDataAction(
+  range: "7d" | "30d" | "90d" = "30d",
   overrideBranchId?: string
-): Promise<{ data: TopMenuItem[]; error?: undefined } | { data: null; error: string }
-> {
-  const supabase = await getSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { data: null, error: "Not authenticated." };
+): Promise<{ data: RevenueDataPoint[]; error?: undefined } | { data: null; error: string }> {
+  const auth = await resolveDashboardAuth(overrideBranchId);
+  if (!auth.ok) return { data: null, error: auth.error };
 
-  const currentStaffRow = await db.query.staff.findFirst({
-    where: eq(staff.id, user.id),
-  });
-  if (!currentStaffRow) return { data: null, error: "Staff record not found." };
+  const data = await computeRevenueData(auth.tenantId, auth.branchId, range);
+  return { data };
+}
 
-  const isAdmin = currentStaffRow.role === "ADMIN";
-  if (isAdmin && !currentStaffRow.branchId) {
-    return { data: null, error: "Your account has no branch assigned." };
-  }
-
-  const tenantId = currentStaffRow.tenantId;
-  const branchId = isAdmin ? currentStaffRow.branchId! : overrideBranchId;
-
+async function computeTopDishes(
+  tenantId: string,
+  branchId: string | undefined
+): Promise<TopMenuItem[]> {
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
@@ -272,32 +267,23 @@ export async function getTopDishesAction(
     rank: i + 1,
   }));
 
+  return data;
+}
+
+export async function getTopDishesAction(
+  overrideBranchId?: string
+): Promise<{ data: TopMenuItem[]; error?: undefined } | { data: null; error: string }> {
+  const auth = await resolveDashboardAuth(overrideBranchId);
+  if (!auth.ok) return { data: null, error: auth.error };
+
+  const data = await computeTopDishes(auth.tenantId, auth.branchId);
   return { data };
 }
 
-export async function getRecentOrdersAction(
-  overrideBranchId?: string
-): Promise <{ data: RecentOrder[]; error?: undefined } | { data: null; error: string }
-> {
-  const supabase = await getSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { data: null, error: "Not authenticated." };
-
-  const currentStaffRow = await db.query.staff.findFirst({
-    where: eq(staff.id, user.id),
-  });
-  if (!currentStaffRow) return { data: null, error: "Staff record not found." };
-
-  const isAdmin = currentStaffRow.role === "ADMIN";
-  if (isAdmin && !currentStaffRow.branchId) {
-    return { data: null, error: "Your account has no branch assigned." };
-  }
-
-  const tenantId = currentStaffRow.tenantId;
-  const branchId = isAdmin ? currentStaffRow.branchId! : overrideBranchId;
-
+async function computeRecentOrders(
+  tenantId: string,
+  branchId: string | undefined
+): Promise<RecentOrder[]> {
   const rows = await db
     .select({
       id: orders.id,
@@ -333,32 +319,23 @@ export async function getRecentOrdersAction(
     itemsCount: Number(r.itemsCount),
   }));
 
+  return data;
+}
+
+export async function getRecentOrdersAction(
+  overrideBranchId?: string
+): Promise<{ data: RecentOrder[]; error?: undefined } | { data: null; error: string }> {
+  const auth = await resolveDashboardAuth(overrideBranchId);
+  if (!auth.ok) return { data: null, error: auth.error };
+
+  const data = await computeRecentOrders(auth.tenantId, auth.branchId);
   return { data };
 }
 
-export async function getTableOccupancyAction(
-  overrideBranchId?: string
-): Promise <{ data: Table[]; error?: undefined } | { data: null; error: string }
-> {
-  const supabase = await getSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { data: null, error: "Not authenticated." };
-
-  const currentStaffRow = await db.query.staff.findFirst({
-    where: eq(staff.id, user.id),
-  });
-  if (!currentStaffRow) return { data: null, error: "Staff record not found." };
-
-  const isAdmin = currentStaffRow.role === "ADMIN";
-  if (isAdmin && !currentStaffRow.branchId) {
-    return { data: null, error: "Your account has no branch assigned." };
-  }
-
-  const tenantId = currentStaffRow.tenantId;
-  const branchId = isAdmin ? currentStaffRow.branchId! : overrideBranchId;
-
+async function computeTableOccupancy(
+  tenantId: string,
+  branchId: string | undefined
+): Promise<Table[]> {
   const rows = await db
     .select({
       id: restaurantTables.id,
@@ -413,6 +390,16 @@ export async function getTableOccupancyAction(
     updatedAt: r.updatedAt.toISOString(),
   }));
 
+  return data;
+}
+
+export async function getTableOccupancyAction(
+  overrideBranchId?: string
+): Promise<{ data: Table[]; error?: undefined } | { data: null; error: string }> {
+  const auth = await resolveDashboardAuth(overrideBranchId);
+  if (!auth.ok) return { data: null, error: auth.error };
+
+  const data = await computeTableOccupancy(auth.tenantId, auth.branchId);
   return { data };
 }
 
@@ -422,29 +409,10 @@ const ORDER_TYPE_LABELS: Record<string, string> = {
   delivery: "Delivery",
 };
 
-export async function getOrderTypeBreakdownAction(
-  overrideBranchId?: string
-): Promise <{ data: OrderTypeBreakdown[]; error?: undefined } | { data: null; error: string }
-> {
-  const supabase = await getSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { data: null, error: "Not authenticated." };
-
-  const currentStaffRow = await db.query.staff.findFirst({
-    where: eq(staff.id, user.id),
-  });
-  if (!currentStaffRow) return { data: null, error: "Staff record not found." };
-
-  const isAdmin = currentStaffRow.role === "ADMIN";
-  if (isAdmin && !currentStaffRow.branchId) {
-    return { data: null, error: "Your account has no branch assigned." };
-  }
-
-  const tenantId = currentStaffRow.tenantId;
-  const branchId = isAdmin ? currentStaffRow.branchId! : overrideBranchId;
-
+async function computeOrderTypeBreakdown(
+  tenantId: string,
+  branchId: string | undefined
+): Promise<OrderTypeBreakdown[]> {
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
@@ -484,9 +452,18 @@ export async function getOrderTypeBreakdownAction(
     }
   );
 
-  return { data };
+  return data;
 }
 
+export async function getOrderTypeBreakdownAction(
+  overrideBranchId?: string
+): Promise<{ data: OrderTypeBreakdown[]; error?: undefined } | { data: null; error: string }> {
+  const auth = await resolveDashboardAuth(overrideBranchId);
+  if (!auth.ok) return { data: null, error: auth.error };
+
+  const data = await computeOrderTypeBreakdown(auth.tenantId, auth.branchId);
+  return { data };
+}
 
 export interface ReservationStats {
   totalReservations: number;
@@ -494,29 +471,10 @@ export interface ReservationStats {
   statusBreakdown: { status: string; count: number }[];
 }
 
-export async function getReservationStatsAction(
-  overrideBranchId?: string
-): Promise<{ stats: ReservationStats; error?: undefined } | { stats: null; error: string }
-> {
-  const supabase = await getSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { stats: null, error: "Not authenticated." };
-
-  const currentStaffRow = await db.query.staff.findFirst({
-    where: eq(staff.id, user.id),
-  });
-  if (!currentStaffRow) return { stats: null, error: "Staff record not found." };
-
-  const isAdmin = currentStaffRow.role === "ADMIN";
-  if (isAdmin && !currentStaffRow.branchId) {
-    return { stats: null, error: "Your account has no branch assigned." };
-  }
-
-  const tenantId = currentStaffRow.tenantId;
-  const branchId = isAdmin ? currentStaffRow.branchId! : overrideBranchId;
-
+async function computeReservationStats(
+  tenantId: string,
+  branchId: string | undefined
+): Promise<ReservationStats> {
   const { start: curStart, end: curEnd } = getMonthRange(0);
   const { start: prevStart, end: prevEnd } = getMonthRange(-1);
 
@@ -560,5 +518,77 @@ export async function getReservationStatsAction(
     })),
   };
 
+  return stats;
+}
+
+export async function getReservationStatsAction(
+  overrideBranchId?: string
+): Promise<{ stats: ReservationStats; error?: undefined } | { stats: null; error: string }> {
+  const auth = await resolveDashboardAuth(overrideBranchId);
+  if (!auth.ok) return { stats: null, error: auth.error };
+
+  const stats = await computeReservationStats(auth.tenantId, auth.branchId);
   return { stats };
+}
+
+export interface DashboardBundle {
+  stats: DashboardStats;
+  revenue: RevenueDataPoint[];
+  topDishes: TopMenuItem[];
+  recentOrders: RecentOrder[];
+  tableOccupancy: Table[];
+  orderTypeBreakdown: OrderTypeBreakdown[];
+  reservationStats: ReservationStats;
+  /** Resolved branch scope. null means SUPER_ADMIN viewing "all branches". */
+  branchId: string | null;
+  /** Only populated when branchId is null — lets the client subscribe to every branch's realtime channel. */
+  allBranchIds?: string[];
+}
+
+export async function getDashboardBundleAction(
+  range: "7d" | "30d" | "90d" = "30d",
+  overrideBranchId?: string
+): Promise<{ data: DashboardBundle; error?: undefined } | { data: null; error: string }> {
+  const auth = await resolveDashboardAuth(overrideBranchId);
+  if (!auth.ok) return { data: null, error: auth.error };
+
+  const { tenantId, branchId } = auth;
+
+  const [
+    stats,
+    revenue,
+    topDishes,
+    recentOrders,
+    tableOccupancy,
+    orderTypeBreakdown,
+    reservationStats,
+  ] = await Promise.all([
+    computeDashboardStats(tenantId, branchId),
+    computeRevenueData(tenantId, branchId, range),
+    computeTopDishes(tenantId, branchId),
+    computeRecentOrders(tenantId, branchId),
+    computeTableOccupancy(tenantId, branchId),
+    computeOrderTypeBreakdown(tenantId, branchId),
+    computeReservationStats(tenantId, branchId),
+  ]);
+
+  let allBranchIds: string[] | undefined;
+  if (!branchId) {
+    const { branches } = await getBranchListAction();
+    allBranchIds = (branches ?? []).map((b) => b.id);
+  }
+
+  return {
+    data: {
+      stats,
+      revenue,
+      topDishes,
+      recentOrders,
+      tableOccupancy,
+      orderTypeBreakdown,
+      reservationStats,
+      branchId: branchId ?? null,
+      allBranchIds,
+    },
+  };
 }

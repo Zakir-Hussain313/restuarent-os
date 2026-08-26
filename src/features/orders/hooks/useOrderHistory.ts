@@ -23,63 +23,58 @@ export interface DishOption {
 }
 
 const DEFAULT_DATE_FILTERS: HistoryDateFilters = {
-  datePreset: null,
+  datePreset: "today",
   dateRange: { from: null, to: null },
   dishId: null,
   orderType: null,
 };
 
-function isWithinPreset(dateString: string, preset: DatePreset): boolean {
-  if (!preset) return true;
-  const date = new Date(dateString);
+/** Computes the [from, to] ISO bounds to send to the server for a given preset/range. */
+function computeServerDateBounds(
+  dateFilters: HistoryDateFilters
+): { dateFrom: string; dateTo?: string } {
   const now = new Date();
 
-  if (preset === "today") {
-    return date.toDateString() === now.toDateString();
+  if (dateFilters.datePreset === "today") {
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    return { dateFrom: start.toISOString() };
   }
 
-  if (preset === "this_week") {
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay());
-    startOfWeek.setHours(0, 0, 0, 0);
-    return date >= startOfWeek;
+  if (dateFilters.datePreset === "this_week") {
+    const start = new Date(now);
+    start.setDate(now.getDate() - now.getDay());
+    start.setHours(0, 0, 0, 0);
+    return { dateFrom: start.toISOString() };
   }
 
-  if (preset === "this_month") {
-    return (
-      date.getMonth() === now.getMonth() &&
-      date.getFullYear() === now.getFullYear()
-    );
+  if (dateFilters.datePreset === "this_month") {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { dateFrom: start.toISOString() };
   }
 
-  return true;
+  if (dateFilters.dateRange.from || dateFilters.dateRange.to) {
+    const from = dateFilters.dateRange.from ?? new Date(0);
+    let to: string | undefined;
+    if (dateFilters.dateRange.to) {
+      const endOfDay = new Date(dateFilters.dateRange.to);
+      endOfDay.setHours(23, 59, 59, 999);
+      to = endOfDay.toISOString();
+    }
+    return { dateFrom: from.toISOString(), dateTo: to };
+  }
+
+  // No preset, no range — fall back to "today" rather than unbounded history.
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  return { dateFrom: start.toISOString() };
 }
 
-function isWithinRange(dateString: string, range: DateRange): boolean {
-  if (!range.from && !range.to) return true;
-  const date = new Date(dateString);
-  if (range.from && date < range.from) return false;
-  if (range.to) {
-    const endOfDay = new Date(range.to);
-    endOfDay.setHours(23, 59, 59, 999);
-    if (date > endOfDay) return false;
-  }
-  return true;
-}
-
-function applyDateAndDishFilters(
+function applyDishAndTypeFilters(
   orders: Order[],
   dateFilters: HistoryDateFilters
 ): Order[] {
   return orders.filter((order) => {
-    // Date preset or range
-    if (dateFilters.datePreset) {
-      if (!isWithinPreset(order.createdAt, dateFilters.datePreset)) return false;
-    } else {
-      if (!isWithinRange(order.createdAt, dateFilters.dateRange)) return false;
-    }
-
-    // Dish filter
     if (dateFilters.dishId) {
       const hasDish = order.items.some(
         (item) => item.menuItemId === dateFilters.dishId
@@ -87,7 +82,6 @@ function applyDateAndDishFilters(
       if (!hasDish) return false;
     }
 
-    // Order type filter
     if (dateFilters.orderType) {
       if (order.orderType !== dateFilters.orderType) return false;
     }
@@ -100,8 +94,12 @@ export function useOrderHistory() {
   const [dateFilters, setDateFilters] =
     useState<HistoryDateFilters>(DEFAULT_DATE_FILTERS);
 
+  const { dateFrom, dateTo } = computeServerDateBounds(dateFilters);
+
   const base = useOrders({
     scopeStatuses: ["completed", "cancelled"],
+    dateFrom,
+    dateTo,
   });
 
   const dishOptions = useMemo<DishOption[]>(() => {
@@ -120,12 +118,12 @@ export function useOrderHistory() {
   }, [base.orders]);
 
   const orders = useMemo(
-    () => applyDateAndDishFilters(base.filteredOrders, dateFilters),
+    () => applyDishAndTypeFilters(base.filteredOrders, dateFilters),
     [base.filteredOrders, dateFilters]
   );
 
   const isDateFiltered =
-    dateFilters.datePreset !== null ||
+    (dateFilters.datePreset !== null && dateFilters.datePreset !== "today") ||
     dateFilters.dateRange.from !== null ||
     dateFilters.dateRange.to !== null;
 
