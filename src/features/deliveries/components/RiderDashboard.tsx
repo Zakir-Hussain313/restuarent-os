@@ -29,6 +29,9 @@ import {
     type RiderCurrentDelivery,
 } from "@/features/deliveries/actions";
 import { clockInAction, clockOutAction } from "@/features/attendance/actions";
+import { useRiderHistory } from "@/features/deliveries/hooks/useRiderHistory";
+import { RiderHistoryFilters } from "@/features/deliveries/components/RiderHistoryFilters";
+import { RiderRevenueSummary } from "@/features/deliveries/components/RiderRevenueSummary";
 
 interface RiderDashboardProps {
     initialData: RiderDashboardData;
@@ -54,8 +57,8 @@ export function RiderDashboard({ initialData }: RiderDashboardProps) {
     const router = useRouter();
     const [isAvailable, setIsAvailable] = useState(initialData.isAvailable);
     const [currentDelivery, setCurrentDelivery] = useState(initialData.currentDelivery);
-    const [history, setHistory] = useState(initialData.history);
     const [error, setError] = useState<string | null>(null);
+    const riderHistory = useRiderHistory();
     const [isAdvancing, startAdvanceTransition] = useTransition();
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const [isClocking, setIsClocking] = useState(false);
@@ -69,7 +72,6 @@ export function RiderDashboard({ initialData }: RiderDashboardProps) {
         setPrevInitialData(initialData);
         setIsAvailable(initialData.isAvailable);
         setCurrentDelivery(initialData.currentDelivery);
-        setHistory(initialData.history);
     }
 
     const onRealtimeEvent = useCallback(() => {
@@ -159,18 +161,8 @@ export function RiderDashboard({ initialData }: RiderDashboardProps) {
                 return;
             }
             if (nextStatus === "delivered") {
-                setHistory((prev) => [
-                    {
-                        orderId: currentDelivery.orderId,
-                        orderNumber: currentDelivery.orderNumber,
-                        status: "delivered",
-                        address: formatAddress(currentDelivery.address),
-                        total: currentDelivery.total,
-                        updatedAt: new Date().toISOString(),
-                    },
-                    ...prev,
-                ]);
                 setCurrentDelivery(null);
+                riderHistory.refetch();
             } else {
                 setCurrentDelivery({ ...currentDelivery, status: "out_for_delivery" });
             }
@@ -419,14 +411,36 @@ export function RiderDashboard({ initialData }: RiderDashboardProps) {
                     </div>
                 )}
 
+                {/* Revenue summary */}
+                <RiderRevenueSummary summary={riderHistory.summary} isLoading={riderHistory.isLoading} />
+
                 {/* History */}
-                {history.length > 0 && (
-                    <div className="pt-2">
-                        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
-                            Recent Deliveries
-                        </h3>
+                <div className="pt-2">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
+                        Delivery History
+                    </h3>
+                    <div className="mb-3">
+                        <RiderHistoryFilters
+                            datePreset={riderHistory.datePreset}
+                            dateRange={riderHistory.dateRange}
+                            isFiltered={riderHistory.isFiltered}
+                            setDatePreset={riderHistory.setDatePreset}
+                            setDateRange={riderHistory.setDateRange}
+                            resetFilters={riderHistory.resetFilters}
+                        />
+                    </div>
+                    {riderHistory.error && (
+                        <div className="mb-3 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">
+                            {riderHistory.error}
+                        </div>
+                    )}
+                    {riderHistory.history.length === 0 && !riderHistory.isLoading ? (
+                        <p className="text-xs text-muted-foreground px-1 py-4 text-center">
+                            No deliveries in this range.
+                        </p>
+                    ) : (
                         <div className="rounded-xl border divide-y overflow-hidden">
-                            {history.map((entry) => (
+                            {riderHistory.history.map((entry) => (
                                 <div
                                     key={entry.orderId}
                                     className="flex items-center justify-between px-3 py-2.5"
@@ -458,8 +472,8 @@ export function RiderDashboard({ initialData }: RiderDashboardProps) {
                                 </div>
                             ))}
                         </div>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
         </div>
     );

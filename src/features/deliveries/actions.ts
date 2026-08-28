@@ -312,7 +312,96 @@ export async function getRiderDashboardDataAction(): Promise <
 }
 
 
-// ─── List riders for manual assignment ─────────────────────────────────────
+// ─── Rider's own filtered history + revenue breakdown ──────────────────
+
+export interface RiderRevenueSummary {
+    totalRevenue: number;
+    foodRevenue: number;
+    deliveryRevenue: number;
+    deliveredCount: number;
+    cancelledCount: number;
+}
+
+export async function getRiderHistoryAction(
+    dateFrom: string,
+    dateTo?: string
+): Promise <
+    | { success: true; history: RiderHistoryEntry[]; summary: RiderRevenueSummary }
+    | { success?: undefined; error: string }
+> {
+    const auth = await getCurrentStaff();
+    if (!auth.ok) return { error: auth.error };
+    const { staff: currentStaffRow } = auth;
+
+    if (currentStaffRow.role !== "RIDER") {
+        return { error: "Only riders can access this dashboard." };
+    }
+
+    const from = new Date(dateFrom);
+    const to = dateTo ? new Date(dateTo) : new Date();
+
+    const historyRows = await db.query.deliveries.findMany({
+        where: and(
+            eq(deliveries.riderId, currentStaffRow.id),
+            inArray(deliveries.status, ["delivered", "cancelled"])
+        ),
+        orderBy: desc(deliveries.updatedAt),
+        with: { order: true },
+    });
+
+    // Filtered in application code, not the query, since we're filtering
+    // on updatedAt against a caller-supplied window that's already small
+    // (one rider's own deliveries) — avoids a second date-range Drizzle
+    // where() branch for a query this narrow.
+    const filteredRows = historyRows.filter(
+        (d) => d.updatedAt >= from && d.updatedAt <= to
+    );
+
+    const history: RiderHistoryEntry[] = filteredRows
+        .filter((d) => d.order)
+        .map((d) => ({
+            orderId: d.order!.id,
+            orderNumber: d.order!.orderNumber,
+            status: d.status as "delivered" | "cancelled",
+            address: [d.deliveryAddress.street, d.deliveryAddress.area, d.deliveryAddress.city]
+                .filter(Boolean)
+                .join(", "),
+            total: d.order!.total,
+            updatedAt: d.updatedAt.toISOString(),
+        }));
+
+    // Revenue only counts delivered orders — a cancelled delivery was
+    // never collected, so it shouldn't contribute to either figure.
+    let foodRevenue = 0;
+    let deliveryRevenue = 0;
+    let deliveredCount = 0;
+    let cancelledCount = 0;
+
+    for (const d of filteredRows) {
+        if (!d.order) continue;
+        if (d.status === "delivered") {
+            deliveredCount++;
+            deliveryRevenue += d.order.deliveryFee;
+            foodRevenue += d.order.total - d.order.deliveryFee;
+        } else {
+            cancelledCount++;
+        }
+    }
+
+    return {
+        success: true,
+        history,
+        summary: {
+            totalRevenue: foodRevenue + deliveryRevenue,
+            foodRevenue,
+            deliveryRevenue,
+            deliveredCount,
+            cancelledCount,
+        },
+    };
+}
+
+// ─── List riders for manual assignment ─────────────────────────────────
 
 export interface RiderOption {
     id: string;

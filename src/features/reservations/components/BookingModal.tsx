@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -154,6 +155,14 @@ export function BookingModal({ open, onOpenChange, table, onBooked }: BookingMod
                                 reservation later, and staff may ask for it when you arrive.
                             </p>
                         </div>
+
+                        <p className="text-xs text-center text-[#8a8680] mt-3">
+                            You can look this up anytime on the{" "}
+                            <Link href="/my-reservations" className="text-[#e8570e] font-medium hover:underline">
+                                My Reservations
+                            </Link>{" "}
+                            page.
+                        </p>
 
                         <DialogFooter>
                             <Button className="w-full bg-[#e8570e] hover:bg-[#d44f0c] text-white" onClick={() => onOpenChange(false)}>

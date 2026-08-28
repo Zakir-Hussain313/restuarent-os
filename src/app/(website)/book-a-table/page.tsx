@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useLocationStore } from "@/store/useLocationStore";
 import { usePublicBranchInfo } from "@/features/online-ordering/hooks/useOnlineOrdering";
 import { LocationPickerModal } from "@/features/online-ordering/components/LocationPickerModal";
@@ -95,14 +96,22 @@ export default function TablesPage() {
             {needsLocationPicker && <LocationPickerModal mode="dineIn" />}
 
             <div className="bg-[#1a1815] py-10">
-                <div className="max-w-6xl mx-auto px-4 sm:px-6">
-                    <p className="text-xs font-semibold uppercase tracking-widest text-[#e8570e] mb-2">
-                        Book a Table
-                    </p>
-                    <h1 className="text-3xl font-bold text-white">Reserve your spot</h1>
-                    <p className="text-white/50 text-sm mt-1">
-                        Pick an available table below.
-                    </p>
+                <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-start justify-between gap-4">
+                    <div>
+                        <p className="text-xs font-semibold uppercase tracking-widest text-[#e8570e] mb-2">
+                            Book a Table
+                        </p>
+                        <h1 className="text-3xl font-bold text-white">Reserve your spot</h1>
+                        <p className="text-white/50 text-sm mt-1">
+                            Pick an available table below.
+                        </p>
+                    </div>
+                    <Link
+                        href="/my-reservations"
+                        className="shrink-0 text-xs sm:text-sm font-medium text-white/70 hover:text-white underline underline-offset-4"
+                    >
+                        My Reservations
+                    </Link>
                 </div>
             </div>
 

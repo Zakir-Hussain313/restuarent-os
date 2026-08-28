@@ -54,10 +54,18 @@ export async function createAdminAction(input: CreateAdminInput) {
     return { error: "A user with this email already exists." };
   }
 
+  // inviteUserByEmail always uses Supabase's implicit/hash-fragment flow
+  // (#access_token=...), never PKCE — the server-side /auth/callback route
+  // can never see hash-fragment tokens (they never reach the server), so
+  // this must redirect straight to reset-password, which handles the hash
+  // client-side. Do not point this at /auth/callback. (Note:
+  // resetPasswordForEmail below, in sendAdminPasswordResetAction, is a
+  // different Supabase method that DOES support PKCE — that one correctly
+  // stays on /auth/callback and should not be changed.)
   const { data: inviteData, error: inviteError } =
     await supabaseAdmin.auth.admin.inviteUserByEmail(parsed.data.email, {
       data: { role: parsed.data.role },
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback?next=/auth/reset-password`,
+      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/reset-password`,
     });
 
   if (inviteError || !inviteData.user) {
@@ -158,7 +166,13 @@ export async function updateAdminAction(
     where: eq(staff.id, user.id),
   });
 
-  if (!currentStaffRow || !hasPermission(currentStaffRow.role, "manage_admins")) {
+  if (!currentStaffRow) {
+    return { error: "You don't have permission to edit admins." };
+  }
+
+  const isSelfEdit = adminId === user.id;
+
+  if (!isSelfEdit && !hasPermission(currentStaffRow.role, "manage_admins")) {
     return { error: "You don't have permission to edit admins." };
   }
 
@@ -427,7 +441,11 @@ export async function deleteAdminAction(adminId: string) {
     });
 
     const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(adminId);
-    if (authError) {
+    // If the auth user is already gone (e.g. a prior attempt deleted the
+    // auth account but failed before removing the staff row), treat that
+    // as already-done instead of blocking the retry.
+    const authAlreadyGone = authError?.message?.toLowerCase().includes("not found");
+    if (authError && !authAlreadyGone) {
       return { error: `Failed to delete auth account: ${authError.message}` };
     }
 

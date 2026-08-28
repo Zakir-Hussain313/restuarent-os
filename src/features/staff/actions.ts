@@ -59,10 +59,15 @@ export async function createStaffAction(input: CreateStaffInput) {
     return { error: "A staff member with this email already exists." };
   }
 
+  // inviteUserByEmail always uses Supabase's implicit/hash-fragment flow
+  // (#access_token=...), never PKCE — the server-side /auth/callback route
+  // can never see hash-fragment tokens (they never reach the server), so
+  // this must redirect straight to reset-password, which handles the hash
+  // client-side. Do not point this at /auth/callback.
   const { data: inviteData, error: inviteError } =
     await supabaseAdmin.auth.admin.inviteUserByEmail(parsed.data.email, {
       data: { role: parsed.data.role },
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback?next=/auth/reset-password`,
+      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/reset-password`,
     });
 
   if (inviteError || !inviteData.user) {
@@ -211,7 +216,13 @@ export async function updateStaffAction(
     where: eq(staff.id, user.id),
   });
 
-  if (!currentStaffRow || !hasPermission(currentStaffRow.role, "manage_staff")) {
+  if (!currentStaffRow) {
+    return { error: "You don't have permission to edit staff." };
+  }
+
+  const isSelfEdit = staffId === user.id;
+
+  if (!isSelfEdit && !hasPermission(currentStaffRow.role, "manage_staff")) {
     return { error: "You don't have permission to edit staff." };
   }
 
