@@ -3,8 +3,8 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { db } from "@/db";
-import { staff, branches } from "@/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { staff, branches, orders, orderDiscounts, payments, coupons, attendance } from "@/db/schema";
+import { eq, and, inArray, isNull } from "drizzle-orm";
 import { hasPermission } from "@/types/staff";
 import { logAudit } from "@/lib/audit";
 import { createNotification } from "@/features/notifications/actions";
@@ -414,6 +414,86 @@ export async function reactivateStaffAction(staffId: string) {
   });
 
   return { success: true };
+}
+
+// ── Permanently delete staff (distinct from deactivate — historical
+// records keep the person's name via *Name snapshot columns) ─────────────
+
+export async function deleteStaffAction(staffId: string) {
+  const supabase = await getSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: "Not authenticated." };
+
+  const currentStaffRow = await db.query.staff.findFirst({
+    where: eq(staff.id, user.id),
+  });
+
+  if (!currentStaffRow || !hasPermission(currentStaffRow.role, "manage_staff")) {
+    return { error: "You don't have permission to delete staff." };
+  }
+
+  const target = await db.query.staff.findFirst({
+    where: eq(staff.id, staffId),
+  });
+
+  if (!target || target.tenantId !== currentStaffRow.tenantId) {
+    return { error: "Staff member not found." };
+  }
+
+  if (!["STAFF", "RIDER"].includes(target.role)) {
+    return { error: "Use the admin delete action for ADMIN/SUPER_ADMIN accounts." };
+  }
+
+  if (currentStaffRow.role === "ADMIN" && target.branchId !== currentStaffRow.branchId) {
+    return { error: "You can only delete staff in your own branch." };
+  }
+
+  const fullName = `${target.firstName} ${target.lastName}`;
+  const idSnapshot = target.id;
+
+  try {
+    // Backfill name snapshots on every historical row still pointing at
+    // this staff member, BEFORE the row is deleted — once it's gone,
+    // ON DELETE SET NULL clears the FK but can't populate a name we
+    // didn't save first.
+    await db.transaction(async (tx) => {
+      await tx.update(orders).set({ staffName: fullName }).where(and(eq(orders.staffId, staffId), isNull(orders.staffName)));
+      await tx.update(orderDiscounts).set({ appliedByName: fullName }).where(and(eq(orderDiscounts.appliedBy, staffId), isNull(orderDiscounts.appliedByName)));
+      await tx.update(payments).set({ processedByName: fullName }).where(and(eq(payments.processedBy, staffId), isNull(payments.processedByName)));
+      await tx.update(coupons).set({ createdByName: fullName }).where(and(eq(coupons.createdBy, staffId), isNull(coupons.createdByName)));
+      await tx
+        .update(attendance)
+        .set({ staffName: fullName, staffIdSnapshot: idSnapshot })
+        .where(and(eq(attendance.staffId, staffId), isNull(attendance.staffName)));
+      await tx
+        .update(attendance)
+        .set({ loggedByName: fullName })
+        .where(and(eq(attendance.loggedBy, staffId), isNull(attendance.loggedByName)));
+    });
+
+    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(staffId);
+    // If the auth user is already gone (e.g. a prior attempt deleted the
+    // auth account but failed before removing the staff row), treat that
+    // as already-done instead of blocking the retry.
+    const authAlreadyGone = authError?.message?.toLowerCase().includes("not found");
+    if (authError && !authAlreadyGone) {
+      return { error: `Failed to delete auth account: ${authError.message}` };
+    }
+
+    await db.delete(staff).where(eq(staff.id, staffId));
+
+    await logAudit(db, currentStaffRow, "staff", staffId, "delete", {
+      oldValue: { email: target.email, role: target.role },
+      description: `Permanently deleted ${fullName}`,
+    });
+
+    return { success: true };
+  } catch (err) {
+    return { error: `Failed to delete staff: ${(err as Error).message}` };
+  }
 }
 
 // ── Send password reset to staff member ───────────────────────────────────

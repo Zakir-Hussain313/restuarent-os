@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Plus, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { TableFloorPlan } from "@/features/tables/components/TableFloorPlan";
 import { TableSectionDialog } from "@/features/tables/components/TableSectionDialog";
 import { TableDialog } from "@/features/tables/components/TableDialog";
 import {
@@ -26,6 +26,11 @@ interface TablesTabProps {
     branchId?: string;
     canManageCrud: boolean;
 }
+
+const TableFloorPlan = dynamic(
+  () => import("@/features/tables/components/TableFloorPlan").then((mod) => mod.TableFloorPlan),
+  { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-xl bg-muted" /> }
+);
 
 export function TablesTab({ tables, sections, branchId, canManageCrud }: TablesTabProps) {
     const router = useRouter();

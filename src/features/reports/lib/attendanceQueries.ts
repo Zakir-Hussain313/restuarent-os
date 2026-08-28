@@ -3,8 +3,9 @@ import { attendance, staff } from "@/db/schema";
 import { eq, and, gte, lt, sql } from "drizzle-orm";
 
 export interface StaffAttendanceSummary {
-  staffId: string;
+  staffId: string | null;
   name: string;
+  isDeleted: boolean;
   present: number;
   absent: number;
   late: number;
@@ -26,11 +27,16 @@ export async function getStaffAttendanceBreakdown(
   start: Date,
   end: Date
 ): Promise<StaffAttendanceSummary[]> {
+  // leftJoin (not innerJoin) — a deleted staff member has no `staff` row
+  // left, but their attendance rows (with staffName/staffIdSnapshot
+  // preserved) must still surface in reports rather than silently vanishing.
   const rows = await db
     .select({
       staffId: attendance.staffId,
-      firstName: sql<string>`max(${staff.firstName})`,
-      lastName: sql<string>`max(${staff.lastName})`,
+      staffIdSnapshot: attendance.staffIdSnapshot,
+      snapshotName: attendance.staffName,
+      firstName: sql<string | null>`max(${staff.firstName})`,
+      lastName: sql<string | null>`max(${staff.lastName})`,
       present: sql<number>`count(*) filter (where ${attendance.status} = 'present')`,
       absent: sql<number>`count(*) filter (where ${attendance.status} = 'absent')`,
       late: sql<number>`count(*) filter (where ${attendance.status} = 'late')`,
@@ -38,7 +44,7 @@ export async function getStaffAttendanceBreakdown(
       halfDay: sql<number>`count(*) filter (where ${attendance.status} = 'half_day')`,
     })
     .from(attendance)
-    .innerJoin(staff, eq(attendance.staffId, staff.id))
+    .leftJoin(staff, eq(attendance.staffId, staff.id))
     .where(
       and(
         eq(attendance.tenantId, tenantId),
@@ -47,12 +53,16 @@ export async function getStaffAttendanceBreakdown(
         lt(attendance.date, end)
       )
     )
-    .groupBy(attendance.staffId)
-    .orderBy(sql`max(${staff.firstName})`);
+    // Group by staffIdSnapshot too — multiple deleted staff all have
+    // attendance.staffId = null, so grouping by staffId alone would
+    // collapse them into one row.
+    .groupBy(attendance.staffId, attendance.staffIdSnapshot, attendance.staffName)
+    .orderBy(sql`max(coalesce(${staff.firstName}, ${attendance.staffName}))`);
 
   return rows.map((r) => ({
-    staffId: r.staffId,
-    name: `${r.firstName} ${r.lastName}`,
+    staffId: r.staffId ?? r.staffIdSnapshot,
+    name: r.staffId ? `${r.firstName} ${r.lastName}` : (r.snapshotName ?? "Deleted staff"),
+    isDeleted: !r.staffId,
     present: Number(r.present),
     absent: Number(r.absent),
     late: Number(r.late),

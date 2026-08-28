@@ -21,11 +21,14 @@ export const attendance = pgTable(
             .notNull()
             .references(() => branches.id, { onDelete: "cascade" }),
 
-        // onDelete: "restrict" — attendance records are historical data.
-        // A staff member with attendance history must be deactivated, not deleted.
+        // onDelete: "set null" — if the staff member is permanently deleted,
+        // this row is preserved with staffName + staffIdSnapshot as a record
+        // of who it was. staffIdSnapshot is their original staff.id, kept as
+        // plain text (not a live FK) so it survives the delete.
         staffId: uuid("staff_id")
-            .notNull()
-            .references(() => staff.id, { onDelete: "restrict" }),
+            .references(() => staff.id, { onDelete: "set null" }),
+        staffName: text("staff_name"),
+        staffIdSnapshot: text("staff_id_snapshot"),
 
         status: attendanceStatusEnum("status").notNull(),
 
@@ -43,8 +46,8 @@ export const attendance = pgTable(
 
         // Who logged this record — for audit trail on manual entries.
         loggedBy: uuid("logged_by")
-            .notNull()
-            .references(() => staff.id, { onDelete: "restrict" }),
+            .references(() => staff.id, { onDelete: "set null" }),
+        loggedByName: text("logged_by_name"),
 
         createdAt: timestamp("created_at", { withTimezone: true })
             .notNull()

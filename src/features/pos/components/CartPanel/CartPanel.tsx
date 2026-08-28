@@ -1,5 +1,4 @@
 "use client";
-
 import { usePosStore } from "@/store/usePosStore";
 import { OrderTypeSelector } from "./OrderTypeSelector";
 import { CartItemList } from "./CartItemList";
@@ -8,24 +7,25 @@ import { OrderSummary } from "./OrderSummary";
 import { CartActions } from "./CartActions";
 import { DeliveryDetailsForm } from "./DeliveryDetailsForm";
 import { TableSelector } from "./TableSelector";
-
+import { ClockButton } from "../ClockButton";
 interface CartPanelProps {
   branchId?: string;
   autoConfirmOnPlace?: boolean;
+  showClockButton?: boolean;
+  initialIsClockedIn?: boolean;
 }
-
-export function CartPanel({ branchId, autoConfirmOnPlace }: CartPanelProps) {
+export function CartPanel({ branchId, autoConfirmOnPlace, showClockButton, initialIsClockedIn }: CartPanelProps) {
   const orderType = usePosStore((s) => s.orderType);
-
   return (
     <div className="flex flex-col h-full bg-background border-l overflow-hidden">
-
-      {/* Header — fixed */}
+      {/* Header â€” fixed */}
       <div className="shrink-0 px-4 pt-5 pb-4 min-[760px]:pt-4 min-[760px]:pb-3 border-b">
-        <h2 className="text-base font-semibold mb-3">Current Order</h2>
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <h2 className="text-base font-semibold">Current Order</h2>
+          {showClockButton && <ClockButton initialIsClockedIn={initialIsClockedIn ?? false} />}
+        </div>
         <OrderTypeSelector />
       </div>
-
       {/* Scrollable middle — items + table selector */}
       <div className="flex-1 overflow-y-auto min-h-0 px-4 flex flex-col">
         <CartItemList />

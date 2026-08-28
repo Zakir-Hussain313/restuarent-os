@@ -1,12 +1,17 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useDashboardBundle } from "../hooks/useDashboardData";
 import { DashboardStats } from "./DashboardStats";
-import { RevenueChart } from "./RevenueChart";
 import { TopDishesWidget } from "./TopDishesWidget";
 import { RecentOrdersWidget } from "./RecentOrdersWidget";
 import { OrderTypeBreakdownWidget } from "./OrderTypeBreakdownWidget";
 import { ReservationStatsWidget } from "./ReservationStatsWidget";
+
+const RevenueChart = dynamic(
+  () => import("./RevenueChart").then((mod) => mod.RevenueChart),
+  { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-xl bg-muted" /> }
+);
 
 export function DashboardContent() {
   const { data: bundle, isLoading } = useDashboardBundle();

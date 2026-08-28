@@ -31,6 +31,9 @@ export function CouponRow({ coupon, branchNameMap, canManage, onEdit, onDeactiva
         : `${coupon.branchIds.length} branches`;
 
   const usageLabel = `${coupon.usesCount}/${coupon.maxUses ?? "∞"} used`;
+  const createdByLabel = coupon.createdByName
+    ? `Created by ${coupon.createdByName}${!coupon.createdBy ? " (Deleted)" : ""}`
+    : null;
 
   return (
     <div className="flex items-center justify-between px-4 py-3 border rounded-lg bg-background">
@@ -51,6 +54,14 @@ export function CouponRow({ coupon, branchNameMap, canManage, onEdit, onDeactiva
         )}
         <p className="text-xs text-muted-foreground mt-0.5">
           {discountLabel} · {branchLabel} · {usageLabel}
+          {createdByLabel && (
+            <>
+              {" · "}
+              <span className={!coupon.createdBy ? "text-destructive" : undefined}>
+                {createdByLabel}
+              </span>
+            </>
+          )}
         </p>
       </div>
 

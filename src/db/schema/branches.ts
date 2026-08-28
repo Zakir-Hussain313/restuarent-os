@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, boolean, jsonb, doublePrecision } from "drizzle-orm/pg-core";
 import { tenants } from "./tenants";
 
 // Operating hours for a single day.
@@ -36,10 +36,14 @@ export const branches = pgTable("branches", {
   isMainBranch: boolean("is_main_branch").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
 
-  // Nullable — null means "no hours configured", and the reservation
+    // Nullable - null means "no hours configured", and the reservation
   // hours check treats that as "open anytime" (see isWithinOperatingHours).
   operatingHours: jsonb("operating_hours").$type<OperatingHours>(),
-
+  // Nullable - null means no geofence check is applied for clock-in at
+  // this branch (see clockInAction). Set once via "use my current location"
+  // in branch settings.
+  latitude: doublePrecision("latitude"),
+  longitude: doublePrecision("longitude"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

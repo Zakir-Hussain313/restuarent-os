@@ -12,6 +12,8 @@ import {
   UtensilsCrossed,
   Hash,
   Phone,
+  UserCircle2,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -37,6 +39,35 @@ const ORDER_TYPE_LABEL: Record<string, string> = {
   takeaway: "Takeaway",
   delivery: "Delivery",
 };
+
+const PAYMENT_METHOD_LABEL: Record<string, string> = {
+  cash: "Cash",
+  card: "Card",
+  jazzcash: "JazzCash",
+  easypaisa: "Easypaisa",
+  bank_transfer: "Bank Transfer",
+  complimentary: "Complimentary",
+};
+
+function AttributionName({
+  liveId,
+  name,
+}: {
+  liveId: string | null | undefined;
+  name: string | null | undefined;
+}) {
+  if (!name) return null;
+  return (
+    <span className="inline-flex items-center gap-1">
+      {name}
+      {!liveId && (
+        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive">
+          Deleted
+        </span>
+      )}
+    </span>
+  );
+}
 
 export function OrderDetail({ orderId }: OrderDetailProps) {
   const queryClient = useQueryClient();
@@ -116,6 +147,13 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
             <span className="flex items-center gap-1.5">
               <Phone className="w-3.5 h-3.5" />
               {order.customerPhone}
+            </span>
+          )}
+
+          {order.staffName && (
+            <span className="flex items-center gap-1.5">
+              <UserCircle2 className="w-3.5 h-3.5" />
+              Placed by <AttributionName liveId={order.staffId} name={order.staffName} />
             </span>
           )}
         </div>
@@ -211,11 +249,22 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
 
           {order.totalDiscount > 0 && (
             <div className="flex justify-between text-sm text-emerald-600">
-              <span>
-                Discount
-                {order.discounts.length === 1
-                  ? ` — ${order.discounts[0].name}`
-                  : ""}
+              <span className="flex flex-col">
+                <span>
+                  Discount
+                  {order.discounts.length === 1
+                    ? ` — ${order.discounts[0].name}`
+                    : ""}
+                </span>
+                {order.discounts.length === 1 && order.discounts[0].appliedByName && (
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    Applied by{" "}
+                    <AttributionName
+                      liveId={order.discounts[0].appliedBy}
+                      name={order.discounts[0].appliedByName}
+                    />
+                  </span>
+                )}
               </span>
               <span>− Rs. {order.totalDiscount.toLocaleString()}</span>
             </div>
@@ -251,6 +300,34 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
             </span>
           </div>
         </div>
+
+        {order.payments.length > 0 && (
+          <>
+            <Separator className="mx-5" />
+            <div className="px-5 py-4">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <CreditCard className="w-3.5 h-3.5" />
+                Payments
+              </p>
+              <div className="space-y-2">
+                {order.payments.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between text-sm">
+                    <div className="flex flex-col">
+                      <span>{PAYMENT_METHOD_LABEL[p.method] ?? p.method}</span>
+                      {p.processedByName && (
+                        <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                          Processed by{" "}
+                          <AttributionName liveId={p.processedBy} name={p.processedByName} />
+                        </span>
+                      )}
+                    </div>
+                    <span className="font-medium">Rs. {p.amount.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
 
         {order.notes && (
           <>

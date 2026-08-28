@@ -23,7 +23,8 @@ export interface AppliedDiscount {
   type: DiscountType;
   value: number;
   appliedAmount: number;
-  appliedBy: string;
+  appliedBy: string | null;
+  appliedByName?: string | null;
 }
 
 export interface OrderItem {
@@ -51,7 +52,8 @@ export interface Payment {
   amount: number;
   reference?: string;
   processedAt: string;
-  processedBy: string;
+  processedBy: string | null;
+  processedByName?: string | null;
 }
 
 export interface Order {
@@ -91,6 +93,7 @@ export interface Order {
 
   notes?: string;
   staffId: string | null;
+  staffName?: string | null;
 
   createdAt: string;
   updatedAt: string;

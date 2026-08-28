@@ -27,7 +27,8 @@ export type AuditResource =
     | "tenant_settings"
     | "branch_settings"
     | "branch"
-    | "coupon";
+    | "coupon"
+    | "branch_device";
 
 // The actions that can be audited.
 // Same reasoning as AuditResource — plain union, not pgEnum.

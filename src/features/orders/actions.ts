@@ -106,6 +106,7 @@ function buildOrderResponse(
             value: d.value,
             appliedAmount: d.appliedAmount,
             appliedBy: d.appliedBy,
+            appliedByName: d.appliedByName,
         })),
         totalDiscount: order.totalDiscount,
         deliveryFee: order.deliveryFee,
@@ -117,6 +118,7 @@ function buildOrderResponse(
         deliveryAddress: order.deliveryAddress ?? undefined,
         notes: order.notes ?? undefined,
         staffId: order.staffId,
+        staffName: order.staffName,
         createdAt: order.createdAt.toISOString(),
         updatedAt: order.updatedAt.toISOString(),
     };
@@ -413,6 +415,7 @@ export async function createOrderAction(
                     deliveryAddress: input.deliveryAddress ?? null,
                     notes: input.notes ?? null,
                     staffId: currentStaffRow.id,
+                    staffName: `${currentStaffRow.firstName} ${currentStaffRow.lastName}`,
                     idempotencyKey: idempotencyKey ?? null,
                     wasOfflineOrder,
                     // Offline orders pass their true placement time so the
@@ -507,6 +510,7 @@ export async function createOrderAction(
                             value: appliedCoupon.discountValue,
                             appliedAmount: totalDiscount,
                             appliedBy: currentStaffRow.id,
+                            appliedByName: `${currentStaffRow.firstName} ${currentStaffRow.lastName}`,
                             couponId: appliedCoupon.id,
                         })
                         .returning(),
@@ -682,6 +686,7 @@ export async function getOrdersAction(
             value: d.value,
             appliedAmount: d.appliedAmount,
             appliedBy: d.appliedBy,
+            appliedByName: d.appliedByName,
         })),
         totalDiscount: o.totalDiscount,
         deliveryFee: o.deliveryFee,
@@ -695,6 +700,7 @@ export async function getOrdersAction(
             reference: p.reference ?? undefined,
             processedAt: p.processedAt.toISOString(),
             processedBy: p.processedBy,
+            processedByName: p.processedByName,
         })),
         totalPaid: o.totalPaid,
         balance: o.balance,
@@ -702,6 +708,7 @@ export async function getOrdersAction(
         estimatedDeliveryMinutes: o.estimatedDeliveryMinutes ?? undefined,
         notes: o.notes ?? undefined,
         staffId: o.staffId,
+        staffName: o.staffName,
         createdAt: o.createdAt.toISOString(),
         updatedAt: o.updatedAt.toISOString(),
         completedAt: o.completedAt?.toISOString(),
@@ -778,6 +785,7 @@ export async function getOrderByIdAction(
                 value: d.value,
                 appliedAmount: d.appliedAmount,
                 appliedBy: d.appliedBy,
+                appliedByName: d.appliedByName,
             })),
             totalDiscount: row.totalDiscount,
             deliveryFee: row.deliveryFee,
@@ -791,6 +799,7 @@ export async function getOrderByIdAction(
                 reference: p.reference ?? undefined,
                 processedAt: p.processedAt.toISOString(),
                 processedBy: p.processedBy,
+                processedByName: p.processedByName,
             })),
             totalPaid: row.totalPaid,
             balance: row.balance,
@@ -798,6 +807,7 @@ export async function getOrderByIdAction(
             estimatedDeliveryMinutes: row.estimatedDeliveryMinutes ?? undefined,
             notes: row.notes ?? undefined,
             staffId: row.staffId,
+            staffName: row.staffName,
             createdAt: row.createdAt.toISOString(),
             updatedAt: row.updatedAt.toISOString(),
             completedAt: row.completedAt?.toISOString(),
@@ -921,6 +931,7 @@ export async function completeBillAction(
             method: paymentMethod,
             amount: target.total,
             processedBy: currentStaffRow.id,
+            processedByName: `${currentStaffRow.firstName} ${currentStaffRow.lastName}`,
         }).returning();
 
         paymentId = payment.id;

@@ -160,6 +160,7 @@ export async function createCouponAction(
                     menuItemIds: input.menuItemIds && input.menuItemIds.length > 0 ? input.menuItemIds : null,
                     categoryIds: input.categoryIds && input.categoryIds.length > 0 ? input.categoryIds : null,
                     createdBy: currentStaff.id,
+                    createdByName: `${currentStaff.firstName} ${currentStaff.lastName}`,
                 })
                 .returning();
 

@@ -18,6 +18,7 @@ export * from "./reservationCounters";
 export * from "./push_subscriptions";
 export * from "./notifications";
 export * from "./notification_clears";
+export * from "./branch_devices";
 
 // Re-export all enums namespace for convenience when you need to
 // reference enum values directly (e.g. enums.staffRoleEnum).

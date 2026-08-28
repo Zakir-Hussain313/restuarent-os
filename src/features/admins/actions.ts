@@ -3,8 +3,8 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { db } from "@/db";
-import { staff } from "@/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { staff, orders, orderDiscounts, payments, coupons, attendance } from "@/db/schema";
+import { eq, and, inArray, isNull } from "drizzle-orm";
 import { hasPermission } from "@/types/staff";
 import { logAudit } from "@/lib/audit";
 import {
@@ -367,6 +367,81 @@ export async function reactivateAdminAction(adminId: string) {
   });
 
   return { success: true };
+}
+
+// ── Permanently delete admin (SUPER_ADMIN only — distinct from deactivate) ──
+
+export async function deleteAdminAction(adminId: string) {
+  const supabase = await getSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: "Not authenticated." };
+
+  const currentStaffRow = await db.query.staff.findFirst({
+    where: eq(staff.id, user.id),
+  });
+
+  if (!currentStaffRow || currentStaffRow.role !== "SUPER_ADMIN") {
+    return { error: "Only super admins can permanently delete admin accounts." };
+  }
+
+  const target = await db.query.staff.findFirst({
+    where: eq(staff.id, adminId),
+  });
+
+  if (
+    !target ||
+    target.tenantId !== currentStaffRow.tenantId ||
+    !ADMIN_ROLES.includes(target.role as (typeof ADMIN_ROLES)[number])
+  ) {
+    return { error: "Admin not found." };
+  }
+
+  if (adminId === user.id) {
+    return { error: "You cannot delete your own account." };
+  }
+
+  if (target.role === "SUPER_ADMIN") {
+    return { error: "Super admin accounts cannot be deleted." };
+  }
+
+  const fullName = `${target.firstName} ${target.lastName}`;
+  const idSnapshot = target.id;
+
+  try {
+    await db.transaction(async (tx) => {
+      await tx.update(orders).set({ staffName: fullName }).where(and(eq(orders.staffId, adminId), isNull(orders.staffName)));
+      await tx.update(orderDiscounts).set({ appliedByName: fullName }).where(and(eq(orderDiscounts.appliedBy, adminId), isNull(orderDiscounts.appliedByName)));
+      await tx.update(payments).set({ processedByName: fullName }).where(and(eq(payments.processedBy, adminId), isNull(payments.processedByName)));
+      await tx.update(coupons).set({ createdByName: fullName }).where(and(eq(coupons.createdBy, adminId), isNull(coupons.createdByName)));
+      await tx
+        .update(attendance)
+        .set({ staffName: fullName, staffIdSnapshot: idSnapshot })
+        .where(and(eq(attendance.staffId, adminId), isNull(attendance.staffName)));
+      await tx
+        .update(attendance)
+        .set({ loggedByName: fullName })
+        .where(and(eq(attendance.loggedBy, adminId), isNull(attendance.loggedByName)));
+    });
+
+    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(adminId);
+    if (authError) {
+      return { error: `Failed to delete auth account: ${authError.message}` };
+    }
+
+    await db.delete(staff).where(eq(staff.id, adminId));
+
+    await logAudit(db, currentStaffRow, "staff", adminId, "delete", {
+      oldValue: { email: target.email, role: target.role },
+      description: `Permanently deleted admin ${fullName}`,
+    });
+
+    return { success: true };
+  } catch (err) {
+    return { error: `Failed to delete admin: ${(err as Error).message}` };
+  }
 }
 
 // ── Send password reset to admin ───────────────────────────────────────────

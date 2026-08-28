@@ -119,12 +119,13 @@ export function AttendanceTable() {
             <TableHeader>
                 <TableRow>
                     <TableHead>Staff</TableHead>
+                    <TableHead>Clock In / Out</TableHead>
                     <TableHead>Status</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
                 {data.map((row) => (
-                    <TableRow key={row.staffId}>
+                    <TableRow key={row.attendanceId ?? row.staffId}>
                         <TableCell>
                             <div className="flex items-center gap-2">
                                 <Avatar className="h-8 w-8">
@@ -137,33 +138,57 @@ export function AttendanceTable() {
                                 <span>
                                     {row.firstName} {row.lastName}
                                 </span>
+                                {row.isDeleted && (
+                                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive">
+                                        Deleted
+                                    </span>
+                                )}
                             </div>
                         </TableCell>
                         <TableCell>
-                            <div className="flex gap-2 items-center">
-                                {STATUS_OPTIONS.map((opt) => (
-                                    <Button
-                                        key={opt.value}
-                                        size="sm"
-                                        variant="outline"
-                                        className={cn(row.status === opt.value && STATUS_STYLES[opt.value])}
-                                        onClick={() => handleMark(row.staffId, opt.value)}
-                                    >
-                                        {opt.label}
-                                    </Button>
-                                ))}
-                                {row.hasOpenSession && (
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="text-muted-foreground hover:text-destructive"
-                                        disabled={endShiftMutation.isPending}
-                                        onClick={() => handleEndShift(row.staffId, row.firstName, row.lastName)}
-                                    >
-                                        End Shift
-                                    </Button>
-                                )}
-                            </div>
+                            <span className="text-xs text-muted-foreground tabular-nums">
+                                {row.checkIn
+                                    ? new Date(row.checkIn).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+                                    : "—"}
+                                {" – "}
+                                {row.checkOut
+                                    ? new Date(row.checkOut).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+                                    : row.checkIn
+                                        ? "still in"
+                                        : "—"}
+                            </span>
+                        </TableCell>
+                        <TableCell>
+                            {row.isDeleted ? (
+                                <span className="text-xs text-muted-foreground capitalize">
+                                    {row.status?.replace("_", " ") ?? "—"}
+                                </span>
+                            ) : (
+                                <div className="flex gap-2 items-center flex-wrap">
+                                    {STATUS_OPTIONS.map((opt) => (
+                                        <Button
+                                            key={opt.value}
+                                            size="sm"
+                                            variant="outline"
+                                            className={cn(row.status === opt.value && STATUS_STYLES[opt.value])}
+                                            onClick={() => handleMark(row.staffId, opt.value)}
+                                        >
+                                            {opt.label}
+                                        </Button>
+                                    ))}
+                                    {row.hasOpenSession && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="text-muted-foreground hover:text-destructive"
+                                            disabled={endShiftMutation.isPending}
+                                            onClick={() => handleEndShift(row.staffId, row.firstName, row.lastName)}
+                                        >
+                                            End Shift
+                                        </Button>
+                                    )}
+                                </div>
+                            )}
                         </TableCell>
                     </TableRow>
                 ))}

@@ -18,16 +18,17 @@ import {
     Loader2,
     Bell,
 } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
 import { cn, formatCurrency } from "@/lib/utils";
 import { RESTAURANT_CONFIG } from "@/config/restaurant";
 import { logoutAction } from "@/features/auth/actions";
+import { getDeviceToken } from "@/lib/deviceToken";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
-    toggleRiderAvailabilityAction,
     updateDeliveryStatusAction,
     type RiderDashboardData,
     type RiderCurrentDelivery,
 } from "@/features/deliveries/actions";
+import { clockInAction, clockOutAction } from "@/features/attendance/actions";
 
 interface RiderDashboardProps {
     initialData: RiderDashboardData;
@@ -55,9 +56,10 @@ export function RiderDashboard({ initialData }: RiderDashboardProps) {
     const [currentDelivery, setCurrentDelivery] = useState(initialData.currentDelivery);
     const [history, setHistory] = useState(initialData.history);
     const [error, setError] = useState<string | null>(null);
-    const [isToggling, startToggleTransition] = useTransition();
     const [isAdvancing, startAdvanceTransition] = useTransition();
     const [isLoggingOut, setIsLoggingOut] = useState(false);
+    const [isClocking, setIsClocking] = useState(false);
+    const [deviceStatus, setDeviceStatus] = useState<"unknown" | "pending" | "ready">("unknown");
 
     // Resync local state when the server refetches (via router.refresh() below).
     // Calling setState during render (not in an effect) is React's documented
@@ -115,16 +117,35 @@ export function RiderDashboard({ initialData }: RiderDashboardProps) {
         }
     }
 
-    function handleToggleAvailability(next: boolean) {
+    async function handleClockIn() {
         setError(null);
-        setIsAvailable(next);
-        startToggleTransition(async () => {
-            const result = await toggleRiderAvailabilityAction(next);
-            if (!result.success) {
-                setIsAvailable(!next);
-                setError(result.error);
+        setIsClocking(true);
+        const token = getDeviceToken();
+        const result = await clockInAction(token);
+        setIsClocking(false);
+        if (!result.success) {
+            if (result.error.includes("not approved")) {
+                setDeviceStatus("pending");
             }
-        });
+            setError(result.error);
+            return;
+        }
+        setIsAvailable(true);
+    }
+
+    async function handleClockOut() {
+        setError(null);
+        setIsClocking(true);
+        const result = await clockOutAction();
+        setIsClocking(false);
+        if (!result.success) {
+            setError(result.error);
+            return;
+        }
+        setIsAvailable(false);
+        const supabase = getSupabaseBrowserClient();
+        await supabase.auth.signOut();
+        router.push("/auth/login");
     }
 
     function handleAdvance() {
@@ -186,7 +207,7 @@ export function RiderDashboard({ initialData }: RiderDashboardProps) {
                 </button>
             </div>
 
-            {/* Availability toggle */}
+            {/* Clock in/out */}
             <div className="px-4 py-3 border-b flex items-center justify-between bg-background">
                 <div className="flex items-center gap-2">
                     <span
@@ -196,17 +217,33 @@ export function RiderDashboard({ initialData }: RiderDashboardProps) {
                         )}
                     />
                     <span className="text-sm font-medium">
-                        {isAvailable ? "Online" : "Offline"}
+                        {isAvailable ? "Clocked in" : "Clocked out"}
                     </span>
-                    {isToggling && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
                 </div>
-                <Switch
-                    checked={isAvailable}
-                    onCheckedChange={handleToggleAvailability}
-                    disabled={isToggling}
-                    className="border-gray-300"
-                />
+                {isAvailable ? (
+                    <button
+                        onClick={handleClockOut}
+                        disabled={isClocking}
+                        className="px-3 py-1.5 rounded-lg bg-red-50 text-red-700 text-xs font-semibold disabled:opacity-50"
+                    >
+                        {isClocking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Clock Out"}
+                    </button>
+                ) : (
+                    <button
+                        onClick={handleClockIn}
+                        disabled={isClocking}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-semibold disabled:opacity-50"
+                    >
+                        {isClocking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Clock In"}
+                    </button>
+                )}
             </div>
+
+            {deviceStatus === "pending" && (
+                <div className="mx-4 mt-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
+                    This device needs admin approval before you can clock in. Ask your admin to approve it.
+                </div>
+            )}
 
             {pushStatus !== "done" && pushStatus !== "checking" && (
                 <div className="mx-4 mt-3">

@@ -9,6 +9,7 @@ import { deliveries } from "./schema/deliveries";
 import { attendance } from "./schema/attendance";
 import { auditLogs } from "./schema/audit_logs";
 import { tenantSettings } from "./schema/tenant_settings";
+import { branchDevices } from "./schema";
 
 // ── Tenants ───────────────────────────────────────────────────────────────
 
@@ -349,6 +350,29 @@ export const attendanceRelations = relations(attendance, ({ one }) => ({
         fields: [attendance.loggedBy],
         references: [staff.id],
         relationName: "attendanceLoggedBy",
+    }),
+}));
+
+// ── Branch Devices ────────────────────────────────────────────────────────
+
+export const branchDevicesRelations = relations(branchDevices, ({ one }) => ({
+    tenant: one(tenants, {
+        fields: [branchDevices.tenantId],
+        references: [tenants.id],
+    }),
+    branch: one(branches, {
+        fields: [branchDevices.branchId],
+        references: [branches.id],
+    }),
+    requestedByStaff: one(staff, {
+        fields: [branchDevices.requestedBy],
+        references: [staff.id],
+        relationName: "deviceRequestedBy",
+    }),
+    approvedByStaff: one(staff, {
+        fields: [branchDevices.approvedBy],
+        references: [staff.id],
+        relationName: "deviceApprovedBy",
     }),
 }));
 

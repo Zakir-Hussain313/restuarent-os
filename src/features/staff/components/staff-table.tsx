@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Power, Loader2 } from "lucide-react";
+import { Power, Trash2, Loader2 } from "lucide-react";
 import { StaffDialog } from "./add-staff-dialog";
-import { deactivateStaffAction, reactivateStaffAction } from "@/features/staff/actions";
+import { deactivateStaffAction, reactivateStaffAction, deleteStaffAction } from "@/features/staff/actions";
 import type { Staff, Branch } from "@/db/schema";
 import { useAlertModal } from "@/components/providers/AlertModalProvider";
 
@@ -44,14 +44,13 @@ interface StaffTableProps {
 }
 
 export function StaffTable({ staff, branches, currentUserId }: StaffTableProps) {
-    const { showConfirm } = useAlertModal();
+  const { showConfirm, showAlert } = useAlertModal();
   const router = useRouter();
   const [loadingId, setLoadingId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function handleToggleStatus(member: Staff) {
     setLoadingId(member.id);
-    setError(null);
 
     try {
       const result =
@@ -60,14 +59,31 @@ export function StaffTable({ staff, branches, currentUserId }: StaffTableProps) 
           : await deactivateStaffAction(member.id);
 
       if (result.error) {
-        setError(result.error);
+        showAlert(result.error, "Couldn't update status");
       } else {
         router.refresh();
       }
     } catch {
-      setError("Something went wrong. Please try again.");
+      showAlert("Something went wrong. Please try again.", "Couldn't update status");
     } finally {
       setLoadingId(null);
+    }
+  }
+
+  async function handleDelete(member: Staff) {
+    setDeletingId(member.id);
+
+    try {
+      const result = await deleteStaffAction(member.id);
+      if (result.error) {
+        showAlert(result.error, "Couldn't delete staff member");
+      } else {
+        router.refresh();
+      }
+    } catch {
+      showAlert("Something went wrong. Please try again.", "Couldn't delete staff member");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -83,12 +99,6 @@ export function StaffTable({ staff, branches, currentUserId }: StaffTableProps) 
 
   return (
     <div className="space-y-4">
-      {error && (
-        <div className="rounded-md bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
-          {error}
-        </div>
-      )}
-
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
         {staff.map((member) => {
           const isSelf = member.id === currentUserId;
@@ -159,35 +169,61 @@ export function StaffTable({ staff, branches, currentUserId }: StaffTableProps) 
                 </div>
 
                 {!isSelf && !isSuperAdmin && (
-                  <button
-                    type="button"
-                    disabled={isLoading}
-                    onClick={async () => {
-                      const confirmed = await showConfirm(
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      disabled={isLoading}
+                      onClick={async () => {
+                        const confirmed = await showConfirm(
+                          isInactive
+                            ? `${member.firstName} ${member.lastName} will regain access to their account.`
+                            : `${member.firstName} ${member.lastName} will lose access to their account. You can reactivate them later.`,
+                          {
+                            title: isInactive ? "Reactivate staff member?" : "Deactivate staff member?",
+                            confirmLabel: isInactive ? "Reactivate" : "Deactivate",
+                            destructive: !isInactive,
+                          }
+                        );
+                        if (confirmed) handleToggleStatus(member);
+                      }}
+                      title={isInactive ? "Reactivate" : "Deactivate"}
+                      className={`inline-flex items-center justify-center h-7 w-7 rounded-lg cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                         isInactive
-                          ? `${member.firstName} ${member.lastName} will regain access to their account.`
-                          : `${member.firstName} ${member.lastName} will lose access to their account. You can reactivate them later.`,
-                        {
-                          title: isInactive ? "Reactivate staff member?" : "Deactivate staff member?",
-                          confirmLabel: isInactive ? "Reactivate" : "Deactivate",
-                          destructive: !isInactive,
-                        }
-                      );
-                      if (confirmed) handleToggleStatus(member);
-                    }}
-                    title={isInactive ? "Reactivate" : "Deactivate"}
-                    className={`inline-flex items-center justify-center h-7 w-7 rounded-lg cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                      isInactive
-                        ? "text-emerald-600 hover:bg-emerald-50"
-                        : "text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                    }`}
-                  >
-                    {isLoading ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Power className="w-3.5 h-3.5" />
-                    )}
-                  </button>
+                          ? "text-emerald-600 hover:bg-emerald-50"
+                          : "text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      }`}
+                    >
+                      {isLoading ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Power className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={deletingId === member.id}
+                      onClick={async () => {
+                        const confirmed = await showConfirm(
+                          `This permanently deletes ${member.firstName} ${member.lastName}'s account. Their name will still show on past orders/attendance, but this cannot be undone.`,
+                          {
+                            title: "Permanently delete staff member?",
+                            confirmLabel: "Delete permanently",
+                            destructive: true,
+                          }
+                        );
+                        if (confirmed) handleDelete(member);
+                      }}
+                      title="Delete permanently"
+                      className="inline-flex items-center justify-center h-7 w-7 rounded-lg cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    >
+                      {deletingId === member.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

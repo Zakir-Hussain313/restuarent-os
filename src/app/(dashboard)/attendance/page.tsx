@@ -7,7 +7,7 @@ import { staff } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getBranchListAction } from "@/features/branches/actions";
 import { AttendanceFilters } from "@/features/attendance/components/AttendanceFilters";
-import { AttendanceTable } from "@/features/attendance/components/AttendanceTable";
+import { AttendanceTabs } from "@/features/attendance/components/AttendanceTabs";
 
 export default async function AttendancePage() {
   const supabase = await getSupabaseServerClient();
@@ -42,7 +42,7 @@ export default async function AttendancePage() {
           branches={branches ?? []}
           ownBranchId={currentStaffRow.branchId ?? undefined}
         >
-          <AttendanceTable />
+          <AttendanceTabs />
         </AttendanceFilters>
       </Suspense>
     </PageShell>

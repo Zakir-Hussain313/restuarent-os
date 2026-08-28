@@ -89,9 +89,11 @@ export const orders = pgTable(
         wasOfflineOrder: boolean("was_offline_order").notNull().default(false),
 
         // Staff member who created / took the order.
-        // onDelete: "restrict" — prevents deleting a staff record that has orders.
+        // onDelete: "set null" — if the staff account is later deleted, the
+        // order is preserved with staffName as a snapshot of who it was.
         staffId: uuid("staff_id")
-            .references(() => staff.id, { onDelete: "restrict" }),
+            .references(() => staff.id, { onDelete: "set null" }),
+        staffName: text("staff_name"),
 
         createdAt: timestamp("created_at", { withTimezone: true })
             .notNull()
@@ -247,8 +249,8 @@ export const coupons = pgTable(
 
         isActive: boolean("is_active").notNull().default(true),
         createdBy: uuid("created_by")
-            .notNull()
-            .references(() => staff.id, { onDelete: "restrict" }),
+            .references(() => staff.id, { onDelete: "set null" }),
+        createdByName: text("created_by_name"),
 
         createdAt: timestamp("created_at", { withTimezone: true })
             .notNull()
@@ -323,8 +325,8 @@ export const orderDiscounts = pgTable(
         appliedAmount: integer("applied_amount").notNull(), // computed discount in smallest currency unit
 
         appliedBy: uuid("applied_by")
-            .notNull()
-            .references(() => staff.id, { onDelete: "restrict" }),
+            .references(() => staff.id, { onDelete: "set null" }),
+        appliedByName: text("applied_by_name"),
 
         couponId: uuid("coupon_id").references(() => coupons.id, { onDelete: "set null" }),
 
@@ -355,8 +357,8 @@ export const payments = pgTable(
         reference: text("reference"), // transaction ref for card / JazzCash / Easypaisa
 
         processedBy: uuid("processed_by")
-            .notNull()
-            .references(() => staff.id, { onDelete: "restrict" }),
+            .references(() => staff.id, { onDelete: "set null" }),
+        processedByName: text("processed_by_name"),
         processedAt: timestamp("processed_at", { withTimezone: true })
             .notNull()
             .defaultNow(),

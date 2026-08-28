@@ -197,32 +197,6 @@ export async function updateDeliveryStatusAction(
     return { success: true };
 }
 
-// ─── Rider's own online/offline toggle ─────────────────────────────────────
-
-export async function toggleRiderAvailabilityAction(
-    isAvailable: boolean
-): Promise<{ success: true } | { success?: undefined; error: string }> {
-    const auth = await getCurrentStaff();
-    if (!auth.ok) return { error: auth.error };
-    const { staff: currentStaffRow } = auth;
-
-    if (currentStaffRow.role !== "RIDER") {
-        return { error: "Only riders can toggle availability." };
-    }
-
-    await db.update(staff).set({ isAvailable, updatedAt: new Date() }).where(eq(staff.id, currentStaffRow.id));
-
-    await logAudit(db, currentStaffRow, "delivery", currentStaffRow.id, "status_change", {
-        branchId: currentStaffRow.branchId,
-        oldValue: { isAvailable: currentStaffRow.isAvailable },
-        newValue: { isAvailable },
-    });
-
-    if (currentStaffRow.branchId) await broadcastChange(currentStaffRow.branchId, "riders");
-
-    return { success: true };
-}
-
 // ─── Rider's own dashboard data ────────────────────────────────────────────
 
 export interface RiderCurrentDelivery {

@@ -145,7 +145,7 @@ function ReservationRow({
     const isActive = reservation.status === "pending" || reservation.status === "confirmed";
 
     return (
-        <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-white px-4 py-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 rounded-xl border border-border bg-white px-4 py-3">
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-semibold text-foreground">
@@ -193,23 +193,22 @@ function ReservationRow({
                     )}
                 </div>
             </div>
-
             {isActive && (
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:shrink-0">
                     {reservation.status === "pending" && (
-                        <Button size="sm" disabled={isPending} onClick={onConfirm}>
+                        <Button size="sm" disabled={isPending} onClick={onConfirm} className="flex-1 sm:flex-none">
                             Confirm
                         </Button>
                     )}
                     {reservation.status === "confirmed" && (
-                        <Button size="sm" disabled={isPending} onClick={onSeat} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                        <Button size="sm" disabled={isPending} onClick={onSeat} className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 text-white">
                             Seat
                         </Button>
                     )}
-                    <Button size="sm" variant="outline" disabled={isPending} onClick={onNoShow}>
+                    <Button size="sm" variant="outline" disabled={isPending} onClick={onNoShow} className="flex-1 sm:flex-none">
                         No-show
                     </Button>
-                    <Button size="sm" variant="ghost" disabled={isPending} onClick={onCancel} className="text-destructive hover:text-destructive">
+                    <Button size="sm" variant="ghost" disabled={isPending} onClick={onCancel} className="flex-1 sm:flex-none text-destructive hover:text-destructive">
                         Cancel
                     </Button>
                 </div>

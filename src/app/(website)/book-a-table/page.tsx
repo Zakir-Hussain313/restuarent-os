@@ -1,14 +1,19 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { useLocationStore } from "@/store/useLocationStore";
 import { usePublicBranchInfo } from "@/features/online-ordering/hooks/useOnlineOrdering";
 import { LocationPickerModal } from "@/features/online-ordering/components/LocationPickerModal";
-import { TableFloorPlan } from "@/features/tables/components/TableFloorPlan";
 import { BookingModal } from "@/features/reservations/components/BookingModal";
 import { getPublicTablesAction } from "@/features/tables/public-actions";
 import type { Table } from "@/types/table";
 import { BranchSwitcher } from "@/features/online-ordering/components/BranchSwitcher";
+
+const TableFloorPlan = dynamic(
+  () => import("@/features/tables/components/TableFloorPlan").then((mod) => mod.TableFloorPlan),
+  { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-xl bg-muted" /> }
+);
 
 export default function TablesPage() {
     const location = useLocationStore((s) => s.location);

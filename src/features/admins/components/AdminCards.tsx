@@ -3,10 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AdminDialog } from "./AdminDialog";
-import { deactivateAdminAction, reactivateAdminAction } from "@/features/admins/actions";
+import { deactivateAdminAction, reactivateAdminAction, deleteAdminAction } from "@/features/admins/actions";
 import type { Staff, Branch } from "@/db/schema";
+import { useAlertModal } from "@/components/providers/AlertModalProvider";
 
 const ROLE_LABELS: Record<string, string> = {
   SUPER_ADMIN: "Super Admin",
@@ -45,8 +47,10 @@ interface AdminCardsProps {
 }
 
 export function AdminCards({ admins, branches, currentUserId }: AdminCardsProps) {
+  const { showConfirm } = useAlertModal();
   const router = useRouter();
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function handleToggleStatus(member: Staff) {
@@ -68,6 +72,24 @@ export function AdminCards({ admins, branches, currentUserId }: AdminCardsProps)
       setError("Something went wrong. Please try again.");
     } finally {
       setLoadingId(null);
+    }
+  }
+
+  async function handleDelete(member: Staff) {
+    setDeletingId(member.id);
+    setError(null);
+
+    try {
+      const result = await deleteAdminAction(member.id);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        router.refresh();
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -152,22 +174,48 @@ export function AdminCards({ admins, branches, currentUserId }: AdminCardsProps)
                   <AdminDialog branches={branches} admin={member} currentUserId={currentUserId} />
 
                   {!isSelf && !isSuperAdmin && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={`h-8 text-xs px-2 ${isInactive
-                          ? "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                          : "text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                        }`}
-                      disabled={isLoading}
-                      onClick={() => handleToggleStatus(member)}
-                    >
-                      {isLoading
-                        ? "..."
-                        : isInactive
-                          ? "Reactivate"
-                          : "Deactivate"}
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`h-8 text-xs px-2 ${isInactive
+                            ? "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                            : "text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          }`}
+                        disabled={isLoading}
+                        onClick={() => handleToggleStatus(member)}
+                      >
+                        {isLoading
+                          ? "..."
+                          : isInactive
+                            ? "Reactivate"
+                            : "Deactivate"}
+                      </Button>
+
+                      <button
+                        type="button"
+                        disabled={deletingId === member.id}
+                        onClick={async () => {
+                          const confirmed = await showConfirm(
+                            `This permanently deletes ${member.firstName} ${member.lastName}'s account. Their name will still show on past orders/attendance, but this cannot be undone.`,
+                            {
+                              title: "Permanently delete admin?",
+                              confirmLabel: "Delete permanently",
+                              destructive: true,
+                            }
+                          );
+                          if (confirmed) handleDelete(member);
+                        }}
+                        title="Delete permanently"
+                        className="inline-flex items-center justify-center h-8 w-8 rounded-lg cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      >
+                        {deletingId === member.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>

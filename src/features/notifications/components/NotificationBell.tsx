@@ -87,7 +87,7 @@ export function NotificationBell({ sidebarOpen }: NotificationBellProps) {
                 <div
                     id="notification-panel-portal"
                     style={{ position: "fixed", bottom: coords.bottom, left: coords.left }}
-                    className="w-[calc(100vw-2rem)] max-w-96 max-h-112 overflow-y-auto bg-white border border-border rounded-2xl shadow-xl z-200"
+                    className="w-[calc(100vw-2rem)] max-w-96 max-h-80 overflow-y-auto bg-white border border-border rounded-2xl shadow-xl z-200"
                 >
                     <div className="flex items-center justify-between px-3 py-2 border-b border-border sticky top-0 bg-white rounded-t-2xl">
                         <span className="text-sm font-semibold text-foreground">Notifications</span>

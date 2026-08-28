@@ -14,9 +14,11 @@ type MobileTab = "menu" | "cart";
 interface PosLayoutProps {
   branchId?: string;
   autoConfirmOnPlace?: boolean;
+  showClockButton?: boolean;
+  initialIsClockedIn?: boolean;
 }
 
-export function PosLayout({ branchId, autoConfirmOnPlace }: PosLayoutProps) {
+export function PosLayout({ branchId, autoConfirmOnPlace, showClockButton, initialIsClockedIn }: PosLayoutProps) {
   const [mobileTab, setMobileTab] = useState<MobileTab>("menu");
   const { itemCount } = usePosCart();
   const menu = usePosMenu();
@@ -29,11 +31,16 @@ export function PosLayout({ branchId, autoConfirmOnPlace }: PosLayoutProps) {
           <MenuPanel menu={menu} showSidebar showPills={false} />
         </div>
         <div className="flex-2 overflow-hidden min-w-75 max-w-105">
-          <CartPanel branchId={branchId} autoConfirmOnPlace={autoConfirmOnPlace} />
+          <CartPanel
+            branchId={branchId}
+            autoConfirmOnPlace={autoConfirmOnPlace}
+            showClockButton={showClockButton}
+            initialIsClockedIn={initialIsClockedIn}
+          />
         </div>
       </div>
 
-      {/* ── 760px–999px: full-width pills on top, menu + cart split below ── */}
+      {/* â”€â”€ 760pxâ€“999px: full-width pills on top, menu + cart split below â”€â”€ */}
       <div className="hidden min-[760px]:flex min-[1000px]:hidden flex-col flex-1 overflow-hidden">
         <div className="shrink-0 border-b border-border overflow-x-auto bg-background">
           <CategoryPills
@@ -48,11 +55,15 @@ export function PosLayout({ branchId, autoConfirmOnPlace }: PosLayoutProps) {
             <MenuPanel menu={menu} showSidebar={false} showPills={false} />
           </div>
           <div className="flex-2 overflow-hidden min-w-75 max-w-105">
-            <CartPanel branchId={branchId} autoConfirmOnPlace={autoConfirmOnPlace} />
+            <CartPanel
+              branchId={branchId}
+              autoConfirmOnPlace={autoConfirmOnPlace}
+              showClockButton={showClockButton}
+              initialIsClockedIn={initialIsClockedIn}
+            />
           </div>
         </div>
       </div>
-
       {/* ── <760px: tab-based layout ───────────────────────────────────────── */}
       <div className="flex flex-col flex-1 overflow-hidden min-[760px]:hidden">
         <div className="flex-1 overflow-hidden">
@@ -61,7 +72,12 @@ export function PosLayout({ branchId, autoConfirmOnPlace }: PosLayoutProps) {
               <MenuPanel menu={menu} showSidebar={false} showPills />
             </div>
           ) : (
-            <CartPanel branchId={branchId} autoConfirmOnPlace={autoConfirmOnPlace} />
+            <CartPanel
+              branchId={branchId}
+              autoConfirmOnPlace={autoConfirmOnPlace}
+              showClockButton={showClockButton}
+              initialIsClockedIn={initialIsClockedIn}
+            />
           )}
         </div>
 

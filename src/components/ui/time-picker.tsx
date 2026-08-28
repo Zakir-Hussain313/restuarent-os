@@ -53,11 +53,11 @@ export function TimePicker({ value, onChange, className, disabled }: TimePickerP
             type="button"
             disabled={disabled}
             className={cn(
-              "flex items-center gap-2 h-9 px-3 rounded-lg bg-muted text-sm cursor-pointer transition-colors hover:bg-muted/70 focus-visible:ring-3 focus-visible:ring-primary/20 outline-none disabled:cursor-not-allowed disabled:opacity-50",
+              "flex items-center gap-1.5 sm:gap-2 h-8 sm:h-9 px-2 sm:px-3 rounded-lg bg-muted text-xs sm:text-sm cursor-pointer transition-colors hover:bg-muted/70 focus-visible:ring-3 focus-visible:ring-primary/20 outline-none disabled:cursor-not-allowed disabled:opacity-50 w-full",
               className
             )}
           >
-            <span className="tabular-nums">{formatDisplay(value)}</span>
+            <span className="tabular-nums truncate">{formatDisplay(value)}</span>
             <Clock className="w-3.5 h-3.5 text-muted-foreground ml-auto shrink-0" />
           </button>
         }

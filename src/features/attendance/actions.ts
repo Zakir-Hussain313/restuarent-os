@@ -2,7 +2,7 @@
 "use server";
 
 import { db } from "@/db";
-import { attendance, Attendance, staff } from "@/db/schema";
+import { attendance, Attendance, staff, branchDevices } from "@/db/schema";
 import { logAudit } from "@/lib/audit";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { broadcastChange } from "@/lib/realtime/broadcast";
@@ -34,6 +34,7 @@ export interface AttendanceRow {
   checkOut: string | null;
   notes: string | null;
   hasOpenSession: boolean;
+  isDeleted: boolean;
 }
 
 // Update getAttendanceForDateAction signature and query
@@ -114,7 +115,7 @@ export async function getAttendanceForDateAction(
     );
   const openSessionStaffIds = new Set(openSessions.map((r) => r.staffId));
 
-  const data: AttendanceRow[] = rows.map((r) => ({
+  const liveRows: AttendanceRow[] = rows.map((r) => ({
     staffId: r.staffId,
     firstName: r.firstName,
     lastName: r.lastName,
@@ -125,9 +126,53 @@ export async function getAttendanceForDateAction(
     checkOut: r.checkOut ? r.checkOut.toISOString() : null,
     notes: r.notes,
     hasOpenSession: openSessionStaffIds.has(r.staffId),
+    isDeleted: false,
   }));
 
-  return { data };
+  // Permanently-deleted staff have no `staff` row left, so they can't come
+  // from the query above. Their attendance rows still exist though (staffId
+  // set null on delete, staffName/staffIdSnapshot preserved) — pull those in
+  // separately so deleted staff still show up in history. Note: role isn't
+  // preserved on delete, so these rows show regardless of roleFilter.
+  const deletedRows = await db
+    .select({
+      id: attendance.id,
+      staffName: attendance.staffName,
+      staffIdSnapshot: attendance.staffIdSnapshot,
+      status: attendance.status,
+      checkIn: attendance.checkIn,
+      checkOut: attendance.checkOut,
+      notes: attendance.notes,
+    })
+    .from(attendance)
+    .where(
+      and(
+        eq(attendance.tenantId, tenantId),
+        sql`${attendance.staffId} is null`,
+        gte(attendance.date, start),
+        lt(attendance.date, end),
+        branchId ? eq(attendance.branchId, branchId) : undefined
+      )
+    );
+
+  const deletedAttendanceRows: AttendanceRow[] = deletedRows.map((r) => {
+    const [firstName, ...rest] = (r.staffName ?? "Deleted staff").split(" ");
+    return {
+      staffId: r.staffIdSnapshot ?? r.id,
+      firstName,
+      lastName: rest.join(" "),
+      image: null,
+      attendanceId: r.id,
+      status: r.status,
+      checkIn: r.checkIn ? r.checkIn.toISOString() : null,
+      checkOut: r.checkOut ? r.checkOut.toISOString() : null,
+      notes: r.notes,
+      hasOpenSession: false,
+      isDeleted: true,
+    };
+  });
+
+  return { data: [...liveRows, ...deletedAttendanceRows] };
 }
 
 export async function markAttendanceAction(
@@ -218,39 +263,38 @@ export async function markAttendanceAction(
       });
 
       if (existing) {
-        const reopening = existing.checkOut !== null && status === "present";
-        const firstCheckIn = existing.checkIn === null && status === "present";
-        const nextCheckIn = checkInDate ?? (reopening || firstCheckIn ? new Date() : existing.checkIn);
-        const nextCheckOut = checkOutDate ?? (reopening ? null : existing.checkOut);
-
         await tx
           .update(attendance)
           .set({
             status,
-            checkIn: nextCheckIn,
-            checkOut: nextCheckOut,
+            checkIn: checkInDate ?? existing.checkIn,
+            checkOut: checkOutDate ?? existing.checkOut,
             notes: notes ?? null,
             loggedBy: currentStaffRow.id,
+            loggedByName: `${currentStaffRow.firstName} ${currentStaffRow.lastName}`,
+            staffName: `${targetStaff.firstName} ${targetStaff.lastName}`,
+            staffIdSnapshot: staffId,
             updatedAt: new Date(),
           })
           .where(eq(attendance.id, existing.id));
 
         auditInfo = { id: existing.id, isNew: false, oldStatus: existing.status };
       } else {
-        const nextCheckIn = checkInDate ?? (status === "present" ? new Date() : null);
-
         const [created] = await tx
           .insert(attendance)
           .values({
             tenantId,
             branchId: targetStaff.branchId!,
             staffId,
+            staffName: `${targetStaff.firstName} ${targetStaff.lastName}`,
+            staffIdSnapshot: staffId,
             status,
-            checkIn: nextCheckIn,
+            checkIn: checkInDate ?? null,
             checkOut: checkOutDate ?? null,
             date: start,
             notes: notes ?? null,
             loggedBy: currentStaffRow.id,
+            loggedByName: `${currentStaffRow.firstName} ${currentStaffRow.lastName}`,
           })
           .returning();
 
@@ -272,18 +316,6 @@ export async function markAttendanceAction(
     }
 
     await broadcastChange(targetStaff.branchId!, "attendance");
-
-    if (status === "present" && targetStaff.branchId) {
-      await createNotification({
-        tenantId,
-        branchId: targetStaff.branchId,
-        type: "staff_shift",
-        title: "Staff clocked in",
-        message: `${targetStaff.firstName} ${targetStaff.lastName} was marked present.`,
-        resourceType: "attendance",
-        resourceId: auditInfo!.id,
-      });
-    }
 
     return { success: true };
   } catch (err) {
@@ -416,4 +448,221 @@ export async function endShiftAction(
   }
 
   return { success: true };
+}
+
+// ── Self-service clock in/out (STAFF/RIDER, from an approved branch device) ──
+
+export async function clockInAction(
+  deviceToken: string
+): Promise<{ success: true; error?: undefined } | { success?: undefined; error: string }> {
+  const supabase = await getSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const currentStaffRow = await db.query.staff.findFirst({ where: eq(staff.id, user.id) });
+  if (!currentStaffRow) return { error: "Staff record not found." };
+  if (!["STAFF", "RIDER"].includes(currentStaffRow.role)) {
+    return { error: "Only staff and riders can clock in." };
+  }
+  if (!currentStaffRow.branchId) return { error: "Your account has no branch assigned." };
+
+  let device = await db.query.branchDevices.findFirst({
+    where: and(
+      eq(branchDevices.branchId, currentStaffRow.branchId),
+      eq(branchDevices.deviceToken, deviceToken)
+    ),
+  });
+
+  if (!device) {
+    const [created] = await db
+      .insert(branchDevices)
+      .values({
+        tenantId: currentStaffRow.tenantId,
+        branchId: currentStaffRow.branchId,
+        deviceToken,
+        requestedBy: currentStaffRow.id,
+      })
+      .returning();
+    device = created;
+
+    await createNotification({
+      tenantId: currentStaffRow.tenantId,
+      branchId: currentStaffRow.branchId,
+      type: "device_pending_approval",
+      title: "Device approval needed",
+      message: `${currentStaffRow.firstName} ${currentStaffRow.lastName} wants to clock in from a new device.`,
+      resourceType: "branch_device",
+      resourceId: device.id,
+    });
+  }
+
+  if (device.status !== "approved") {
+    return { error: "This device isn't approved for clock-in yet. Ask your admin to approve it." };
+  }
+
+  const todayStr = todayInTenantTz();
+  const { start, end } = dayRange(todayStr);
+  const tenantId = currentStaffRow.tenantId;
+  const branchId = currentStaffRow.branchId;
+
+  const alreadyOpen = await db.query.attendance.findFirst({
+    where: and(
+      eq(attendance.staffId, currentStaffRow.id),
+      sql`${attendance.checkIn} is not null`,
+      sql`${attendance.checkOut} is null`
+    ),
+  });
+  if (alreadyOpen) {
+    return { error: "You're already clocked in." };
+  }
+
+  const existing = await db.query.attendance.findFirst({
+    where: and(
+      eq(attendance.staffId, currentStaffRow.id),
+      gte(attendance.date, start),
+      lt(attendance.date, end)
+    ),
+  });
+
+  let attendanceId: string;
+
+  const selfName = `${currentStaffRow.firstName} ${currentStaffRow.lastName}`;
+
+  if (existing) {
+    await db
+      .update(attendance)
+      .set({
+        status: "present",
+        checkIn: new Date(),
+        checkOut: null,
+        staffName: selfName,
+        staffIdSnapshot: currentStaffRow.id,
+        loggedBy: currentStaffRow.id,
+        loggedByName: selfName,
+        updatedAt: new Date(),
+      })
+      .where(eq(attendance.id, existing.id));
+    attendanceId = existing.id;
+  } else {
+    const [created] = await db
+      .insert(attendance)
+      .values({
+        tenantId,
+        branchId,
+        staffId: currentStaffRow.id,
+        staffName: selfName,
+        staffIdSnapshot: currentStaffRow.id,
+        status: "present",
+        checkIn: new Date(),
+        date: start,
+        loggedBy: currentStaffRow.id,
+        loggedByName: selfName,
+      })
+      .returning();
+    attendanceId = created.id;
+  }
+
+  if (currentStaffRow.role === "RIDER") {
+    await db.update(staff).set({ isAvailable: true, updatedAt: new Date() }).where(eq(staff.id, currentStaffRow.id));
+  }
+
+  if (currentStaffRow.role === "RIDER") {
+    await db.update(staff).set({ isAvailable: true, updatedAt: new Date() }).where(eq(staff.id, currentStaffRow.id));
+  }
+
+  await logAudit(db, currentStaffRow, "attendance", attendanceId, "update", {
+    newValue: { checkIn: "now" },
+    description: `${currentStaffRow.firstName} ${currentStaffRow.lastName} clocked in`,
+  });
+
+  await broadcastChange(branchId, "attendance");
+  await createNotification({
+    tenantId,
+    branchId,
+    type: "staff_shift",
+    title: "Staff clocked in",
+    message: `${currentStaffRow.firstName} ${currentStaffRow.lastName} clocked in.`,
+    resourceType: "attendance",
+    resourceId: attendanceId,
+  });
+
+  return { success: true };
+}
+
+export async function clockOutAction(): Promise <
+  { success: true; error?: undefined } | { success?: undefined; error: string }
+> {
+  const supabase = await getSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const currentStaffRow = await db.query.staff.findFirst({ where: eq(staff.id, user.id) });
+  if (!currentStaffRow) return { error: "Staff record not found." };
+  if (!["STAFF", "RIDER"].includes(currentStaffRow.role)) {
+    return { error: "Only staff and riders can clock out." };
+  }
+
+  const existing = await db.query.attendance.findFirst({
+    where: and(
+      eq(attendance.staffId, currentStaffRow.id),
+      sql`${attendance.checkIn} is not null`,
+      sql`${attendance.checkOut} is null`
+    ),
+  });
+  if (!existing) {
+    return { error: "You're not currently clocked in." };
+  }
+
+  await db
+    .update(attendance)
+    .set({ checkOut: new Date(), updatedAt: new Date() })
+    .where(eq(attendance.id, existing.id));
+
+  if (currentStaffRow.role === "RIDER") {
+    await db.update(staff).set({ isAvailable: false, updatedAt: new Date() }).where(eq(staff.id, currentStaffRow.id));
+  }
+
+  await logAudit(db, currentStaffRow, "attendance", existing.id, "update", {
+    newValue: { checkOut: "now" },
+    description: `${currentStaffRow.firstName} ${currentStaffRow.lastName} clocked out`,
+  });
+
+  if (currentStaffRow.branchId) {
+    await broadcastChange(currentStaffRow.branchId, "attendance");
+    await createNotification({
+      tenantId: currentStaffRow.tenantId,
+      branchId: currentStaffRow.branchId,
+      type: "staff_shift",
+      title: "Staff clocked out",
+      message: `${currentStaffRow.firstName} ${currentStaffRow.lastName} clocked out.`,
+      resourceType: "attendance",
+      resourceId: existing.id,
+    });
+  }
+
+  return { success: true };
+}
+
+export async function getMyClockStatusAction(): Promise <
+  { isClockedIn: boolean; error?: undefined } | { isClockedIn?: undefined; error: string }
+> {
+  const supabase = await getSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const open = await db.query.attendance.findFirst({
+    where: and(
+      eq(attendance.staffId, user.id),
+      sql`${attendance.checkIn} is not null`,
+      sql`${attendance.checkOut} is null`
+    ),
+  });
+
+  return { isClockedIn: !!open };
 }

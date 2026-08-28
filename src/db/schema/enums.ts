@@ -100,6 +100,9 @@ export const attendanceStatusEnum = pgEnum("attendance_status", [
   "half_day",
 ]);
 
+// ── Devices (branch-approved clock-in/out terminals) ────────────────────────
+export const deviceStatusEnum = pgEnum("device_status", ["pending", "approved"]);
+
 // ── Tenants ───────────────────────────────────────────────────────────────
 export const subscriptionStatusEnum = pgEnum("subscription_status", [
   "trialing",
