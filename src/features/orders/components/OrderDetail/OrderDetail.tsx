@@ -136,20 +136,6 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
             </span>
           )}
 
-          {order.deliveryAddress && (
-            <span className="flex items-center gap-1.5 max-w-50 truncate">
-              <MapPin className="w-3.5 h-3.5 shrink-0" />
-              {order.deliveryAddress}
-            </span>
-          )}
-
-          {order.customerPhone && (
-            <span className="flex items-center gap-1.5">
-              <Phone className="w-3.5 h-3.5" />
-              {order.customerPhone}
-            </span>
-          )}
-
           {order.staffName && (
             <span className="flex items-center gap-1.5">
               <UserCircle2 className="w-3.5 h-3.5" />
@@ -172,6 +158,23 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
       )}
 
       <ScrollArea className="flex-1 min-h-0">
+        {(order.deliveryAddress || order.customerPhone) && (
+          <div className="px-5 pt-4 space-y-1.5">
+            {order.deliveryAddress && (
+              <div className="flex items-start gap-2 text-sm bg-muted/50 rounded-lg px-3 py-2">
+                <MapPin className="w-4 h-4 shrink-0 mt-0.5 text-muted-foreground" />
+                <span>{order.deliveryAddress}</span>
+              </div>
+            )}
+            {order.customerPhone && (
+              <div className="flex items-center gap-2 text-sm bg-muted/50 rounded-lg px-3 py-2">
+                <Phone className="w-4 h-4 shrink-0 text-muted-foreground" />
+                <span>{order.customerPhone}</span>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="px-5 pt-4 pb-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
             Items

@@ -29,7 +29,7 @@ export default function ActiveOrdersPage() {
   }, []);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-dvh overflow-hidden">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-6 py-4 border-b shrink-0">
         <div className="flex items-center gap-3">
           {showingDetailOnMobile && (
@@ -62,7 +62,7 @@ export default function ActiveOrdersPage() {
       <div className="flex flex-1 min-h-0">
         <div
           className={cn(
-            "w-full lg:w-80 lg:shrink-0 border-r flex-col",
+            "w-full lg:w-80 lg:shrink-0 border-r flex-col min-h-0",
             showingDetailOnMobile ? "hidden lg:flex" : "flex"
           )}
         >
@@ -78,7 +78,7 @@ export default function ActiveOrdersPage() {
             </div>
           </div>
 
-          <ScrollArea className="flex-1">
+          <ScrollArea className="flex-1 min-h-0">
             {isLoading ? (
               <OrderListSkeleton />
             ) : filteredOrders.length === 0 ? (
@@ -108,11 +108,9 @@ export default function ActiveOrdersPage() {
           )}
         >
           {effectiveOrderId ? (
-            <ScrollArea className="h-full w-full">
-              <div className="p-4 sm:p-6">
-                <OrderDetail orderId={effectiveOrderId} />
-              </div>
-            </ScrollArea>
+            <div className="h-full w-full p-4 sm:p-6">
+              <OrderDetail orderId={effectiveOrderId} />
+            </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
               <Utensils className="w-10 h-10 opacity-20" />

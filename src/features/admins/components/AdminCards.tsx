@@ -48,6 +48,7 @@ interface AdminCardsProps {
 
 export function AdminCards({ admins, branches, currentUserId }: AdminCardsProps) {
   const { showConfirm } = useAlertModal();
+  const hasSuperAdmin = admins.some((a) => a.role === "SUPER_ADMIN");
   const router = useRouter();
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -171,7 +172,7 @@ export function AdminCards({ admins, branches, currentUserId }: AdminCardsProps)
                 </div>
 
                 <div className="mt-auto flex items-center justify-between pt-2 border-t border-border">
-                  <AdminDialog branches={branches} admin={member} currentUserId={currentUserId} />
+                  <AdminDialog branches={branches} admin={member} currentUserId={currentUserId} hasSuperAdmin={hasSuperAdmin} />
 
                   {!isSelf && !isSuperAdmin && (
                     <div className="flex items-center gap-1">

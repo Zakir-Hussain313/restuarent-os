@@ -54,11 +54,16 @@ export async function uploadEntityImage(formData: FormData) {
     if (currentStaffRow.role !== "ADMIN" && currentStaffRow.role !== "SUPER_ADMIN") {
       return { error: "You don't have permission to upload this image." };
     }
+  } else if (entityType === "staff") {
+    // Self-upload always allowed, mirroring the self-edit bypass in
+    // updateStaffAction/updateAdminAction — otherwise STAFF/RIDER can never
+    // set their own profile photo via ProfileModal.tsx.
+    const isSelf = entityId === currentStaffRow.id;
+    if (!isSelf && !hasPermission(currentStaffRow.role, "manage_staff")) {
+      return { error: "You don't have permission to upload this image." };
+    }
   } else {
-    const requiredPermission =
-      entityType === "staff" ? "manage_staff" : "manage_branches";
-
-    if (!hasPermission(currentStaffRow.role, requiredPermission)) {
+    if (!hasPermission(currentStaffRow.role, "manage_branches")) {
       return { error: "You don't have permission to upload this image." };
     }
   }

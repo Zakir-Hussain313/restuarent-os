@@ -27,6 +27,30 @@ export function NotificationBell({ sidebarOpen }: NotificationBellProps) {
     const buttonRef = useRef<HTMLButtonElement>(null);
     const { notifications, unreadCount, toast, dismissToast, markAllRead, clearAll } = useNotifications();
     const { showConfirm } = useAlertModal();
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const [thumb, setThumb] = useState({ top: 0, height: 0, visible: false });
+
+    function updateThumb() {
+        const el = scrollRef.current;
+        if (!el) return;
+        const { scrollTop, scrollHeight, clientHeight } = el;
+        if (scrollHeight <= clientHeight + 1) {
+            setThumb((t) => (t.visible ? { ...t, visible: false } : t));
+            return;
+        }
+        const inset = 4;
+        const trackHeight = clientHeight - inset * 2;
+        const thumbHeight = Math.max(24, (clientHeight / scrollHeight) * trackHeight);
+        const maxTop = trackHeight - thumbHeight;
+        const scrollable = scrollHeight - clientHeight;
+        const top = inset + (scrollable > 0 ? (scrollTop / scrollable) * maxTop : 0);
+        setThumb({ top, height: thumbHeight, visible: true });
+    }
+
+    useEffect(() => {
+        updateThumb();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [notifications.length, panelOpen]);
 
     useEffect(() => {
         if (panelOpen && buttonRef.current) {
@@ -87,9 +111,9 @@ export function NotificationBell({ sidebarOpen }: NotificationBellProps) {
                 <div
                     id="notification-panel-portal"
                     style={{ position: "fixed", bottom: coords.bottom, left: coords.left }}
-                    className="w-[calc(100vw-2rem)] max-w-96 max-h-80 overflow-y-auto themed-scrollbar bg-white border border-border rounded-2xl shadow-xl z-200"
+                    className="w-[calc(100vw-2rem)] max-w-96 h-72 flex flex-col overflow-hidden bg-white border border-border rounded-2xl shadow-xl z-200"
                 >
-                    <div className="flex items-center justify-between px-3 py-2 border-b border-border sticky top-0 bg-white rounded-t-2xl">
+                    <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0 bg-white">
                         <span className="text-sm font-semibold text-foreground">Notifications</span>
                         <div className="flex items-center gap-3">
                             {unreadCount > 0 && (
@@ -120,25 +144,40 @@ export function NotificationBell({ sidebarOpen }: NotificationBellProps) {
                             </button>
                         </div>
                     </div>
-                    {notifications.length === 0 ? (
-                        <p className="px-3 py-6 text-center text-xs text-muted-foreground">No notifications yet</p>
-                    ) : (
-                        <ul>
-                            {notifications.map((n) => (
-                                <li
-                                    key={n.id}
-                                    className={cn(
-                                        "px-3 py-2.5 border-b border-border last:border-0",
-                                        !n.isRead && "bg-primary-light"
-                                    )}
-                                >
-                                    <p className="text-xs font-medium text-foreground">{n.title}</p>
-                                    <p className="text-xs text-muted-foreground mt-0.5">{n.message}</p>
-                                    <p className="text-[10px] text-muted-foreground mt-1">{timeAgo(n.createdAt as unknown as string)}</p>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
+                    <div className="relative flex-1 min-h-0">
+                        <div
+                            ref={scrollRef}
+                            onScroll={updateThumb}
+                            className="absolute inset-0 overflow-y-auto scrollbar-hide"
+                        >
+                        {notifications.length === 0 ? (
+                            <p className="px-3 py-6 text-center text-xs text-muted-foreground">No notifications yet</p>
+                        ) : (
+                            <ul>
+                                {notifications.map((n) => (
+                                    <li
+                                        key={n.id}
+                                        className={cn(
+                                            "px-3 py-2.5 border-b border-border last:border-0",
+                                            !n.isRead && "bg-primary-light"
+                                        )}
+                                    >
+                                        <p className="text-xs font-medium text-foreground">{n.title}</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">{n.message}</p>
+                                        <p className="text-[10px] text-muted-foreground mt-1">{timeAgo(n.createdAt as unknown as string)}</p>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                        </div>
+                        {thumb.visible && (
+                            <div
+                                aria-hidden="true"
+                                style={{ top: thumb.top, height: thumb.height }}
+                                className="absolute right-1 w-1.25 rounded-full bg-[#c4b5fd] pointer-events-none"
+                            />
+                        )}
+                    </div>
                 </div>,
                 document.body
             )}

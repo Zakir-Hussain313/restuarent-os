@@ -1,7 +1,7 @@
 Rice n Spice (Zaiqa) — Context
 
 Single source of truth. Supersedes all prior MASTER_PROMPT/PROJECT_BRIEF/DATABASE_BRIEF/SKILL/session-summary docs.
-Last reconciled: 2026-08-28 (session: permanent delete feature completed).
+Last reconciled: 2026-08-29 (session: single-SUPER_ADMIN enforcement, profile-photo self-upload fix, notification scrollbar fix — see §29/§30 bug patterns and §16).
 
 1. Role & Process
 
@@ -206,6 +206,8 @@ Deleted-person badge convention: a small pill, text-[10px] font-medium px-1.5 py
 26. NEW: Deleting an external resource (e.g. Supabase Auth user) and a DB row in two non-transactional steps means a failure between the two steps leaves partial state on retry. Pattern: treat "not found" on the external-delete step as already-done, not as a blocking error, so retries can complete. Applied to deleteStaffAction and deleteAdminAction.
 27. NEW: supabaseAdmin.auth.admin.inviteUserByEmail() ALWAYS uses Supabase's implicit/hash-fragment flow (#access_token=...), never PKCE (?code=...) — this cannot be changed via client or server config, it's a Supabase platform limitation. Hash fragments never reach the server, so the existing PKCE-based /auth/callback route can never process an invite link. Fix: point invite redirectTo directly at /auth/reset-password (not through /auth/callback), and add a client-side effect there that reads window.location.hash, extracts tokens, and calls supabase.auth.setSession(). resetPasswordForEmail (forgot-password flow) is a DIFFERENT Supabase method that DOES support PKCE and correctly still uses /auth/callback — do not change that path to match the invite fix.
 28. NEW: Supabase's own Auth dashboard Site URL setting (Authentication → URL Configuration) can override the app's redirectTo parameter entirely for implicit-flow methods like inviteUserByEmail. This is separate from the app's NEXT_PUBLIC_APP_URL env var — both must be correct independently. If invite/magic links go to localhost despite a correct env var, check Site URL in Supabase directly.
+29. NEW (2026-08-29): Recent Chrome versions on Windows render scrollbars using native "Fluent Scrollbars" and completely IGNORE all ::-webkit-scrollbar-* CSS (width/color/border/track/thumb — none of it renders, even though DevTools shows the rules as declared and "active"). Confirmed by the flag no longer existing at chrome://flags/#fluent-scrollbars. Firefox is unaffected (uses scrollbar-width/scrollbar-color, which still works). Any future custom-scrollbar styling in this app must NOT rely on ::-webkit-scrollbar-* alone — either accept the native look, use .scrollbar-hide + a JS-drawn thumb (see NotificationBell.tsx for the reference implementation), or test explicitly in current Chrome before assuming a CSS-only fix works.
+30. NEW (2026-08-29): A flex child constrained by max-h-* (not a fixed h-*) can collapse to zero height when a sibling inside it uses flex-1 — the flex-1 element has nothing concrete to grow into. If content mysteriously disappears after adding a flex-1 wrapper inside a max-h-*-capped container, switch the container to a fixed h-* instead.
 
 8. Current State — What's Done vs. Remaining
 
@@ -232,7 +234,8 @@ features/orders/* — fully done. OrderActions.tsx Payment Method Select UUID bu
   Live components (confirmed clean): OrderCard.tsx, OrderStatusBadge.tsx, OrderDetail.tsx, OrderActions.tsx, RiderAssignment.tsx, BillModal.tsx, KitchenTicketModal.tsx, CancelConfirmModal.tsx, OrderHistoryLayout.tsx, OrderHistoryTable.tsx, OrderHistoryFilters.tsx, useOrderHistoryTable.tsx.
   Confirmed dead code — DELETED: OrdersLayout.tsx, OrderList/OrderList.tsx, OrderList/OrderListHeader.tsx, OrderList/OrderRow.tsx, OrderList/OrderStatsBar.tsx, OrderFinancials.tsx, OrderItemsTable.tsx.
   Not dead: src/features/orders/shared/OrderListSkeleton.tsx — different, live file, imported by both real Active Orders/Delivery pages.
-features/admins/* — AdminDialog.tsx forms-pass false-positive confirmed (hidden file input only); Role/Branch/Status Select UUID bugs fixed. Delete button added this session (§14).
+features/admins/* — AdminDialog.tsx forms-pass false-positive confirmed (hidden file input only); Role/Branch/Status Select UUID bugs fixed. Delete button added §14 session. Single-SUPER_ADMIN enforcement added 2026-08-29 session — see §16.
+features/uploads/* — actions.ts confirmed clean apart from one bug (fixed 2026-08-29, see §16): staff avatar upload had no self-upload bypass, blocking STAFF/RIDER from setting their own profile photo.
 features/dashboard/* — DashboardBranchFilter.tsx Select UUID bug fixed. Dashboard bundle refactor (resolveDashboardAuth + compute* functions + getDashboardBundleAction) — completed in a later session.
 features/audit-logs/* — AuditLogFeed.tsx forms pass done (2 native selects → themed Select) plus sentinel-value fix for clearing filters.
 components/ui/time-picker.tsx, components/ui/date-picker.tsx — both done; date-picker.tsx exports toDateKey/fromDateKey helpers (Bug Pattern 10).
@@ -254,6 +257,9 @@ Offline coupon design (finalized): equal split of maxUses across branches at cre
 
 Staff/rider clock-in + device approval system — DONE, see §13 for full detail.
 Permanent delete for staff/rider/admin — DONE, see §14 for full detail.
+Single-SUPER_ADMIN enforcement — DONE, see §16 for full detail.
+Notification bell scrollbar — DONE (final fix: custom JS-drawn thumb, native scrollbar hidden — see Bug Pattern #29 for why).
+Profile-photo self-upload permission — DONE, see §16.
 
 V1-blocking remaining items (unchanged, still top priority): database backups (pg_dump via GitHub Actions) — not started, highest priority. Migration script from prior POS systems — not started, top priority once backups done. TableFloorPlan.tsx and RevenueChart.tsx lazy-loading via next/dynamic — done (minor speed win, route-splitting already isolated them).
 
@@ -392,17 +398,48 @@ TESTED 2026-08-28 (post-fix), all confirmed by Zakir:
 
 15. Open items / next steps for next session
 
-A. Invite-link localhost bug (surfaced 2026-08-28, NOT yet investigated)
+16. Single-SUPER_ADMIN enforcement (COMPLETED 2026-08-29)
+
+Requirement: only one SUPER_ADMIN should ever exist per tenant.
+
+Enforced both directions:
+- Creation blocked: createAdminAction (features/admins/actions.ts) checks for an existing SUPER_ADMIN row for the tenant before allowing role: "SUPER_ADMIN" on insert.
+- Promotion blocked: updateAdminAction checks the same, but only when roleChanged && parsed.data.role === "SUPER_ADMIN" AND an existing SUPER_ADMIN's id differs from the row being edited — so the very first SUPER_ADMIN (when none exists yet) can still be created via promotion.
+- Zero enforcement was already in place pre-existing (deactivateAdminAction/deleteAdminAction both hard-block any target.role === "SUPER_ADMIN" row, self or not) — untouched, just confirmed still correct.
+
+UI: AdminDialog.tsx takes a new hasSuperAdmin: boolean prop. The "Super Admin" SelectItem is hidden from the role picker whenever hasSuperAdmin is true, UNLESS the dialog is currently editing that same existing SUPER_ADMIN (so its current value still renders). AdminCards.tsx computes hasSuperAdmin locally from its admins prop for edit-mode dialogs; app/(dashboard)/admins/page.tsx computes it from the fetched list for the create-mode dialog.
+
+Practical effect: SUPER_ADMIN rows in AdminCards.tsx correctly show no action buttons (self, and the only SUPER_ADMIN) — this was flagged as "Bug C" earlier in the session but is actually correct/intentional behavior given the single-SUPER_ADMIN rule, not a bug.
+
+tsc --noEmit clean. Confirmed working by Zakir (role option correctly hidden once a SUPER_ADMIN exists).
+
+Files touched: features/admins/actions.ts, features/admins/components/AdminDialog.tsx, features/admins/components/AdminCards.tsx, app/(dashboard)/admins/page.tsx.
+
+17. Notification bell scrollbar + upload permission fixes (COMPLETED 2026-08-29)
+
+See Bug Pattern #29 for the root cause (Chrome Fluent Scrollbars ignore ::-webkit-scrollbar-* entirely) and #30 (flex-1 inside max-h-* collapses to zero height).
+
+Final NotificationBell.tsx scroll implementation: real scrollbar hidden via .scrollbar-hide, a small absolutely-positioned custom thumb div drawn on top, sized/positioned in JS from scrollTop/scrollHeight/clientHeight via a scrollRef + onScroll handler + updateThumb() function. Panel container changed from max-h-72 to fixed h-72 to fix content disappearing.
+
+uploads/actions.ts: entityType === "staff" upload path now allows isSelf (entityId === currentStaffRow.id) to bypass the manage_staff permission check, matching the existing self-edit pattern used elsewhere. Confirmed fixes both the profile self-edit flow (text + photo) end-to-end.
+
+Files touched: features/notifications/components/NotificationBell.tsx, app/globals.css, features/uploads/actions.ts.
+
+A. RESOLVED 2026-08-29 — Invite-link localhost bug
 Zakir deployed the app and sent a real invite link (via the existing staff-invite flow, supabaseAdmin.auth.admin.inviteUserByEmail with redirectTo pointing at /auth/callback?next=/auth/reset-password) to a friend's email as a live test. When the friend clicked the link, it opened localhost instead of the deployed URL. This strongly suggests NEXT_PUBLIC_APP_URL is set to a localhost value in the deployed environment (Vercel) rather than the production URL — check Vercel's environment variables first. The /auth/callback route.ts and /auth/reset-password page.tsx were both reviewed and look correctly implemented on the code side (callback exchanges the code and redirects to the next param; reset-password page collects a new password and calls resetPasswordAction) — this is very likely purely an environment/config issue, not a code bug. After fixing the env var, Zakir wants to re-test that a fresh invite actually lands on /auth/reset-password and not on the login page.
 
 B. Rider clock-out flow — worth a final explicit confirmation (isAvailable flips false, disappears from RiderSelector, signs out correctly) since it wasn't explicitly re-confirmed after the last fix (see also §13 testing notes).
 
-C. NEW: Notification panel scrollbar shortened to themed-scrollbar (NotificationBell.tsx) — done, untested in browser yet.
+C. RESOLVED 2026-08-29 — Notification panel scrollbar. Confirmed working after several iterations; see Bug Pattern #29/#30 and §16 for the full story and final implementation (custom JS-drawn thumb in NotificationBell.tsx).
 
-D. NEW: Profile self-edit was blocked by permission checks for STAFF/RIDER — fixed in updateStaffAction/updateAdminAction (see §5 self-edit pattern note). Done, untested in browser yet.
+D. PARTIALLY RESOLVED — Profile self-edit. Text-field self-edit confirmed working. Avatar upload was still broken (separate bug in uploads/actions.ts, not updateStaffAction/updateAdminAction) — fixed 2026-08-29, see §16. Full self-edit flow (text + photo) now confirmed working end-to-end by Zakir.
 
 E. NEW: "My Reservations" page link added to BookingModal.tsx's confirmation screen and to book-a-table/page.tsx's header. Done, untested in browser yet.
 
 F. NEW, IN PROGRESS: Rider dashboard — Zakir wants date filters (Today/This Week/This Month + date range picker, same UX as Order History) for a rider's own completed/cancelled deliveries, plus a revenue summary (total, food portion, delivery-fee portion). Backend done: getRiderHistoryAction added to src/features/deliveries/actions.ts (not yet tsc-confirmed). Frontend NOT STARTED: RiderDashboard.tsx needs the filter UI (adapt pattern from src/features/orders/components/history/OrderHistoryFilters.tsx and src/features/orders/hooks/useOrderHistory.ts's computeServerDateBounds()) plus a revenue breakdown card. This is the next task to pick up.
 
-G. SUPER_ADMIN self-delete / delete-another-SUPER_ADMIN block (from permanent-delete feature) — code exists but was never tested since no second SUPER_ADMIN account exists. Still an open verification gap.
+G. SUPER_ADMIN self-delete / delete-another-SUPER_ADMIN block (from permanent-delete feature) — code exists but was never tested since no second SUPER_ADMIN account exists. As of the 2026-08-29 single-SUPER_ADMIN enforcement (§16), creating a second SUPER_ADMIN is now blocked at the application layer, so this scenario is effectively unreachable through the UI going forward — flag to Zakir whether this test is still wanted (would require direct DB manipulation to set up) or can be considered moot.
+
+H. NEW, UNRESOLVED (2026-08-29): Zakir reports order numbers appearing out of sync between POS and the Orders page for what he says is the SAME single branch — e.g. POS around order 130, Orders page around order 30. Investigated createOrderAction (POS, src/features/orders/actions.ts) and createPublicOrderAction (website, src/features/online-ordering/actions.ts) — both correctly share the same atomic order_counters row keyed by branchId via the identical insert/onConflictDoUpdate pattern, so the underlying sequence cannot actually desync between them at the DB level. Could not pin down exactly what "130" vs "30" refers to on screen before the session ended — need from Zakir: (1) exact UI location of each number (receipt/ticket/header/list, etc.), ideally a screenshot of each, (2) confirmation of whether it's genuinely the same order showing two different numbers, or two different counts/labels that were never meant to match (e.g. a display count vs. the real order_number). Start here next session.
+
+I. Rider clock-out flow (§13/§15-B) — still not explicitly re-confirmed. Carry forward.

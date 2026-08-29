@@ -72,9 +72,10 @@ interface AdminDialogProps {
   branches: Branch[];
   admin?: Staff;
   currentUserId: string;
+  hasSuperAdmin: boolean;
 }
 
-export function AdminDialog({ branches, admin: editTarget, currentUserId }: AdminDialogProps) {
+export function AdminDialog({ branches, admin: editTarget, currentUserId, hasSuperAdmin }: AdminDialogProps) {
   const router = useRouter();
   const isEditMode = !!editTarget;
   const isSelf = isEditMode && editTarget!.id === currentUserId;
@@ -417,7 +418,9 @@ export function AdminDialog({ branches, admin: editTarget, currentUserId }: Admi
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ADMIN">Admin</SelectItem>
-                  <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                  {(!hasSuperAdmin || form.role === "SUPER_ADMIN") && (
+                    <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
               {isSelf && (

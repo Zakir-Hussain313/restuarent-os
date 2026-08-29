@@ -45,6 +45,16 @@ export async function createAdminAction(input: CreateAdminInput) {
   // SUPER_ADMIN has no single branch — always store as null.
   const branchId = parsed.data.role === "SUPER_ADMIN" ? null : parsed.data.branchId!;
 
+  // ── Guard: only one SUPER_ADMIN allowed per tenant ──────────────────────
+  if (parsed.data.role === "SUPER_ADMIN") {
+    const existingSuperAdmin = await db.query.staff.findFirst({
+      where: and(eq(staff.tenantId, tenantId), eq(staff.role, "SUPER_ADMIN")),
+    });
+    if (existingSuperAdmin) {
+      return { error: "Only one super admin is allowed. Demote or remove the existing one first." };
+    }
+  }
+
   // ── Guard: prevent duplicate rows for the same email ────────────────────
   const existingStaff = await db.query.staff.findFirst({
     where: eq(staff.email, parsed.data.email),
@@ -190,10 +200,19 @@ export async function updateAdminAction(
 
   const emailChanged = parsed.data.email && parsed.data.email !== target.email;
   const roleChanged = parsed.data.role && parsed.data.role !== target.role;
-
   // ── Guard: cannot change your own role ────────────────────────────────
   if (adminId === user.id && roleChanged) {
     return { error: "You cannot change your own role." };
+  }
+
+  // ── Guard: only one SUPER_ADMIN allowed per tenant ────────────────────
+  if (roleChanged && parsed.data.role === "SUPER_ADMIN") {
+    const existingSuperAdmin = await db.query.staff.findFirst({
+      where: and(eq(staff.tenantId, currentStaffRow.tenantId), eq(staff.role, "SUPER_ADMIN")),
+    });
+    if (existingSuperAdmin && existingSuperAdmin.id !== adminId) {
+      return { error: "Only one super admin is allowed." };
+    }
   }
 
   if (emailChanged) {

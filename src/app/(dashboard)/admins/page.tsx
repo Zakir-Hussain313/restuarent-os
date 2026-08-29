@@ -17,7 +17,11 @@ export default async function AdminsPage() {
             Manage branch admins and super admins
           </p>
         </div>
-        <AdminDialog branches={branches ?? []} currentUserId={currentStaff?.id ?? ""} />
+        <AdminDialog
+          branches={branches ?? []}
+          currentUserId={currentStaff?.id ?? ""}
+          hasSuperAdmin={(admins ?? []).some((a) => a.role === "SUPER_ADMIN")}
+        />
       </div>
 
       {adminsError ? (
