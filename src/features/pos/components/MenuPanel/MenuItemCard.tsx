@@ -1,12 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { Plus } from "lucide-react";
+import { Fragment } from "react";
 import { cn } from "@/lib/utils";
 import { usePosStore } from "@/store/usePosStore";
 import { formatCurrency } from "@/lib/utils";
 import type { MenuItem } from "@/types";
 import { Flame, Soup, Wheat, Sandwich, CircleDot, IceCreamBowl, CupSoda, Salad, UtensilsCrossed } from "lucide-react";
+import { ItemOptionsModal } from "./ItemOptionsModal";
 
 const CATEGORY_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   cat_001: Flame,
@@ -29,10 +32,22 @@ export function MenuItemCard({ item, cartQuantity }: MenuItemCardProps) {
   const addItem = usePosStore((s) => s.addItem);
   const isInCart = cartQuantity > 0;
   const isUnavailable = item.status !== "available";
+  const hasOptions = item.variants.length > 0 || item.modifierGroups.length > 0;
+  const [optionsOpen, setOptionsOpen] = useState(false);
+
+  function handleClick() {
+    if (isUnavailable) return;
+    if (hasOptions) {
+      setOptionsOpen(true);
+      return;
+    }
+    addItem(item);
+  }
 
   return (
+    <Fragment>
     <button
-      onClick={() => !isUnavailable && addItem(item)}
+      onClick={handleClick}
       disabled={isUnavailable}
       className={cn(
         "relative rounded-xl border bg-card text-left p-3 space-y-2 transition-all",
@@ -86,5 +101,16 @@ export function MenuItemCard({ item, cartQuantity }: MenuItemCardProps) {
         </div>
       </div>
     </button>
+    {hasOptions && (
+      <ItemOptionsModal
+        item={item}
+        open={optionsOpen}
+        onOpenChange={setOptionsOpen}
+        onConfirm={(_unitPrice, selection) =>
+          addItem(item, selection.selectedVariant, selection.selectedModifiers)
+        }
+      />
+    )}
+    </Fragment>
   );
 }

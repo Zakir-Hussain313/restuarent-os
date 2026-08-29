@@ -92,6 +92,7 @@ export function usePosOrder(autoConfirmOnPlace?: boolean): UsePosOrderReturn {
 
     if (orderType === "delivery" && (!customerPhone?.trim() || !deliveryAddress?.trim())) {
       showAlert("Customer phone and delivery address are required for delivery orders.");
+      isSubmittingRef.current = false;
       return;
     }
 

@@ -31,6 +31,7 @@ export default function ResetPasswordPage() {
   // here with a real cookie session already set by /auth/callback, so this
   // effect only has work to do when an invite hash is actually present.
   const [isProcessingInvite, setIsProcessingInvite] = useState(true);
+  const [isLinkInvalid, setIsLinkInvalid] = useState(false);
 
   useEffect(() => {
     // All setState calls below run inside this async function's body, which
@@ -54,6 +55,7 @@ export default function ResetPasswordPage() {
             ? "Your invite link has expired. Please ask an admin to resend it."
             : "Your invite link is invalid. Please request a new one."
         );
+        setIsLinkInvalid(true);
         setIsProcessingInvite(false);
         return;
       }
@@ -68,6 +70,7 @@ export default function ResetPasswordPage() {
 
       if (!access_token || !refresh_token) {
         setError("Your invite link is missing required data. Please request a new one.");
+        setIsLinkInvalid(true);
         setIsProcessingInvite(false);
         return;
       }
@@ -80,6 +83,7 @@ export default function ResetPasswordPage() {
 
       if (sessionError) {
         setError("Your invite link has expired or is invalid. Please request a new one.");
+        setIsLinkInvalid(true);
       } else {
         // Clear the tokens from the URL so they don't linger in browser
         // history / get shared accidentally via copy-paste of the URL.
@@ -93,6 +97,7 @@ export default function ResetPasswordPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (isLinkInvalid) return;
     setError(null);
 
     if (password !== confirmPassword) {
@@ -140,39 +145,45 @@ export default function ResetPasswordPage() {
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="password">New password</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="enter your password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="new-password"
-              disabled={isLoading || isProcessingInvite}
-            />
-          </div>
+          {!isLinkInvalid && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="password">New password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete="new-password"
+                  disabled={isLoading || isProcessingInvite}
+                />
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirm new password</Label>
-            <Input
-              id="confirmPassword"
-              type="password"
-              placeholder="re-enter your password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              autoComplete="new-password"
-              disabled={isLoading || isProcessingInvite}
-            />
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm new password</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="re-enter your password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  autoComplete="new-password"
+                  disabled={isLoading || isProcessingInvite}
+                />
+              </div>
+            </>
+          )}
         </CardContent>
 
         <CardFooter>
-          <Button type="submit" className="w-full" disabled={isLoading || isProcessingInvite}>
-            {isProcessingInvite ? "Verifying link..." : isLoading ? "Updating..." : "Update password"}
-          </Button>
+          {!isLinkInvalid && (
+            <Button type="submit" className="w-full" disabled={isLoading || isProcessingInvite}>
+              {isProcessingInvite ? "Verifying link..." : isLoading ? "Updating..." : "Update password"}
+            </Button>
+          )}
         </CardFooter>
       </form>
     </Card>

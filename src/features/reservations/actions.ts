@@ -5,7 +5,7 @@ import { restaurantTables, tableReservations } from "@/db/schema";
 import { getCurrentStaff } from "@/features/auth/actions";
 import { hasPermission } from "@/types/staff";
 import { logAudit } from "@/lib/audit";
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, asc, desc, gte, lte, inArray } from "drizzle-orm";
 
 type CurrentStaff = NonNullable<Awaited<ReturnType<typeof getCurrentStaff>>>;
 
@@ -43,6 +43,37 @@ export async function getReservationsAction(overrideBranchId?: string) {
             branchFilter ? eq(tableReservations.branchId, branchFilter) : undefined
         ),
         orderBy: [asc(tableReservations.startTime)],
+    });
+
+    return { data: rows };
+}
+
+export async function getReservationHistoryAction(
+    dateFrom: string,
+    dateTo?: string,
+    overrideBranchId?: string
+) {
+    const auth = await requirePageAccess();
+    if (!auth.ok) return { data: null, error: auth.error };
+
+    const isBranchLocked = auth.staff.role === "ADMIN" || auth.staff.role === "STAFF";
+    if (isBranchLocked && !auth.staff.branchId) {
+        return { data: null, error: "Your account has no branch assigned." };
+    }
+    const branchFilter = isBranchLocked ? auth.staff.branchId! : overrideBranchId;
+
+    const from = new Date(dateFrom);
+    const to = dateTo ? new Date(dateTo) : undefined;
+
+    const rows = await db.query.tableReservations.findMany({
+        where: and(
+            eq(tableReservations.tenantId, auth.staff.tenantId),
+            branchFilter ? eq(tableReservations.branchId, branchFilter) : undefined,
+            inArray(tableReservations.status, ["cancelled", "no_show", "seated"]),
+            gte(tableReservations.startTime, from),
+            to ? lte(tableReservations.startTime, to) : undefined
+        ),
+        orderBy: [desc(tableReservations.startTime)],
     });
 
     return { data: rows };

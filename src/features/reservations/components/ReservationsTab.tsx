@@ -11,6 +11,8 @@ import {
     cancelReservationAction,
     markNoShowAction,
 } from "@/features/reservations/actions";
+import { useReservationHistory } from "@/features/reservations/hooks/useReservationHistory";
+import { ReservationHistoryFilters } from "@/features/reservations/components/ReservationHistoryFilters";
 import type { TableReservation } from "@/db/schema";
 import type { Table } from "@/types/table";
 
@@ -43,6 +45,7 @@ export function ReservationsTab({ reservations, tables }: ReservationsTabProps) 
     const [pendingId, setPendingId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [historyOpen, setHistoryOpen] = useState(false);
+    const history = useReservationHistory();
 
     const tableById = new Map(tables.map((t) => [t.id, t]));
 
@@ -62,11 +65,6 @@ export function ReservationsTab({ reservations, tables }: ReservationsTabProps) 
     }
 
     const active = reservations.filter((r) => r.status === "pending" || r.status === "confirmed");
-    const past = reservations.filter((r) => r.status !== "pending" && r.status !== "confirmed");
-
-    if (reservations.length === 0) {
-        return <p className="text-sm text-muted-foreground py-12 text-center">No reservations yet.</p>;
-    }
 
     return (
         <div className="space-y-6">
@@ -76,7 +74,7 @@ export function ReservationsTab({ reservations, tables }: ReservationsTabProps) 
                 </div>
             )}
 
-            {active.length > 0 && (
+            {active.length > 0 ? (
                 <div className="space-y-2">
                     {active.map((r) => (
                         <ReservationRow
@@ -91,34 +89,55 @@ export function ReservationsTab({ reservations, tables }: ReservationsTabProps) 
                         />
                     ))}
                 </div>
+            ) : (
+                <p className="text-sm text-muted-foreground py-6 text-center">No active reservations.</p>
             )}
 
-            {past.length > 0 && (
-                <div className="space-y-2">
-                    <button
-                        type="button"
-                        onClick={() => setHistoryOpen((v) => !v)}
-                        className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors"
-                    >
-                        <ChevronDown
-                            className={cn("w-3.5 h-3.5 transition-transform", historyOpen ? "rotate-0" : "-rotate-90")}
+            <div className="space-y-3">
+                <button
+                    type="button"
+                    onClick={() => setHistoryOpen((v) => !v)}
+                    className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors"
+                >
+                    <ChevronDown
+                        className={cn("w-3.5 h-3.5 transition-transform", historyOpen ? "rotate-0" : "-rotate-90")}
+                    />
+                    History
+                </button>
+                {historyOpen && (
+                    <div className="space-y-3">
+                        <ReservationHistoryFilters
+                            datePreset={history.datePreset}
+                            dateRange={history.dateRange}
+                            isFiltered={history.isFiltered}
+                            setDatePreset={history.setDatePreset}
+                            setDateRange={history.setDateRange}
+                            resetFilters={history.resetFilters}
                         />
-                        History ({past.length})
-                    </button>
-                    {historyOpen && (
-                        <div className="space-y-2">
-                            {past.map((r) => (
-                                <ReservationRow
-                                    key={r.id}
-                                    reservation={r}
-                                    table={tableById.get(r.tableId)}
-                                    isPending={false}
-                                />
-                            ))}
-                        </div>
-                    )}
-                </div>
-            )}
+                        {history.error && (
+                            <div className="rounded-md bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
+                                {history.error}
+                            </div>
+                        )}
+                        {history.isLoading ? (
+                            <p className="text-sm text-muted-foreground py-6 text-center">Loading...</p>
+                        ) : history.history.length === 0 ? (
+                            <p className="text-sm text-muted-foreground py-6 text-center">No reservations in this range.</p>
+                        ) : (
+                            <div className="space-y-2">
+                                {history.history.map((r) => (
+                                    <ReservationRow
+                                        key={r.id}
+                                        reservation={r}
+                                        table={tableById.get(r.tableId)}
+                                        isPending={false}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

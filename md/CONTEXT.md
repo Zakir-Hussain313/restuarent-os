@@ -1,7 +1,7 @@
 Rice n Spice (Zaiqa) — Context
 
 Single source of truth. Supersedes all prior MASTER_PROMPT/PROJECT_BRIEF/DATABASE_BRIEF/SKILL/session-summary docs.
-Last reconciled: 2026-08-29 (session: single-SUPER_ADMIN enforcement, profile-photo self-upload fix, notification scrollbar fix — see §29/§30 bug patterns and §16).
+Last reconciled: 2026-08-29 (session: single-SUPER_ADMIN enforcement, profile-photo self-upload fix, notification scrollbar fix — see §29/§30 bug patterns and §16). Also reconciled later same day: functional testing pass begun — see §18.
 
 1. Role & Process
 
@@ -208,6 +208,10 @@ Deleted-person badge convention: a small pill, text-[10px] font-medium px-1.5 py
 28. NEW: Supabase's own Auth dashboard Site URL setting (Authentication → URL Configuration) can override the app's redirectTo parameter entirely for implicit-flow methods like inviteUserByEmail. This is separate from the app's NEXT_PUBLIC_APP_URL env var — both must be correct independently. If invite/magic links go to localhost despite a correct env var, check Site URL in Supabase directly.
 29. NEW (2026-08-29): Recent Chrome versions on Windows render scrollbars using native "Fluent Scrollbars" and completely IGNORE all ::-webkit-scrollbar-* CSS (width/color/border/track/thumb — none of it renders, even though DevTools shows the rules as declared and "active"). Confirmed by the flag no longer existing at chrome://flags/#fluent-scrollbars. Firefox is unaffected (uses scrollbar-width/scrollbar-color, which still works). Any future custom-scrollbar styling in this app must NOT rely on ::-webkit-scrollbar-* alone — either accept the native look, use .scrollbar-hide + a JS-drawn thumb (see NotificationBell.tsx for the reference implementation), or test explicitly in current Chrome before assuming a CSS-only fix works.
 30. NEW (2026-08-29): A flex child constrained by max-h-* (not a fixed h-*) can collapse to zero height when a sibling inside it uses flex-1 — the flex-1 element has nothing concrete to grow into. If content mysteriously disappears after adding a flex-1 wrapper inside a max-h-*-capped container, switch the container to a fixed h-* instead.
+31. NEW (2026-08-29, found during functional testing): Supabase's implicit-flow link verification redirects back with #error=...&error_code=...&error_description=... when an invite/reset link is expired or invalid — NOT with #access_token=.... Any client-side hash-parsing effect (e.g. reset-password page.tsx) that only checks for access_token will silently fall through on an expired link, showing a normal form instead of an error. Always check for error/error_code in the hash first, before checking for access_token.
+32. NEW (2026-08-29, found during functional testing): Sidebar.tsx's avatar never actually rendered currentStaff.image at all — it unconditionally rendered initials only. Not a stale-cache bug (ProfileModal showed the photo fine via its own local state) — the sidebar simply never had the image-render branch built. Lesson: when a value updates in one place but not another, check whether the second place even has the render path before assuming it's a cache/invalidation issue.
+33. NEW (2026-08-29, found during functional testing): Sidebar's <nav> had overflow-y-auto with no explicit overflow-x — per spec, setting overflow-y to anything but visible while overflow-x is left default computes overflow-x to auto too, silently creating a horizontal scrollbar. Always pair overflow-y-auto with an explicit overflow-x-hidden unless horizontal scroll is actually wanted.
+34. OPEN, found during functional testing (2026-08-29): TablesTab.tsx's "Reset to Default" (seating edit mode) doesn't visually update the floor plan until Save is clicked. Root cause: TableFloorPlan.tsx's resolveChairLayout(table, ...) checks table.chairLayout (the server-stored value, unchanged by Reset) before falling back to getDefaultChairLayout — Reset only clears the local seatOverrides state, so the render falls through to the still-populated server value instead of the true default. Only becomes visible once Save actually nulls chairLayout server-side and router.refresh() pulls fresh data. Needs a fix in resolveChairLayout or in how Reset signals "show default" vs "show nothing/server value" distinctly from "no local override".
 
 8. Current State — What's Done vs. Remaining
 
@@ -436,10 +440,32 @@ D. PARTIALLY RESOLVED — Profile self-edit. Text-field self-edit confirmed work
 
 E. NEW: "My Reservations" page link added to BookingModal.tsx's confirmation screen and to book-a-table/page.tsx's header. Done, untested in browser yet.
 
-F. NEW, IN PROGRESS: Rider dashboard — Zakir wants date filters (Today/This Week/This Month + date range picker, same UX as Order History) for a rider's own completed/cancelled deliveries, plus a revenue summary (total, food portion, delivery-fee portion). Backend done: getRiderHistoryAction added to src/features/deliveries/actions.ts (not yet tsc-confirmed). Frontend NOT STARTED: RiderDashboard.tsx needs the filter UI (adapt pattern from src/features/orders/components/history/OrderHistoryFilters.tsx and src/features/orders/hooks/useOrderHistory.ts's computeServerDateBounds()) plus a revenue breakdown card. This is the next task to pick up.
+F. RESOLVED — Rider dashboard date filters + revenue summary confirmed fully done by Zakir (frontend included, contrary to the earlier "not started" note).
 
-G. SUPER_ADMIN self-delete / delete-another-SUPER_ADMIN block (from permanent-delete feature) — code exists but was never tested since no second SUPER_ADMIN account exists. As of the 2026-08-29 single-SUPER_ADMIN enforcement (§16), creating a second SUPER_ADMIN is now blocked at the application layer, so this scenario is effectively unreachable through the UI going forward — flag to Zakir whether this test is still wanted (would require direct DB manipulation to set up) or can be considered moot.
+G. RESOLVED/MOOT — SUPER_ADMIN self-delete / delete-another-SUPER_ADMIN block confirmed done by Zakir; also moot going forward since a second SUPER_ADMIN can never be created through the UI.
 
-H. NEW, UNRESOLVED (2026-08-29): Zakir reports order numbers appearing out of sync between POS and the Orders page for what he says is the SAME single branch — e.g. POS around order 130, Orders page around order 30. Investigated createOrderAction (POS, src/features/orders/actions.ts) and createPublicOrderAction (website, src/features/online-ordering/actions.ts) — both correctly share the same atomic order_counters row keyed by branchId via the identical insert/onConflictDoUpdate pattern, so the underlying sequence cannot actually desync between them at the DB level. Could not pin down exactly what "130" vs "30" refers to on screen before the session ended — need from Zakir: (1) exact UI location of each number (receipt/ticket/header/list, etc.), ideally a screenshot of each, (2) confirmation of whether it's genuinely the same order showing two different numbers, or two different counts/labels that were never meant to match (e.g. a display count vs. the real order_number). Start here next session.
+H. RESOLVED — Order number mismatch (POS vs Orders page) confirmed by Zakir to be working perfectly fine; not a real bug.
 
-I. Rider clock-out flow (§13/§15-B) — still not explicitly re-confirmed. Carry forward.
+I. RESOLVED — Rider clock-out flow confirmed working by Zakir.
+
+J. RESOLVED — Invite email production-link (localhost) issue confirmed now working fine.
+
+K. Professional/branded emails via Resend SMTP — deferred on purpose, to be added as an item in the (not-yet-built) deployment checklist rather than done now.
+
+18. Functional testing session (2026-08-29, ongoing)
+
+Testing plan: Phase 1 functional testing (module by module: happy path, validation, permissions, realtime, DB integrity, error recovery, mobile, performance — kept broad, not exhaustively itemized, per Zakir's preference) → Phase 2 load/stress testing (needs a staging environment first, not yet set up).
+
+Modules closed: Auth & Roles (✅, found+fixed Bug Pattern #31), Staff/Admin Management (✅, found+fixed Bug Pattern #32; realtime + error recovery deferred to a batch — see below), Reservations including the new History date-filter feature (✅ full module done), Menu Management (✅, realtime deferred), Tables (✅ except Bug Pattern #34, open).
+
+New feature built and confirmed working: Reservations history date filter (Today/This Week/This Month + custom from/to range), mirroring the Rider Dashboard pattern exactly. New files: getReservationHistoryAction (reservations/actions.ts), src/features/reservations/hooks/useReservationHistory.ts, src/features/reservations/components/ReservationHistoryFilters.tsx. ReservationsTab.tsx's old unbounded "History" toggle replaced with the filtered version; active (pending/confirmed) reservations still shown separately, unaffected.
+
+Sidebar.tsx also fixed: overflow-x-hidden added to <nav> (Bug Pattern #33).
+
+Supabase Email OTP expiration lowered from default 3600s to 1800s (30 min) — confirmed via Supabase dashboard (Authentication → Providers → Email); no local supabase/config.toml exists in this repo, so the dashboard is the sole source of truth for this setting.
+
+Deferred, to be batched together once a staff account + refreshed email quota are both available: Staff/Admin realtime (deactivate-while-logged-in) + error recovery (delete retry, double-click), Menu realtime, Tables realtime, and the invite-link 30-min expiry click-through test.
+
+Still not started: POS, Delivery/Rider flow, Coupons, Attendance, Notifications, Reports, Audit Logs, Settings, Public storefront/online ordering, cross-cutting regression pass.
+
+Open bug carried forward: Bug Pattern #34 (Tables "Reset to Default" doesn't visually update until Save) — needs a fix in TableFloorPlan.tsx's resolveChairLayout.

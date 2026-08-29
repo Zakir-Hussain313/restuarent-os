@@ -244,9 +244,13 @@ export function CouponPicker({ branchId }: CouponPickerProps) {
               // dead connection, where failure is near-instant anyway.
               if (!isOpen) {
                 try {
-                  await withTimeout(getActiveCouponsAction(), 3000);
+                  const result = await withTimeout(getActiveCouponsAction(), 3000);
                   isOfflineRef.current = false;
                   setIsOffline(false);
+                  if (result.data !== null) {
+                    setCoupons(result.data);
+                    setPosAllowDiscounts(result.posAllowDiscounts);
+                  }
                 } catch {
                   isOfflineRef.current = true;
                   setIsOffline(true);

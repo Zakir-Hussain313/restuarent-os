@@ -21,6 +21,7 @@ interface PosState {
   tableId?: string;
   tableNumber?: string;
   customerId?: string;
+  customerName?: string;
   customerPhone?: string;
   deliveryAddress?: string;
   appliedCoupon: Coupon | null;
@@ -138,8 +139,8 @@ export const usePosStore = create<PosState>((set, get) => ({
   setOrderType: (orderType) => set({ orderType }),
   setTable: (tableId, tableNumber) => set({ tableId, tableNumber }),
   clearTable: () => set({ tableId: undefined, tableNumber: undefined }),
-  setCustomer: (customerId, customerPhone) =>
-    set({ customerId, customerPhone }),
+  setCustomer: (customerId, customerName, customerPhone) =>
+    set({ customerId, customerName, customerPhone }),
   clearCustomer: () =>
     set({ customerId: undefined, customerPhone: undefined }),
   setCustomerPhone: (customerPhone) => set({ customerPhone }),

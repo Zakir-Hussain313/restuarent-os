@@ -294,7 +294,13 @@ export function TableFloorPlan({
     const [prevResetSignal, setPrevResetSignal] = useState(resetSignal);
     if (prevResetSignal !== resetSignal) {
         setPrevResetSignal(resetSignal);
-        if (Object.keys(seatOverrides).length > 0) setSeatOverrides({});
+        const defaults: Record<string, ChairSeat[]> = {};
+        tables.forEach((table) => {
+            if (table.seatingType === "sofa") return; // sofa rendering always uses the default already
+            const { width, height } = getTileDimensions(table);
+            defaults[table.id] = getDefaultChairLayout(table.shape, width, height, table.capacity);
+        });
+        setSeatOverrides(defaults);
     }
 
     const outerRef = useRef<HTMLDivElement>(null);

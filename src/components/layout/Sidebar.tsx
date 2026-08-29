@@ -316,7 +316,7 @@ export function Sidebar() {
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-2 space-y-4">
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden py-2 space-y-4">
         {visibleGroups.map((group) => (
           <div key={group.label}>
             {open && (
@@ -354,11 +354,20 @@ export function Sidebar() {
               open ? "flex-1 text-left" : ""
             )}
           >
-            <div className="w-7 h-7 rounded-full bg-coral flex items-center justify-center shrink-0">
-              <span className="text-white text-[11px] font-bold">
-                {currentStaff?.firstName?.[0]}
-                {currentStaff?.lastName?.[0]}
-              </span>
+            <div className="w-7 h-7 rounded-full bg-coral flex items-center justify-center shrink-0 overflow-hidden">
+              {currentStaff?.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={currentStaff.image}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <span className="text-white text-[11px] font-bold">
+                  {currentStaff?.firstName?.[0]}
+                  {currentStaff?.lastName?.[0]}
+                </span>
+              )}
             </div>
             {open && (
               <div className="flex-1 min-w-0">
