@@ -40,12 +40,29 @@ export default function ResetPasswordPage() {
     async function processInviteHash() {
       const hash = window.location.hash;
 
-      if (!hash || !hash.includes("access_token")) {
+      if (!hash) {
         setIsProcessingInvite(false);
         return;
       }
 
       const params = new URLSearchParams(hash.slice(1));
+
+      const hashError = params.get("error");
+      if (hashError) {
+        setError(
+          params.get("error_code") === "otp_expired"
+            ? "Your invite link has expired. Please ask an admin to resend it."
+            : "Your invite link is invalid. Please request a new one."
+        );
+        setIsProcessingInvite(false);
+        return;
+      }
+
+      if (!hash.includes("access_token")) {
+        setIsProcessingInvite(false);
+        return;
+      }
+
       const access_token = params.get("access_token");
       const refresh_token = params.get("refresh_token");
 
