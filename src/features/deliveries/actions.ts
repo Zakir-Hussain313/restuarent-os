@@ -91,6 +91,14 @@ export async function assignRiderAction(
         return { error: "Cannot reassign a rider once the delivery is already out for delivery." };
     }
 
+    const parentOrder = await db.query.orders.findFirst({ where: eq(orders.id, orderId) });
+    if (!parentOrder) {
+        return { error: "Order not found." };
+    }
+    if (parentOrder.status === "pending") {
+        return { error: "Confirm the order before assigning a rider." };
+    }
+
     const rider = await db.query.staff.findFirst({
         where: and(
             eq(staff.id, riderId),
@@ -430,7 +438,8 @@ export async function getRidersForBranchAction(
             eq(staff.tenantId, currentStaffRow.tenantId),
             eq(staff.branchId, branchId),
             eq(staff.role, "RIDER"),
-            eq(staff.isDeleted, false)
+            eq(staff.isDeleted, false),
+            eq(staff.isAvailable, true)
         ),
     });
 

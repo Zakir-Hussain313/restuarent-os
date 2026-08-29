@@ -30,8 +30,11 @@ export function RiderAssignment({ order, onAssigned }: RiderAssignmentProps) {
     const [error, setError] = useState<string | null>(null);
     const [pickerOpen, setPickerOpen] = useState(false);
 
+    const isPending = order.status === "pending";
+
     const canReassign =
-        order.deliveryStatus === "unassigned" || order.deliveryStatus === "assigned";
+        !isPending &&
+        (order.deliveryStatus === "unassigned" || order.deliveryStatus === "assigned");
 
     const loadRiders = useCallback(async () => {
         setIsLoadingRiders(true);
@@ -87,8 +90,14 @@ export function RiderAssignment({ order, onAssigned }: RiderAssignmentProps) {
 
             <div className="flex items-center justify-between gap-2">
                 <span className="text-sm">
-                    {order.riderName ?? (
-                        <span className="text-muted-foreground italic">No rider assigned</span>
+                    {isPending ? (
+                        <span className="text-muted-foreground italic">
+                            Rider assignment available once the order is confirmed
+                        </span>
+                    ) : (
+                        order.riderName ?? (
+                            <span className="text-muted-foreground italic">No rider assigned</span>
+                        )
                     )}
                 </span>
 

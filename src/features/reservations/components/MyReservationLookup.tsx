@@ -6,22 +6,21 @@ import { Input } from "@/components/ui/input";
 import { Loader2, Search } from "lucide-react";
 import { getMyReservationAction } from "@/features/reservations/public-actions";
 
+type LookedUpReservation = {
+    reservationNumber: string;
+    status: string;
+    startTime: Date;
+    durationMinutes: number;
+    partySize: number;
+    customerName: string | null;
+    tableNumber: string;
+};
+
 type LookupState =
     | { status: "idle" }
     | { status: "loading" }
     | { status: "error"; message: string }
-    | {
-          status: "found";
-          reservation: {
-              reservationNumber: string;
-              status: string;
-              startTime: Date;
-              durationMinutes: number;
-              partySize: number;
-              customerName: string | null;
-              tableNumber: string;
-          };
-      };
+    | { status: "found"; reservations: LookedUpReservation[] };
 
 const STATUS_LABELS: Record<string, string> = {
     pending: "Pending confirmation",
@@ -57,7 +56,7 @@ export function MyReservationLookup() {
         if (!result.success) {
             setState({ status: "error", message: result.error });
         } else {
-            setState({ status: "found", reservation: result.reservation });
+            setState({ status: "found", reservations: result.reservations });
         }
     }
 
@@ -77,10 +76,14 @@ export function MyReservationLookup() {
                 <div>
                     <label className="text-sm font-medium text-[#1a1814] mb-1 block">Reservation Code</label>
                     <Input
-                        type="text"
+                        type="password"
                         value={code}
                         onChange={(e) => setCode(e.target.value)}
                         placeholder="Shown when you booked"
+                        autoComplete="one-time-code"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
                         required
                     />
                 </div>
@@ -102,25 +105,36 @@ export function MyReservationLookup() {
             )}
 
             {state.status === "found" && (
-                <div className="mt-6 rounded-xl border border-[#ebe9e4] bg-white p-5 space-y-3">
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold uppercase tracking-widest text-[#e8570e]">
-                            {state.reservation.reservationNumber}
-                        </span>
-                        <span className="text-xs font-medium text-[#1a1814]">
-                            {STATUS_LABELS[state.reservation.status] ?? state.reservation.status}
-                        </span>
-                    </div>
-                    <div>
-                        <p className="text-sm text-[#1a1814]">
-                            {formatTimeWindow(state.reservation.startTime, state.reservation.durationMinutes)}
-                        </p>
-                        <p className="text-xs text-[#8a8680] mt-0.5">
-                            Table {state.reservation.tableNumber} · Party of {state.reservation.partySize}
-                        </p>
-                    </div>
-                    {state.reservation.customerName && (
-                        <p className="text-xs text-[#8a8680]">Booked under {state.reservation.customerName}</p>
+                <div className="mt-6 space-y-3">
+                    {state.reservations.length === 0 ? (
+                        <p className="text-sm text-[#8a8680]">No reservations found for that phone number.</p>
+                    ) : (
+                        state.reservations.map((reservation) => (
+                            <div
+                                key={reservation.reservationNumber}
+                                className="rounded-xl border border-[#ebe9e4] bg-white p-5 space-y-3"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold uppercase tracking-widest text-[#e8570e]">
+                                        {reservation.reservationNumber}
+                                    </span>
+                                    <span className="text-xs font-medium text-[#1a1814]">
+                                        {STATUS_LABELS[reservation.status] ?? reservation.status}
+                                    </span>
+                                </div>
+                                <div>
+                                    <p className="text-sm text-[#1a1814]">
+                                        {formatTimeWindow(reservation.startTime, reservation.durationMinutes)}
+                                    </p>
+                                    <p className="text-xs text-[#8a8680] mt-0.5">
+                                        Table {reservation.tableNumber} · Party of {reservation.partySize}
+                                    </p>
+                                </div>
+                                {reservation.customerName && (
+                                    <p className="text-xs text-[#8a8680]">Booked under {reservation.customerName}</p>
+                                )}
+                            </div>
+                        ))
                     )}
                 </div>
             )}

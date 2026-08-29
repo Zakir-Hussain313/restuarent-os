@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { restaurantTables, tableReservations, reservationCounters, branches } from "@/db/schema";
-import { eq, and, sql, lt, notInArray } from "drizzle-orm";
+import { eq, and, sql, lt, notInArray, desc, inArray } from "drizzle-orm";
 import { createNotification } from "@/features/notifications/actions";
 import { headers } from "next/headers";
 import { publicReservationRateLimit, reservationLookupRateLimit } from "@/lib/rate-limit";
@@ -45,6 +45,35 @@ const DAY_KEYS = [
     "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
 ] as const;
 
+// V1 targets Pakistan only, no DST — fixed IANA zone via Intl is still
+// used (rather than a hardcoded +5 offset) so this keeps working correctly
+// if a future tenant/timezone is added in V2.
+const RESTAURANT_TIMEZONE = "Asia/Karachi";
+
+// Reads a UTC instant's wall-clock day/hour/minute AS SEEN in
+// RESTAURANT_TIMEZONE. Using Date.getDay()/getHours() directly would read
+// the SERVER's local timezone instead (Vercel runs UTC), silently
+// comparing operating hours against the wrong day/time.
+function getLocalParts(date: Date): { dayIndex: number; hours: number; minutes: number } {
+    const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: RESTAURANT_TIMEZONE,
+        weekday: "short",
+        hour: "numeric",
+        minute: "numeric",
+        hour12: false,
+    }).formatToParts(date);
+
+    const weekdayShort = parts.find((p) => p.type === "weekday")!.value; // e.g. "Mon"
+    const hours = Number(parts.find((p) => p.type === "hour")!.value) % 24; // Intl can return "24" for midnight
+    const minutes = Number(parts.find((p) => p.type === "minute")!.value);
+
+    const WEEKDAY_SHORT_TO_INDEX: Record<string, number> = {
+        Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+    };
+
+    return { dayIndex: WEEKDAY_SHORT_TO_INDEX[weekdayShort], hours, minutes };
+}
+
 function isWithinOperatingHours(
     startTime: Date,
     durationMinutes: number,
@@ -54,7 +83,8 @@ function isWithinOperatingHours(
 ): { ok: true } | { ok: false; error: string } {
     if (!operatingHours) return { ok: true }; // tenant hasn't configured hours — allow anything
 
-    const dayKey = DAY_KEYS[startTime.getDay()];
+    const startLocal = getLocalParts(startTime);
+    const dayKey = DAY_KEYS[startLocal.dayIndex];
     const hours = operatingHours[dayKey];
 
     if (!hours.open || !hours.openTime || !hours.closeTime) {
@@ -62,14 +92,15 @@ function isWithinOperatingHours(
     }
 
     const endTime = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
+    const endLocal = getLocalParts(endTime);
 
     const toMinutes = (t: string) => {
         const [h, m] = t.split(":").map(Number);
         return h * 60 + m;
     };
 
-    const startMinutes = startTime.getHours() * 60 + startTime.getMinutes();
-    const endMinutes = endTime.getHours() * 60 + endTime.getMinutes();
+    const startMinutes = startLocal.hours * 60 + startLocal.minutes;
+    const endMinutes = endLocal.hours * 60 + endLocal.minutes;
     const openMinutes = toMinutes(hours.openTime);
     const closeMinutes = toMinutes(hours.closeTime);
 
@@ -276,18 +307,20 @@ export interface LookupReservationInput {
     reservationCode: string;
 }
 
+export interface LookedUpReservation {
+    reservationNumber: string;
+    status: string;
+    startTime: Date;
+    durationMinutes: number;
+    partySize: number;
+    customerName: string | null;
+    tableNumber: string;
+}
+
 type LookupReservationResult =
     | {
           success: true;
-          reservation: {
-              reservationNumber: string;
-              status: string;
-              startTime: Date;
-              durationMinutes: number;
-              partySize: number;
-              customerName: string | null;
-              tableNumber: string;
-          };
+          reservations: LookedUpReservation[];
           error?: undefined;
       }
     | { success?: undefined; error: string };
@@ -309,32 +342,43 @@ export async function getMyReservationAction(
         return { error: "Phone number and reservation code are both required." };
     }
 
-    const reservation = await db.query.tableReservations.findFirst({
+    // The code+phone pair only needs to match ONE reservation — that's
+    // what proves this person owns this phone number. Once verified, we
+    // return every reservation tied to that phone, not just the one whose
+    // code was entered.
+    const matchingReservation = await db.query.tableReservations.findFirst({
         where: and(
             eq(tableReservations.customerPhone, customerPhone),
             eq(tableReservations.reservationCode, reservationCode)
         ),
     });
 
-    if (!reservation) {
+    if (!matchingReservation) {
         return { error: "No reservation found for that phone number and code. Please double-check both." };
     }
 
-    const table = await db.query.restaurantTables.findFirst({
-        where: eq(restaurantTables.id, reservation.tableId),
-        columns: { tableNumber: true },
+    const allReservations = await db.query.tableReservations.findMany({
+        where: eq(tableReservations.customerPhone, customerPhone),
+        orderBy: [desc(tableReservations.startTime)],
     });
+
+    const tableIds = [...new Set(allReservations.map((r) => r.tableId))];
+    const tables = await db.query.restaurantTables.findMany({
+        where: inArray(restaurantTables.id, tableIds),
+        columns: { id: true, tableNumber: true },
+    });
+    const tableNumberById = new Map(tables.map((t) => [t.id, t.tableNumber]));
 
     return {
         success: true,
-        reservation: {
+        reservations: allReservations.map((reservation) => ({
             reservationNumber: reservation.reservationNumber,
             status: reservation.status,
             startTime: reservation.startTime,
             durationMinutes: reservation.durationMinutes,
             partySize: reservation.partySize,
             customerName: reservation.customerName,
-            tableNumber: table?.tableNumber ?? "—",
-        },
+            tableNumber: tableNumberById.get(reservation.tableId) ?? "—",
+        })),
     };
 }
