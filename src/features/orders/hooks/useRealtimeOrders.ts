@@ -12,7 +12,7 @@ export function useRealtimeOrders() {
   const branchId = isHydrated ? currentStaff?.branchId : undefined;
 
   const onEvent = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ["orders", undefined] });
+    queryClient.invalidateQueries({ queryKey: ["orders"] });
   }, [queryClient]);
   
   useBranchChannel(branchId, "orders", onEvent);

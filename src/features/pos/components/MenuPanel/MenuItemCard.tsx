@@ -8,27 +8,16 @@ import { cn } from "@/lib/utils";
 import { usePosStore } from "@/store/usePosStore";
 import { formatCurrency } from "@/lib/utils";
 import type { MenuItem } from "@/types";
-import { Flame, Soup, Wheat, Sandwich, CircleDot, IceCreamBowl, CupSoda, Salad, UtensilsCrossed } from "lucide-react";
+import { UtensilsCrossed } from "lucide-react";
 import { ItemOptionsModal } from "./ItemOptionsModal";
-
-const CATEGORY_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
-  cat_001: Flame,
-  cat_002: Soup,
-  cat_003: Wheat,
-  cat_004: Sandwich,
-  cat_005: CircleDot,
-  cat_006: IceCreamBowl,
-  cat_007: CupSoda,
-  cat_008: Salad,
-};
 
 interface MenuItemCardProps {
   item: MenuItem;
   cartQuantity: number;
+  categoryIcon?: string;
 }
 
-export function MenuItemCard({ item, cartQuantity }: MenuItemCardProps) {
-  const CategoryIcon = CATEGORY_ICON[item.categoryId] ?? UtensilsCrossed;
+export function MenuItemCard({ item, cartQuantity, categoryIcon }: MenuItemCardProps) {
   const addItem = usePosStore((s) => s.addItem);
   const isInCart = cartQuantity > 0;
   const isUnavailable = item.status !== "available";
@@ -68,7 +57,11 @@ export function MenuItemCard({ item, cartQuantity }: MenuItemCardProps) {
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-4xl bg-muted">
-            <CategoryIcon className="w-6 h-6" />
+            {categoryIcon ? (
+              <span className="text-3xl leading-none">{categoryIcon}</span>
+            ) : (
+              <UtensilsCrossed className="w-6 h-6" />
+            )}
           </div>
         )}
         {isUnavailable && (

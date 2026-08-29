@@ -1,12 +1,14 @@
 "use client";
 
+import { useMemo } from "react";
 import { usePosStore } from "@/store/usePosStore";
-import type { MenuItem } from "@/types";
+import type { MenuItem, MenuCategory } from "@/types";
 import { MenuItemCard } from "./MenuItemCard";
 import { UtensilsCrossed } from "lucide-react";
 
 interface MenuGridProps {
   items: MenuItem[];
+  categories?: MenuCategory[];
   isLoading?: boolean;
 }
 
@@ -21,8 +23,12 @@ function SkeletonCard() {
   );
 }
 
-export function MenuGrid({ items, isLoading }: MenuGridProps) {
+export function MenuGrid({ items, categories = [], isLoading }: MenuGridProps) {
   const cartItems = usePosStore((s) => s.cartItems);
+  const categoryIconById = useMemo(
+    () => new Map(categories.map((c) => [c.id, c.icon])),
+    [categories]
+  );
 
   if (isLoading) {
     return (
@@ -51,6 +57,7 @@ export function MenuGrid({ items, isLoading }: MenuGridProps) {
             key={item.id}
             item={item}
             cartQuantity={cartItem?.quantity ?? 0}
+            categoryIcon={categoryIconById.get(item.categoryId)}
           />
         );
       })}

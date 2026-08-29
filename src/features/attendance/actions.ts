@@ -2,7 +2,7 @@
 "use server";
 
 import { db } from "@/db";
-import { attendance, Attendance, staff, branchDevices } from "@/db/schema";
+import { attendance, Attendance, staff, branchDevices, deliveries } from "@/db/schema";
 import { logAudit } from "@/lib/audit";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { broadcastChange } from "@/lib/realtime/broadcast";
@@ -604,6 +604,18 @@ export async function clockOutAction(): Promise <
   if (!currentStaffRow) return { error: "Staff record not found." };
   if (!["STAFF", "RIDER"].includes(currentStaffRow.role)) {
     return { error: "Only staff and riders can clock out." };
+  }
+
+  if (currentStaffRow.role === "RIDER") {
+    const activeDelivery = await db.query.deliveries.findFirst({
+      where: and(
+        eq(deliveries.riderId, currentStaffRow.id),
+        sql`${deliveries.status} in ('assigned', 'out_for_delivery')`
+      ),
+    });
+    if (activeDelivery) {
+      return { error: "Finish or hand off your current delivery before clocking out." };
+    }
   }
 
   const existing = await db.query.attendance.findFirst({

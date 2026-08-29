@@ -57,7 +57,7 @@ export function MenuPanel({ menu, showSidebar, showPills }: MenuPanelProps) {
                 </div>
 
                 <div className="flex-1 overflow-y-auto">
-                    <MenuGrid items={filteredItems} isLoading={isLoading} />
+                    <MenuGrid items={filteredItems} categories={categories} isLoading={isLoading} />
                 </div>
             </div>
         </div>

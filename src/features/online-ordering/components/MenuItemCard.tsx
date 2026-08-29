@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { Plus, Minus, UtensilsCrossed } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useCustomerCartStore } from "@/store/useCustomerCartStore";
 import type { MenuItem } from "@/types";
 import Image from "next/image";
+import { ItemOptionsModal } from "./ItemOptionsModal";
 
 interface MenuItemCardProps {
   item: MenuItem;
@@ -19,6 +21,16 @@ export function MenuItemCard({ item, cartQuantity, categoryIcon }: MenuItemCardP
 
   const cartItem = items.find((ci) => ci.menuItem.id === item.id);
   const isInCart = cartQuantity > 0;
+  const hasOptions = item.variants.length > 0 || item.modifierGroups.length > 0;
+  const [optionsOpen, setOptionsOpen] = useState(false);
+
+  function handleAddClick() {
+    if (hasOptions) {
+      setOptionsOpen(true);
+      return;
+    }
+    addItem(item);
+  }
 
   const displayPrice =
     item.variants.length > 0
@@ -93,7 +105,7 @@ export function MenuItemCard({ item, cartQuantity, categoryIcon }: MenuItemCardP
           </div>
         ) : (
           <button
-            onClick={() => addItem(item)}
+            onClick={handleAddClick}
             className="w-full flex items-center justify-center gap-1.5 bg-[#e8570e] hover:bg-[#c44a0c] text-white text-xs font-semibold py-2 rounded-lg transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -101,6 +113,16 @@ export function MenuItemCard({ item, cartQuantity, categoryIcon }: MenuItemCardP
           </button>
         )}
       </div>
+      {hasOptions && (
+        <ItemOptionsModal
+          item={item}
+          open={optionsOpen}
+          onOpenChange={setOptionsOpen}
+          onConfirm={(_unitPrice, selection) =>
+            addItem(item, selection.selectedVariant, selection.selectedModifiers)
+          }
+        />
+      )}
     </div>
   );
 }

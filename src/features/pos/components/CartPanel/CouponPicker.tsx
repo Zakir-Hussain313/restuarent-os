@@ -13,6 +13,7 @@ import {
   getOrCreateStaffLedger,
 } from "@/lib/couponTokenStore";
 import { useAlertModal } from "@/components/providers/AlertModalProvider";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { X } from "lucide-react";
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -212,11 +213,11 @@ export function CouponPicker({ branchId }: CouponPickerProps) {
   if (!loading && !posAllowDiscounts) return null;
 
   return (
-    <div className="space-y-1.5">
-      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-        Coupon
-      </label>
-
+    <CollapsibleSection
+      label="Coupon"
+      summary={appliedCoupon ? appliedCoupon.name : "None applied"}
+      defaultOpen={Boolean(appliedCoupon)}
+    >
       {appliedCoupon ? (
         <div className="flex items-center justify-between gap-2 rounded-md border bg-primary/5 px-3 py-2">
           <div className="min-w-0">
@@ -342,6 +343,6 @@ export function CouponPicker({ branchId }: CouponPickerProps) {
           )}
         </div>
       )}
-    </div>
+    </CollapsibleSection>
   );
 }

@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePosStore } from "@/store/usePosStore";
-import { getRidersForBranchAction, type RiderOption } from "@/features/deliveries/actions";
+import { getRidersForBranchAction } from "@/features/deliveries/actions";
+import { useBranchChannel } from "@/lib/realtime/useBranchChannel";
 import {
   Select,
   SelectContent,
@@ -18,25 +20,22 @@ interface RiderSelectorProps {
 export function RiderSelector({ branchId }: RiderSelectorProps) {
   const selectedRiderId = usePosStore((s) => s.selectedRiderId);
   const setSelectedRiderId = usePosStore((s) => s.setSelectedRiderId);
+  const queryClient = useQueryClient();
 
-  const [riders, setRiders] = useState<RiderOption[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: riders = [], isLoading } = useQuery({
+    queryKey: ["riders-for-branch", branchId],
+    queryFn: async () => {
+      const res = await getRidersForBranchAction(branchId);
+      if (!res.success) throw new Error(res.error);
+      return res.riders;
+    },
+  });
 
-  useEffect(() => {
-    let cancelled = false;
+  const onRealtimeEvent = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["riders-for-branch", branchId] });
+  }, [queryClient, branchId]);
 
-    getRidersForBranchAction(branchId).then((res) => {
-      if (cancelled) return;
-      if (res.success) {
-        setRiders(res.riders);
-      }
-      setIsLoading(false);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [branchId]);
+  useBranchChannel(branchId, "riders", onRealtimeEvent);
 
   const availableRiders = riders.filter((r) => r.isAvailable && !r.isBusy);
 

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { usePosStore } from "@/store/usePosStore";
 import { getTablesAction, getTableSectionsAction } from "@/features/tables/actions";
 import { useBranchChannel } from "@/lib/realtime/useBranchChannel";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import type { Table } from "@/types";
 interface TableSelectorProps {
   branchId?: string;
@@ -47,6 +48,8 @@ export function TableSelector({ branchId }: TableSelectorProps) {
 
   if (orderType !== "dine_in") return null;
 
+  const selectedTable = tables.find((t) => t.id === tableId);
+
   const filtered = tables.filter(
     (t) =>
       t.isActive &&
@@ -69,10 +72,11 @@ export function TableSelector({ branchId }: TableSelectorProps) {
   }
 
   return (
-    <div className="space-y-2">
-      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-        Select Table
-      </label>
+    <CollapsibleSection
+      label="Table"
+      summary={selectedTable ? `${selectedTable.tableNumber}` : "Not selected"}
+      defaultOpen={!tableId}
+    >
       <Input
         type="text"
         placeholder="Search tables..."
@@ -129,6 +133,6 @@ export function TableSelector({ branchId }: TableSelectorProps) {
           </div>
         ))}
       </div>
-    </div>
+    </CollapsibleSection>
   );
 }
