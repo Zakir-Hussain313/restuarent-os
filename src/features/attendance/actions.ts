@@ -616,7 +616,7 @@ export async function clockOutAction(): Promise <
     if (activeDelivery) {
       return { error: "Finish or hand off your current delivery before clocking out." };
     }
-  }
+  } 
 
   const existing = await db.query.attendance.findFirst({
     where: and(
