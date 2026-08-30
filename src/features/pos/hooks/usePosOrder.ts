@@ -49,7 +49,6 @@ export function usePosOrder(autoConfirmOnPlace?: boolean): UsePosOrderReturn {
   const deliveryAddress = usePosStore((s) => s.deliveryAddress);
   const notes = usePosStore((s) => s.notes);
   const appliedCoupon = usePosStore((s) => s.appliedCoupon);
-  const selectedRiderId = usePosStore((s) => s.selectedRiderId);
   const tableNumber = usePosStore((s) => s.tableNumber);
   const clearCart = usePosStore((s) => s.clearCart);
   const currentStaff = useAuthStore((s) => s.currentStaff);
@@ -104,7 +103,7 @@ export function usePosOrder(autoConfirmOnPlace?: boolean): UsePosOrderReturn {
 
     try {
       const result = await withTimeout(
-        createOrderAction(input, undefined, selectedRiderId, idempotencyKey),
+        createOrderAction(input, undefined, idempotencyKey),
         15000
       );
 
@@ -147,7 +146,6 @@ export function usePosOrder(autoConfirmOnPlace?: boolean): UsePosOrderReturn {
         await enqueuePendingOrder({
           idempotencyKey,
           input,
-          riderId: selectedRiderId,
           createdAt: queuedAt.getTime(),
           attempts: 0,
           lastError: err instanceof Error ? err.message : String(err),
@@ -236,7 +234,7 @@ export function usePosOrder(autoConfirmOnPlace?: boolean): UsePosOrderReturn {
       setIsSubmitting(false);
       isSubmittingRef.current = false;
     }
-  }, [cartItems, buildInput, clearCart, orderType, customerPhone, deliveryAddress, selectedRiderId, autoConfirmOnPlace, getIdempotencyKey, tableNumber, notes, currentStaff, appliedCoupon , showAlert]);
+  }, [cartItems, buildInput, clearCart, orderType, customerPhone, deliveryAddress, autoConfirmOnPlace, getIdempotencyKey, tableNumber, notes, currentStaff, appliedCoupon, showAlert]);
 
   const holdOrder = useCallback(() => {
     clearCart();

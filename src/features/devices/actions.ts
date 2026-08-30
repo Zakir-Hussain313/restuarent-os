@@ -10,7 +10,7 @@ import { and, eq } from "drizzle-orm";
 
 export async function getBranchDevicesAction(
   overrideBranchId?: string
-): Promise<{ data: (typeof branchDevices.$inferSelect & { requestedByName: string })[]; error?: undefined } | { data: null; error: string }> {
+): Promise<{ data: (typeof branchDevices.$inferSelect & { requestedByName: string; requestedByEmail: string; requestedByPhone: string | null })[]; error?: undefined } | { data: null; error: string }> {
   const supabase = await getSupabaseServerClient();
   const {
     data: { user },
@@ -34,18 +34,65 @@ export async function getBranchDevicesAction(
       eq(branchDevices.tenantId, currentStaffRow.tenantId),
       branchId ? eq(branchDevices.branchId, branchId) : undefined
     ),
-    with: { requestedByStaff: { columns: { firstName: true, lastName: true } } },
+    with: { requestedByStaff: { columns: { firstName: true, lastName: true, email: true, phone: true } } },
   });
 
   return {
     data: rows.map((r) => ({
       ...r,
       requestedByName: `${r.requestedByStaff.firstName} ${r.requestedByStaff.lastName}`,
+      requestedByEmail: r.requestedByStaff.email,
+      requestedByPhone: r.requestedByStaff.phone,
     })),
   };
 }
 
-export async function approveDeviceAction(
+export async function setDeviceStatusAction(
+  deviceId: string,
+  status: "approved" | "rejected"
+): Promise<{ success: true; error?: undefined } | { error: string }> {
+  const supabase = await getSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const currentStaffRow = await db.query.staff.findFirst({ where: eq(staff.id, user.id) });
+  if (!currentStaffRow) return { error: "Staff record not found." };
+  if (!hasPermission(currentStaffRow.role, "manage_attendance")) {
+    return { error: "You don't have permission to manage devices." };
+  }
+
+  const device = await db.query.branchDevices.findFirst({ where: eq(branchDevices.id, deviceId) });
+  if (!device || device.tenantId !== currentStaffRow.tenantId) {
+    return { error: "Device not found." };
+  }
+  if (currentStaffRow.role === "ADMIN" && device.branchId !== currentStaffRow.branchId) {
+    return { error: "You can only manage devices for your own branch." };
+  }
+
+  await db
+    .update(branchDevices)
+    .set({
+      status,
+      approvedBy: status === "approved" ? currentStaffRow.id : null,
+      approvedAt: status === "approved" ? new Date() : null,
+    })
+    .where(eq(branchDevices.id, deviceId));
+
+  await logAudit(db, currentStaffRow, "branch_device", deviceId, "update", {
+    newValue: { status },
+    description: status === "approved" ? "Approved a device for branch" : "Rejected/blocked a device for branch",
+  });
+
+  await broadcastChange(device.branchId, "attendance");
+
+  return { success: true };
+}
+
+
+
+export async function deleteDeviceAction(
   deviceId: string
 ): Promise<{ success: true; error?: undefined } | { error: string }> {
   const supabase = await getSupabaseServerClient();
@@ -57,7 +104,7 @@ export async function approveDeviceAction(
   const currentStaffRow = await db.query.staff.findFirst({ where: eq(staff.id, user.id) });
   if (!currentStaffRow) return { error: "Staff record not found." };
   if (!hasPermission(currentStaffRow.role, "manage_attendance")) {
-    return { error: "You don't have permission to approve devices." };
+    return { error: "You don't have permission to delete devices." };
   }
 
   const device = await db.query.branchDevices.findFirst({ where: eq(branchDevices.id, deviceId) });
@@ -65,20 +112,16 @@ export async function approveDeviceAction(
     return { error: "Device not found." };
   }
   if (currentStaffRow.role === "ADMIN" && device.branchId !== currentStaffRow.branchId) {
-    return { error: "You can only approve devices for your own branch." };
+    return { error: "You can only delete devices for your own branch." };
   }
 
-  await db
-    .update(branchDevices)
-    .set({ status: "approved", approvedBy: currentStaffRow.id, approvedAt: new Date() })
-    .where(eq(branchDevices.id, deviceId));
+  await db.delete(branchDevices).where(eq(branchDevices.id, deviceId));
 
-  await logAudit(db, currentStaffRow, "branch_device", deviceId, "update", {
-    newValue: { status: "approved" },
-    description: `Approved a new device for branch`,
+  await logAudit(db, currentStaffRow, "branch_device", deviceId, "delete", {
+    description: "Deleted a branch device",
   });
 
-  await broadcastChange(device.branchId, "notifications");
+  await broadcastChange(device.branchId, "attendance");
 
   return { success: true };
 }

@@ -75,11 +75,14 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
     order,
     isLoading,
     canPrintKitchenTicket,
+    canMarkReady,
     canPrintBill,
     canCompleteBill,
     canCancel,
     printKitchenTicket,
     isPrintingKitchenTicket,
+    markReady,
+    isMarkingReady,
     completeBill,
     isCompletingBill,
     cancelOrder,
@@ -353,6 +356,9 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
           key={order.id}
           order={order}
           canPrintKitchenTicket={canPrintKitchenTicket}
+          canMarkReady={canMarkReady}
+          onMarkReady={markReady}
+          isMarkingReady={isMarkingReady}
           canPrintBill={canPrintBill}
           canCompleteBill={canCompleteBill}
           canCancel={canCancel}

@@ -7,6 +7,7 @@ import {
     orderCounters,
     orderDiscounts,
     coupons,
+    couponBranchAllocations,
     tenantSettings,
     menuItems,
     menuCategories,
@@ -21,10 +22,8 @@ import { eq, and, inArray, sql } from "drizzle-orm";
 import type { Order, OrderStatus, OrderType } from "@/types";
 import { RESTAURANT_CONFIG } from "@/config/restaurant";
 import { logAudit } from "@/lib/audit";
-import { findFreeRider } from "@/features/deliveries/actions";
 import { getOfflineRef } from "@/features/orders/lib/printKitchenTicket";
 import { broadcastChange } from "@/lib/realtime/broadcast";
-import { sendPushToRider } from "@/lib/push/send";
 import { createNotification } from "../notifications/actions";
 
 // ─── Input shape ────────────────────────────────────────────────────────
@@ -129,7 +128,6 @@ function buildOrderResponse(
 export async function createOrderAction(
     input: CreateOrderInput,
     targetBranchId?: string,
-    riderId?: string | "auto",
     idempotencyKey?: string,
     queuedAt?: Date,
     wasOfflineOrder: boolean = false
@@ -425,42 +423,13 @@ export async function createOrderAction(
                 })
                 .returning();
 
-            let assignedRiderId: string | null = null;
-
             if (input.orderType === "delivery") {
-                let deliveryStatus: "unassigned" | "assigned" = "unassigned";
-
-                if (riderId && riderId !== "auto") {
-                    // Staff picked a specific rider — validate before locking in.
-                    const chosenRider = await tx.query.staff.findFirst({
-                        where: and(
-                            eq(staff.id, riderId),
-                            eq(staff.tenantId, currentStaffRow.tenantId),
-                            eq(staff.branchId, branchId),
-                            eq(staff.role, "RIDER"),
-                            eq(staff.isDeleted, false)
-                        ),
-                    });
-                    if (chosenRider) {
-                        assignedRiderId = chosenRider.id;
-                        deliveryStatus = "assigned";
-                    }
-                    // If invalid/not found, falls through to unassigned rather
-                    // than failing the whole order.
-                } else if (riderId === "auto") {
-                    const freeRiderId = await findFreeRider(tx, currentStaffRow.tenantId, branchId);
-                    if (freeRiderId) {
-                        assignedRiderId = freeRiderId;
-                        deliveryStatus = "assigned";
-                    }
-                }
-
                 await tx.insert(deliveries).values({
                     tenantId: currentStaffRow.tenantId,
                     branchId,
                     orderId: createdOrder.id,
-                    riderId: assignedRiderId,
-                    status: deliveryStatus,
+                    riderId: null,
+                    status: "unassigned",
                     deliveryAddress: {
                         label: null,
                         street: input.deliveryAddress ?? "",
@@ -470,10 +439,6 @@ export async function createOrderAction(
                     },
                     deliveryFee,
                 });
-
-                if (assignedRiderId) {
-                    await tx.update(orders).set({ riderId: assignedRiderId }).where(eq(orders.id, createdOrder.id));
-                }
             }
 
             const insertedItems = await tx
@@ -518,11 +483,22 @@ export async function createOrderAction(
                         .update(coupons)
                         .set({ usesCount: sql`${coupons.usesCount} + 1`, updatedAt: new Date() })
                         .where(eq(coupons.id, appliedCoupon.id)),
+                    // No-ops harmlessly if this coupon has no per-branch
+                    // allocation row (single-branch or uncapped coupons).
+                    tx
+                        .update(couponBranchAllocations)
+                        .set({ usedCount: sql`${couponBranchAllocations.usedCount} + 1` })
+                        .where(
+                            and(
+                                eq(couponBranchAllocations.couponId, appliedCoupon.id),
+                                eq(couponBranchAllocations.branchId, branchId)
+                            )
+                        ),
                 ]);
                 insertedDiscounts = discountRows;
             }
 
-            return { order: createdOrder, items: insertedItems, discounts: insertedDiscounts, tableNumber, assignedRiderId };
+            return { order: createdOrder, items: insertedItems, discounts: insertedDiscounts, tableNumber };
         });
         console.timeEnd("[createOrderAction] transaction");
 
@@ -538,14 +514,6 @@ export async function createOrderAction(
                 },
             }),
         ];
-        if (result.assignedRiderId) {
-            auditPromises.push(
-                logAudit(db, currentStaffRow, "delivery", result.order.id, "assign", {
-                    branchId: result.order.branchId,
-                    newValue: { riderId: result.assignedRiderId, orderNumber: result.order.orderNumber, status: "assigned" },
-                })
-            );
-        }
 
         const broadcastPromises = [
             broadcastChange(result.order.branchId, "orders"),
@@ -561,14 +529,6 @@ export async function createOrderAction(
         ];
         if (input.tableId) {
             broadcastPromises.push(broadcastChange(result.order.branchId, "tables"));
-        }
-        if (result.assignedRiderId) {
-            broadcastPromises.push(broadcastChange(result.order.branchId, "riders"));
-            sendPushToRider(result.assignedRiderId, {
-                title: "New Delivery Assigned",
-                body: `Order ${result.order.orderNumber} is ready for you.`,
-                url: "/riders",
-            }).catch((err) => console.error("[createOrderAction] push failed:", err));
         }
 
         await Promise.all([...auditPromises, ...broadcastPromises]);
@@ -837,46 +797,13 @@ export async function confirmOrderAction(
 
     await db.update(orders).set({ status: "confirmed", updatedAt: new Date() }).where(eq(orders.id, orderId));
 
-    // ── Auto-assign a rider if this is a delivery order and none is locked in yet ──
-    let assignedRiderId: string | null = null;
-    if (target.orderType === "delivery") {
-        const existingDelivery = await db.query.deliveries.findFirst({ where: eq(deliveries.orderId, orderId) });
-        // Skip entirely if a rider was already locked in at POS creation time.
-        if (existingDelivery && existingDelivery.status === "unassigned") {
-            const freeRiderId = await findFreeRider(db, currentStaffRow.tenantId, target.branchId);
-            if (freeRiderId) {
-                assignedRiderId = freeRiderId;
-                await db
-                    .update(deliveries)
-                    .set({ riderId: freeRiderId, status: "assigned", updatedAt: new Date() })
-                    .where(eq(deliveries.orderId, orderId));
-                await db.update(orders).set({ riderId: freeRiderId }).where(eq(orders.id, orderId));
-            }
-        }
-    }
-
     await logAudit(db, currentStaffRow, "order", orderId, "status_change", {
         branchId: target.branchId,
         oldValue: { status: target.status },
         newValue: { status: "confirmed", orderNumber: target.orderNumber },
     });
 
-    if (assignedRiderId) {
-        await logAudit(db, currentStaffRow, "delivery", orderId, "assign", {
-            branchId: target.branchId,
-            newValue: { riderId: assignedRiderId, orderNumber: target.orderNumber, status: "assigned" },
-        });
-    }
-
     await broadcastChange(target.branchId, "orders");
-    if (assignedRiderId) {
-        await broadcastChange(target.branchId, "riders");
-        sendPushToRider(assignedRiderId, {
-            title: "New Delivery Assigned",
-            body: `Order ${target.orderNumber} is ready for you.`,
-            url: "/riders",
-        }).catch((err) => console.error("[confirmOrderAction] push failed:", err));
-    }
 
     return { success: true };
 }

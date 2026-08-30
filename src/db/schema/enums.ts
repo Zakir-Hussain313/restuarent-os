@@ -57,6 +57,7 @@ export const orderTypeEnum = pgEnum("order_type", ["dine_in", "takeaway", "deliv
 export const orderStatusEnum = pgEnum("order_status", [
   "pending",
   "confirmed",
+  "ready_for_delivery",
   "out_for_delivery",
   "completed",
   "cancelled",
@@ -101,7 +102,7 @@ export const attendanceStatusEnum = pgEnum("attendance_status", [
 ]);
 
 // ── Devices (branch-approved clock-in/out terminals) ────────────────────────
-export const deviceStatusEnum = pgEnum("device_status", ["pending", "approved"]);
+export const deviceStatusEnum = pgEnum("device_status", ["pending", "approved", "rejected"]);
 
 // ── Tenants ───────────────────────────────────────────────────────────────
 export const subscriptionStatusEnum = pgEnum("subscription_status", [

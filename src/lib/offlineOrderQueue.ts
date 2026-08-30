@@ -11,7 +11,6 @@ export interface PendingOrder {
   idempotencyKey: string;
   input: CreateOrderInput;
   targetBranchId?: string;
-  riderId?: string | "auto";
   createdAt: number;
   attempts: number;
   lastError?: string;

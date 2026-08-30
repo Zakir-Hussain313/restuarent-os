@@ -63,11 +63,86 @@ async function getCurrentStaff() {
     return { ok: true as const, staff: currentStaffRow };
 }
 
+// ─── Mark ready for delivery (confirmed → ready_for_delivery, first assignment) ───
+
+export async function markOrderReadyAction(
+    orderId: string,
+    riderId?: string | "auto"
+): Promise<{ success: true } | { success?: undefined; error: string }> {
+    const auth = await getCurrentStaff();
+    if (!auth.ok) return { error: auth.error };
+    const { staff: currentStaffRow } = auth;
+
+    if (!["ADMIN", "SUPER_ADMIN", "STAFF"].includes(currentStaffRow.role)) {
+        return { error: "You don't have permission to mark orders ready." };
+    }
+
+    const order = await db.query.orders.findFirst({ where: eq(orders.id, orderId) });
+    if (!order || order.tenantId !== currentStaffRow.tenantId) {
+        return { error: "Order not found." };
+    }
+    if (currentStaffRow.role !== "SUPER_ADMIN" && order.branchId !== currentStaffRow.branchId) {
+        return { error: "You can only manage your own branch's orders." };
+    }
+    if (order.orderType !== "delivery") {
+        return { error: "Only delivery orders can be marked ready for delivery." };
+    }
+    if (order.status !== "confirmed") {
+        return { error: `Cannot mark an order ready for delivery from "${order.status}".` };
+    }
+
+    let chosenRiderId: string | null = null;
+    if (riderId && riderId !== "auto") {
+        const rider = await db.query.staff.findFirst({
+            where: and(
+                eq(staff.id, riderId),
+                eq(staff.tenantId, currentStaffRow.tenantId),
+                eq(staff.branchId, order.branchId),
+                eq(staff.role, "RIDER"),
+                eq(staff.isDeleted, false)
+            ),
+        });
+        if (!rider) return { error: "Rider not found." };
+        chosenRiderId = rider.id;
+    } else {
+        chosenRiderId = await findFreeRider(db, currentStaffRow.tenantId, order.branchId);
+        if (!chosenRiderId) {
+            return { error: "No riders are online and free right now." };
+        }
+    }
+
+    await db.update(orders).set({ status: "ready_for_delivery", riderId: chosenRiderId, updatedAt: new Date() }).where(eq(orders.id, orderId));
+    await db
+        .update(deliveries)
+        .set({ riderId: chosenRiderId, status: "assigned", updatedAt: new Date() })
+        .where(eq(deliveries.orderId, orderId));
+
+    await logAudit(db, currentStaffRow, "order", orderId, "status_change", {
+        branchId: order.branchId,
+        oldValue: { status: "confirmed" },
+        newValue: { status: "ready_for_delivery", orderNumber: order.orderNumber },
+    });
+    await logAudit(db, currentStaffRow, "delivery", orderId, "assign", {
+        branchId: order.branchId,
+        newValue: { riderId: chosenRiderId, orderNumber: order.orderNumber, status: "assigned" },
+    });
+
+    await broadcastChange(order.branchId, "orders");
+    await broadcastChange(order.branchId, "riders");
+    await sendPushToRider(chosenRiderId, {
+        title: "New Delivery Assigned",
+        body: `Order ${order.orderNumber} is ready for you.`,
+        url: "/riders",
+    });
+
+    return { success: true };
+}
+
 // ─── Assign / reassign a rider (manual, by staff) ─────────────────────────
 
 export async function assignRiderAction(
     orderId: string,
-    riderId: string
+    riderId: string | "auto"
 ): Promise<{ success: true } | { success?: undefined; error: string }> {
     const auth = await getCurrentStaff();
     if (!auth.ok) return { error: auth.error };
@@ -95,40 +170,48 @@ export async function assignRiderAction(
     if (!parentOrder) {
         return { error: "Order not found." };
     }
-    if (parentOrder.status === "pending") {
-        return { error: "Confirm the order before assigning a rider." };
+    if (parentOrder.status !== "ready_for_delivery") {
+        return { error: "Mark the order ready for delivery before reassigning a rider." };
     }
 
-    const rider = await db.query.staff.findFirst({
-        where: and(
-            eq(staff.id, riderId),
-            eq(staff.tenantId, currentStaffRow.tenantId),
-            eq(staff.role, "RIDER"),
-            eq(staff.isDeleted, false)
-        ),
-    });
-    if (!rider) return { error: "Rider not found." };
-    if (rider.branchId !== delivery.branchId) {
-        return { error: "That rider is not assigned to this delivery's branch." };
+    let resolvedRiderId: string;
+    if (riderId === "auto") {
+        const freeRiderId = await findFreeRider(db, currentStaffRow.tenantId, delivery.branchId);
+        if (!freeRiderId) return { error: "No riders are online and free right now." };
+        resolvedRiderId = freeRiderId;
+    } else {
+        const rider = await db.query.staff.findFirst({
+            where: and(
+                eq(staff.id, riderId),
+                eq(staff.tenantId, currentStaffRow.tenantId),
+                eq(staff.role, "RIDER"),
+                eq(staff.isDeleted, false)
+            ),
+        });
+        if (!rider) return { error: "Rider not found." };
+        if (rider.branchId !== delivery.branchId) {
+            return { error: "That rider is not assigned to this delivery's branch." };
+        }
+        resolvedRiderId = rider.id;
     }
 
     await db
         .update(deliveries)
-        .set({ riderId: rider.id, status: "assigned", updatedAt: new Date() })
+        .set({ riderId: resolvedRiderId, status: "assigned", updatedAt: new Date() })
         .where(eq(deliveries.orderId, orderId));
 
-    await db.update(orders).set({ riderId: rider.id }).where(eq(orders.id, orderId));
+    await db.update(orders).set({ riderId: resolvedRiderId }).where(eq(orders.id, orderId));
 
     await logAudit(db, currentStaffRow, "delivery", orderId, "assign", {
         branchId: delivery.branchId,
         oldValue: { riderId: delivery.riderId },
-        newValue: { riderId: rider.id, status: "assigned" },
+        newValue: { riderId: resolvedRiderId, status: "assigned" },
     });
 
     if (delivery.branchId) await broadcastChange(delivery.branchId, "riders");
 
     const order = await db.query.orders.findFirst({ where: eq(orders.id, orderId) });
-    await sendPushToRider(rider.id, {
+    await sendPushToRider(resolvedRiderId, {
         title: "New Delivery Assigned",
         body: order ? `Order ${order.orderNumber} is ready for you.` : "You have a new delivery.",
         url: "/riders",

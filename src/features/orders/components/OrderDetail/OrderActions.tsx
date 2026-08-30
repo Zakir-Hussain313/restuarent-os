@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Printer, Receipt, XCircle, Loader2 } from "lucide-react";
+import { Printer, Receipt, XCircle, Loader2, Bike } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { KitchenTicketModal } from "../modals/KitchenTicketModal";
 import { BillModal } from "../modals/BillModal";
 import { CancelConfirmModal } from "../modals/CancelConfirmModal";
+import { MarkReadyModal } from "../modals/MarkReadyModal";
 import { getBranchesAction } from "@/features/staff/actions";
 import type { Branch } from "@/db/schema";
 import type { Order, PaymentMethod } from "@/types";
@@ -15,6 +16,9 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 interface OrderActionsProps {
   order: Order;
   canPrintKitchenTicket: boolean;
+  canMarkReady: boolean;
+  onMarkReady: (riderId: string | "auto") => void;
+  isMarkingReady: boolean;
   canPrintBill: boolean;
   canCompleteBill: boolean;
   canCancel: boolean;
@@ -79,6 +83,9 @@ function ActionButton({
 export function OrderActions({
   order,
   canPrintKitchenTicket,
+  canMarkReady,
+  onMarkReady,
+  isMarkingReady,
   canPrintBill,
   canCompleteBill,
   canCancel,
@@ -91,6 +98,7 @@ export function OrderActions({
 }: OrderActionsProps) {
   const { showConfirm } = useAlertModal();
   const [kitchenTicketOpen, setKitchenTicketOpen] = useState(false);
+  const [markReadyOpen, setMarkReadyOpen] = useState(false);
   const [billOpen, setBillOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
@@ -109,7 +117,7 @@ export function OrderActions({
   }, [order.branchId]);
 
   const isDelivery = order.orderType === "delivery";
-  const hasActions = canPrintKitchenTicket || canPrintBill || canCancel;
+  const hasActions = canPrintKitchenTicket || canMarkReady || canPrintBill || canCancel;
 
   if (!hasActions) return null;
 
@@ -131,6 +139,16 @@ export function OrderActions({
             icon={<Printer className="w-3.5 h-3.5" />}
             onClick={() => setKitchenTicketOpen(true)}
             isLoading={isPrintingKitchenTicket}
+            variant="primary"
+          />
+        )}
+
+        {canMarkReady && (
+          <ActionButton
+            label="Mark Ready for Delivery"
+            icon={<Bike className="w-3.5 h-3.5" />}
+            onClick={() => setMarkReadyOpen(true)}
+            isLoading={isMarkingReady}
             variant="primary"
           />
         )}
@@ -203,6 +221,18 @@ export function OrderActions({
           setKitchenTicketOpen(false);
         }}
         onClose={() => setKitchenTicketOpen(false)}
+      />
+
+      <MarkReadyModal
+        open={markReadyOpen}
+        branchId={order.branchId}
+        orderNumber={order.orderNumber}
+        isSubmitting={isMarkingReady}
+        onConfirm={(riderId) => {
+          onMarkReady(riderId);
+          setMarkReadyOpen(false);
+        }}
+        onClose={() => setMarkReadyOpen(false)}
       />
 
       <BillModal

@@ -113,6 +113,7 @@ const ORDER_TYPE_LABELS: Record<string, string> = {
 const ORDER_REPORT_STATUS_LABELS: Record<string, string> = {
   pending: "Pending",
   confirmed: "Confirmed",
+  ready_for_delivery: "Ready for Delivery",
   out_for_delivery: "Out for Delivery",
   completed: "Completed",
   cancelled: "Cancelled",

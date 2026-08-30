@@ -30,10 +30,9 @@ export function RiderAssignment({ order, onAssigned }: RiderAssignmentProps) {
     const [error, setError] = useState<string | null>(null);
     const [pickerOpen, setPickerOpen] = useState(false);
 
-    const isPending = order.status === "pending";
-
+    const isPending = order.status === "pending" || order.status === "confirmed";
     const canReassign =
-        !isPending &&
+        order.status === "ready_for_delivery" &&
         (order.deliveryStatus === "unassigned" || order.deliveryStatus === "assigned");
 
     const loadRiders = useCallback(async () => {
@@ -48,7 +47,7 @@ export function RiderAssignment({ order, onAssigned }: RiderAssignmentProps) {
         setIsLoadingRiders(false);
     }, [order.branchId]);
 
-    async function handleAssign(riderId: string) {
+    async function handlePick(riderId: string | "auto") {
         setIsAssigning(true);
         setError(null);
         const result = await assignRiderAction(order.id, riderId);
@@ -92,7 +91,7 @@ export function RiderAssignment({ order, onAssigned }: RiderAssignmentProps) {
                 <span className="text-sm">
                     {isPending ? (
                         <span className="text-muted-foreground italic">
-                            Rider assignment available once the order is confirmed
+                            Mark ready for delivery to assign a rider
                         </span>
                     ) : (
                         order.riderName ?? (
@@ -110,7 +109,7 @@ export function RiderAssignment({ order, onAssigned }: RiderAssignmentProps) {
                         }}
                         className="text-xs font-medium text-primary hover:text-primary/80 shrink-0"
                     >
-                        {order.riderName ? "Reassign" : "Assign"}
+                        Reassign
                     </button>
                 )}
             </div>
@@ -138,42 +137,44 @@ export function RiderAssignment({ order, onAssigned }: RiderAssignmentProps) {
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             Loading riders...
                         </div>
-                    ) : riders.length === 0 ? (
-                        <p className="text-xs text-muted-foreground py-2">
-                            No riders found for this branch.
-                        </p>
                     ) : (
                         <div className="space-y-1 max-h-32 overflow-y-auto">
-                            {riders.map((rider) => (
-                                <button
-                                    key={rider.id}
-                                    onClick={() => handleAssign(rider.id)}
-                                    disabled={isAssigning || rider.isBusy}
-                                    className={cn(
-                                        "w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs text-left transition-colors",
-                                        rider.isBusy
-                                            ? "opacity-40 cursor-not-allowed"
-                                            : "hover:bg-muted cursor-pointer"
-                                    )}
-                                >
-                                    <span className="flex items-center gap-1.5">
-                                        <span
-                                            className={cn(
-                                                "w-1.5 h-1.5 rounded-full",
-                                                rider.isAvailable ? "bg-emerald-500" : "bg-gray-300"
-                                            )}
-                                        />
-                                        {rider.name}
-                                    </span>
-                                    <span className="text-muted-foreground">
-                                        {rider.isBusy
-                                            ? "On delivery"
-                                            : rider.isAvailable
-                                            ? "Online"
-                                            : "Offline"}
-                                    </span>
-                                </button>
-                            ))}
+                            {riders.length === 0 ? (
+                                <p className="text-xs text-muted-foreground py-2">
+                                    No riders found for this branch.
+                                </p>
+                            ) : (
+                                riders.map((rider) => (
+                                    <button
+                                        key={rider.id}
+                                        onClick={() => handlePick(rider.id)}
+                                        disabled={isAssigning || rider.isBusy}
+                                        className={cn(
+                                            "w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs text-left transition-colors",
+                                            rider.isBusy
+                                                ? "opacity-40 cursor-not-allowed"
+                                                : "hover:bg-muted cursor-pointer"
+                                        )}
+                                    >
+                                        <span className="flex items-center gap-1.5">
+                                            <span
+                                                className={cn(
+                                                    "w-1.5 h-1.5 rounded-full",
+                                                    rider.isAvailable ? "bg-emerald-500" : "bg-gray-300"
+                                                )}
+                                            />
+                                            {rider.name}
+                                        </span>
+                                        <span className="text-muted-foreground">
+                                            {rider.isBusy
+                                                ? "On delivery"
+                                                : rider.isAvailable
+                                                ? "Online"
+                                                : "Offline"}
+                                        </span>
+                                    </button>
+                                ))
+                            )}
                         </div>
                     )}
                 </div>

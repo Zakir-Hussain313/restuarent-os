@@ -18,6 +18,7 @@ interface OrderReportViewProps {
 const STATUS_LABELS: Record<string, string> = {
   pending: "Pending",
   confirmed: "Confirmed",
+  ready_for_delivery: "Ready for Delivery",
   out_for_delivery: "Out for Delivery",
   completed: "Completed",
   cancelled: "Cancelled",

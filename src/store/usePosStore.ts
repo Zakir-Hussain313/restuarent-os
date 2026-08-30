@@ -26,7 +26,6 @@ interface PosState {
   deliveryAddress?: string;
   appliedCoupon: Coupon | null;
   notes?: string;
-  selectedRiderId?: string | "auto";
 
   // Cart actions
   addItem: (
@@ -47,7 +46,6 @@ interface PosState {
   clearCustomer: () => void;
   setCustomerPhone: (phone: string) => void;
   setDeliveryAddress: (address: string) => void;
-  setSelectedRiderId: (riderId: string | "auto" | undefined) => void;
   setCoupon: (coupon: Coupon) => void;
   clearCoupon: () => void;
   setNotes: (notes: string) => void;
@@ -131,7 +129,6 @@ export const usePosStore = create<PosState>((set, get) => ({
       customerId: undefined,
       customerPhone: undefined,
       deliveryAddress: undefined,
-      selectedRiderId: undefined,
       appliedCoupon: null,
       notes: undefined,
     }),
@@ -145,7 +142,6 @@ export const usePosStore = create<PosState>((set, get) => ({
     set({ customerId: undefined, customerPhone: undefined }),
   setCustomerPhone: (customerPhone) => set({ customerPhone }),
   setDeliveryAddress: (deliveryAddress) => set({ deliveryAddress }),
-  setSelectedRiderId: (selectedRiderId) => set({ selectedRiderId }),
   setCoupon: (appliedCoupon) => set({ appliedCoupon }),
   clearCoupon: () => set({ appliedCoupon: null }),
   setNotes: (notes) => set({ notes }),

@@ -14,6 +14,7 @@ type ChipVariant = "chip-coral" | "chip-blue" | "chip-violet" | "chip-green" | "
 const STATUS_CONFIG: Record<OrderStatus, { label: string; variant: ChipVariant }> = {
   pending: { label: "Pending", variant: "chip-coral" },
   confirmed: { label: "Confirmed", variant: "chip-blue" },
+  ready_for_delivery: { label: "Ready for Delivery", variant: "chip-coral" },
   out_for_delivery: { label: "Out for Delivery", variant: "chip-violet" },
   completed: { label: "Completed", variant: "chip-green" },
   cancelled: { label: "Cancelled", variant: "destructive" },

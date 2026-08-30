@@ -8,9 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import type { Attendance } from "@/db/schema/attendance";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useBranchChannel } from "@/lib/realtime/useBranchChannel";
 import { useAlertModal } from "@/components/providers/AlertModalProvider";
+import { ConfirmPasswordModal } from "./ConfirmPasswordModal";
 
 const STATUS_OPTIONS: { value: Attendance["status"]; label: string }[] = [
     { value: "present", label: "Present" },
@@ -37,6 +38,10 @@ export function AttendanceTable() {
         [date, branchId, roleFilter]
     );
     const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
+    const todayStr = new Date().toLocaleDateString("en-CA");
+    const isBackfill = date !== todayStr;
+    const [pendingMark, setPendingMark] = useState<{ staffId: string; status: Attendance["status"] } | null>(null);
+    const [passwordError, setPasswordError] = useState<string | null>(null);
 
     const { data, isLoading } = useQuery({
         queryKey,
@@ -57,15 +62,26 @@ export function AttendanceTable() {
         mutationFn: async ({
             staffId,
             status,
+            confirmPassword,
         }: {
             staffId: string;
             status: Attendance["status"];
+            confirmPassword?: string;
         }) => {
-            const res = await markAttendanceAction(staffId, date, status);
+            const res = await markAttendanceAction(staffId, date, status, undefined, undefined, undefined, confirmPassword);
             if (res.error) throw new Error(res.error);
         },
-        onError: () => {
+        onSuccess: () => {
+            setPendingMark(null);
+            setPasswordError(null);
+        },
+        onError: (err) => {
             queryClient.invalidateQueries({ queryKey });
+            if (isBackfill) {
+                setPasswordError(err.message);
+            } else {
+                showAlert(err.message, "Couldn't update attendance");
+            }
         },
     });
 
@@ -92,6 +108,12 @@ export function AttendanceTable() {
     }
 
     function handleMark(staffId: string, status: Attendance["status"]) {
+        if (isBackfill) {
+            setPasswordError(null);
+            setPendingMark({ staffId, status });
+            return;
+        }
+
         queryClient.setQueryData<typeof data>(queryKey, (old) =>
             old?.map((row) => (row.staffId === staffId ? { ...row, status } : row))
         );
@@ -194,6 +216,20 @@ export function AttendanceTable() {
                 ))}
             </TableBody>
         </Table>
+        <ConfirmPasswordModal
+            open={!!pendingMark}
+            description={`Confirm your password to mark attendance for ${date}.`}
+            isSubmitting={mutation.isPending}
+            error={passwordError}
+            onConfirm={(password) => {
+                if (!pendingMark) return;
+                mutation.mutate({ ...pendingMark, confirmPassword: password });
+            }}
+            onClose={() => {
+                setPendingMark(null);
+                setPasswordError(null);
+            }}
+        />
         </div>
     );
 }

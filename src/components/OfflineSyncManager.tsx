@@ -30,7 +30,6 @@ export function OfflineSyncManager() {
             const result = await createOrderAction(
               order.input,
               order.targetBranchId,
-              order.riderId,
               order.idempotencyKey,
               new Date(order.createdAt),
               true // wasOfflineOrder — this order was placed while the POS was offline

@@ -9,6 +9,7 @@ import { broadcastChange } from "@/lib/realtime/broadcast";
 import { createNotification } from "@/features/notifications/actions";
 import { and, eq, gte, lt, ne, sql } from "drizzle-orm";
 import { RESTAURANT_CONFIG } from "@/lib/restaurantConfig";
+import { createClient } from "@supabase/supabase-js";
 
 function todayInTenantTz(): string {
   return new Date().toLocaleDateString("en-CA", {
@@ -181,7 +182,8 @@ export async function markAttendanceAction(
   status: Attendance["status"],
   checkIn?: string,
   checkOut?: string,
-  notes?: string
+  notes?: string,
+  confirmPassword?: string
 ): Promise<{ success: true; error?: undefined } | { success?: undefined; error: string }> {
   const supabase = await getSupabaseServerClient();
   const {
@@ -215,8 +217,25 @@ export async function markAttendanceAction(
     return { error: "Staff member not found." };
   }
   const todayStr = todayInTenantTz();
-  if (date !== todayStr) {
-    return { error: "Attendance can only be marked for today's date." };
+  if (date > todayStr) {
+    return { error: "Cannot mark attendance for a future date." };
+  }
+  const isBackfill = date !== todayStr;
+  if (isBackfill) {
+    if (!confirmPassword) {
+      return { error: "Password confirmation is required to edit a past date." };
+    }
+    const verifyClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
+    );
+    const { error: verifyError } = await verifyClient.auth.signInWithPassword({
+      email: currentStaffRow.email,
+      password: confirmPassword,
+    });
+    if (verifyError) {
+      return { error: "Incorrect password." };
+    }
   }
   if (isAdmin && targetStaff.branchId !== currentStaffRow.branchId) {
     return { error: "You can only mark attendance for your own branch." };
@@ -305,13 +324,13 @@ export async function markAttendanceAction(
     if (auditInfo!.isNew) {
       await logAudit(db, currentStaffRow, "attendance", auditInfo!.id, "create", {
         newValue: { status },
-        description: `Marked attendance for ${targetStaff.firstName} ${targetStaff.lastName} (${date})`,
+        description: `Marked attendance for ${targetStaff.firstName} ${targetStaff.lastName} (${date})${isBackfill ? " [backfilled, password-confirmed]" : ""}`,
       });
     } else {
       await logAudit(db, currentStaffRow, "attendance", auditInfo!.id, "update", {
         oldValue: { status: auditInfo!.oldStatus },
         newValue: { status },
-        description: `Updated attendance for ${targetStaff.firstName} ${targetStaff.lastName} (${date})`,
+        description: `Updated attendance for ${targetStaff.firstName} ${targetStaff.lastName} (${date})${isBackfill ? " [backfilled, password-confirmed]" : ""}`,
       });
     }
 
@@ -496,6 +515,7 @@ export async function clockInAction(
       resourceType: "branch_device",
       resourceId: device.id,
     });
+    await broadcastChange(currentStaffRow.branchId, "attendance");
   }
 
   if (device.status !== "approved") {

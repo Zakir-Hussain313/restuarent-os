@@ -3,7 +3,6 @@
 import { usePosStore } from "@/store/usePosStore";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { RiderSelector } from "./RiderSelector";
 
 interface DeliveryDetailsFormProps {
   branchId?: string;
@@ -45,7 +44,6 @@ export function DeliveryDetailsForm({ branchId }: DeliveryDetailsFormProps) {
           className="px-3 py-2.5 min-[760px]:py-1.5 text-base min-[760px]:text-sm resize-none"
         />
       </div>
-      {branchId && <RiderSelector branchId={branchId} />}
     </div>
   );
 }

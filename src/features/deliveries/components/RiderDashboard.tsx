@@ -29,6 +29,7 @@ import {
     type RiderCurrentDelivery,
 } from "@/features/deliveries/actions";
 import { clockInAction, clockOutAction } from "@/features/attendance/actions";
+import { useAlertModal } from "@/components/providers/AlertModalProvider";
 import { useRiderHistory } from "@/features/deliveries/hooks/useRiderHistory";
 import { RiderHistoryFilters } from "@/features/deliveries/components/RiderHistoryFilters";
 import { RiderRevenueSummary } from "@/features/deliveries/components/RiderRevenueSummary";
@@ -63,6 +64,7 @@ export function RiderDashboard({ initialData }: RiderDashboardProps) {
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const [isClocking, setIsClocking] = useState(false);
     const [deviceStatus, setDeviceStatus] = useState<"unknown" | "pending" | "ready">("unknown");
+    const { showAlert } = useAlertModal();
 
     // Resync local state when the server refetches (via router.refresh() below).
     // Calling setState during render (not in an effect) is React's documented
@@ -120,7 +122,6 @@ export function RiderDashboard({ initialData }: RiderDashboardProps) {
     }
 
     async function handleClockIn() {
-        setError(null);
         setIsClocking(true);
         const token = getDeviceToken();
         const result = await clockInAction(token);
@@ -129,19 +130,18 @@ export function RiderDashboard({ initialData }: RiderDashboardProps) {
             if (result.error.includes("not approved")) {
                 setDeviceStatus("pending");
             }
-            setError(result.error);
+            showAlert(result.error, "Couldn't clock in");
             return;
         }
         setIsAvailable(true);
     }
 
     async function handleClockOut() {
-        setError(null);
         setIsClocking(true);
         const result = await clockOutAction();
         setIsClocking(false);
         if (!result.success) {
-            setError(result.error);
+            showAlert(result.error, "Couldn't clock out");
             return;
         }
         setIsAvailable(false);

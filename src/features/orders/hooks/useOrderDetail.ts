@@ -8,6 +8,7 @@ import {
   completeBillAction,
   cancelOrderAction,
 } from "@/features/orders/actions";
+import { markOrderReadyAction } from "@/features/deliveries/actions";
 import type { Order, PaymentMethod } from "@/types";
 import { useAlertModal } from "@/components/providers/AlertModalProvider";
 
@@ -15,11 +16,14 @@ interface UseOrderDetailReturn {
   order: Order | undefined;
   isLoading: boolean;
   canPrintKitchenTicket: boolean;
+  canMarkReady: boolean;
   canPrintBill: boolean;
   canCompleteBill: boolean;
   canCancel: boolean;
   printKitchenTicket: () => void;
   isPrintingKitchenTicket: boolean;
+  markReady: (riderId: string | "auto") => void;
+  isMarkingReady: boolean;
   completeBill: (paymentMethod?: PaymentMethod) => void;
   isCompletingBill: boolean;
   cancelOrder: () => void;
@@ -87,19 +91,38 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
     onError: (err: Error) => showAlert(err.message),
   });
 
+  const { mutate: mutateMarkReady, isPending: isMarkingReady } = useMutation({
+    mutationFn: async ({ id, riderId }: { id: string; riderId: string | "auto" }) => {
+      const result = await markOrderReadyAction(id, riderId);
+      if (!result.success) throw new Error(result.error);
+      return id;
+    },
+    onSuccess: (id) => invalidateOrderQueries(id),
+    onError: (err: Error) => showAlert(err.message),
+  });
+
   const canPrintKitchenTicket = !!order && order.status === "pending";
-  const canPrintBill = !!order && order.status === "confirmed";
+  const canMarkReady =
+    !!order && order.orderType === "delivery" && order.status === "confirmed";
+  const canPrintBill =
+    !!order &&
+    (order.orderType === "delivery"
+      ? order.status === "ready_for_delivery"
+      : order.status === "confirmed");
   const canCompleteBill =
     !!order &&
-    order.status === "confirmed" &&
-    (order.orderType !== "delivery" || order.deliveryStatus === "delivered");
+    (order.orderType === "delivery"
+      ? order.status === "ready_for_delivery" && order.deliveryStatus === "delivered"
+      : order.status === "confirmed");
   const canCancel =
-    !!order && (order.status === "pending" || order.status === "confirmed");
+    !!order &&
+    (order.status === "pending" || order.status === "confirmed" || order.status === "ready_for_delivery");
 
   return {
     order,
     isLoading,
     canPrintKitchenTicket,
+    canMarkReady,
     canPrintBill,
     canCompleteBill,
     canCancel,
@@ -108,6 +131,11 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
       mutateKitchenTicket(orderId);
     },
     isPrintingKitchenTicket,
+    markReady: (riderId: string | "auto") => {
+      if (!orderId || !canMarkReady) return;
+      mutateMarkReady({ id: orderId, riderId });
+    },
+    isMarkingReady,
     completeBill: (paymentMethod: PaymentMethod = "cash") => {
       if (!orderId || !canPrintBill) return;
       mutateCompleteBill({ id: orderId, paymentMethod });

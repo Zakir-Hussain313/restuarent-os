@@ -55,6 +55,7 @@ const SENTENCE_TEMPLATES: Partial <
       const orderNumber = v?.orderNumber as string | number | undefined;
       const label = orderNumber ? `order #${orderNumber}` : "an order";
       if (status === "confirmed") return `confirmed ${label}`;
+      if (status === "ready_for_delivery") return `marked ${label} ready for delivery`;
       if (status === "completed") {
         const amount = v?.amount as string | number | undefined;
         const method = v?.paymentMethod as string | undefined;
