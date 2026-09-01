@@ -60,6 +60,7 @@
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
+    "playwright": "^1.62.1",
     "pm2": "^7.0.3",
     "serwist": "^9.5.12",
     "supabase": "^2.114.0",

@@ -27,25 +27,31 @@ export async function loginAction(input: LoginInput) {
       return { error: parsed.error.issues[0].message };
     }
 
+    let t = Date.now();
     const { success } = await loginRateLimit.limit(parsed.data.email.toLowerCase());
+    console.log(`[timing] rateLimit: ${Date.now() - t}ms`);
     if (!success) {
       return { error: "Too many login attempts. Please wait a minute and try again." };
     }
 
     const supabase = await getSupabaseServerClient();
 
+  t = Date.now();
   const { data, error } = await supabase.auth.signInWithPassword({
     email: parsed.data.email,
     password: parsed.data.password,
   });
+  console.log(`[timing] signInWithPassword: ${Date.now() - t}ms`);
 
   if (error || !data.user) {
     return { error: "Invalid email or password." };
   }
 
+  t = Date.now();
   const staffRow = await db.query.staff.findFirst({
     where: eq(staff.id, data.user.id),
   });
+  console.log(`[timing] staffLookup: ${Date.now() - t}ms`);
 
   if (!staffRow) {
     await supabase.auth.signOut();

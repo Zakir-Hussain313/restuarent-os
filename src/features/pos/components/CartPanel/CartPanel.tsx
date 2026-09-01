@@ -1,5 +1,6 @@
 "use client";
 import { usePosStore } from "@/store/usePosStore";
+import type { PosInitBundle } from "@/features/pos/actions";
 import { OrderTypeSelector } from "./OrderTypeSelector";
 import { CartItemList } from "./CartItemList";
 import { CouponPicker } from "./CouponPicker";
@@ -10,19 +11,18 @@ import { TableSelector } from "./TableSelector";
 import { ClockButton } from "../ClockButton";
 interface CartPanelProps {
   branchId?: string;
-  autoConfirmOnPlace?: boolean;
+  posInit?: PosInitBundle;
   showClockButton?: boolean;
-  initialIsClockedIn?: boolean;
 }
-export function CartPanel({ branchId, autoConfirmOnPlace, showClockButton, initialIsClockedIn }: CartPanelProps) {
+export function CartPanel({ branchId, posInit, showClockButton }: CartPanelProps) {
   const orderType = usePosStore((s) => s.orderType);
   return (
     <div className="flex flex-col h-full bg-background border-l overflow-hidden">
-      {/* Header â€” fixed */}
+      {/* Header — fixed */}
       <div className="shrink-0 px-4 pt-5 pb-4 min-[760px]:pt-4 min-[760px]:pb-3 border-b">
         <div className="flex items-center justify-between gap-2 mb-3">
           <h2 className="text-base font-semibold">Current Order</h2>
-          {showClockButton && <ClockButton initialIsClockedIn={initialIsClockedIn ?? false} />}
+          {showClockButton && <ClockButton initialIsClockedIn={posInit?.isClockedIn ?? false} />}
         </div>
         <OrderTypeSelector />
       </div>
@@ -38,16 +38,16 @@ export function CartPanel({ branchId, autoConfirmOnPlace, showClockButton, initi
 
                 {orderType === "dine_in" && (
           <div className="pt-2 pb-4 border-t border-border mt-2">
-            <TableSelector branchId={branchId} />
+            <TableSelector branchId={branchId} posInit={posInit} />
           </div>
         )}
       </div>
 
       {/* Footer — always pinned */}
       <div className="shrink-0 px-4 pb-6 pt-4 min-[760px]:pb-4 min-[760px]:pt-3 border-t space-y-3 bg-background">
-        <CouponPicker branchId={branchId} />
+        <CouponPicker branchId={branchId} posInit={posInit} />
         <OrderSummary />
-        <CartActions autoConfirmOnPlace={autoConfirmOnPlace} />
+        <CartActions autoConfirmOnPlace={posInit?.posAutoConfirmOnPlace ?? false} />
       </div>
     </div>
   );

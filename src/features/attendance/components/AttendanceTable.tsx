@@ -12,6 +12,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useBranchChannel } from "@/lib/realtime/useBranchChannel";
 import { useAlertModal } from "@/components/providers/AlertModalProvider";
 import { ConfirmPasswordModal } from "./ConfirmPasswordModal";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const STATUS_OPTIONS: { value: Attendance["status"]; label: string }[] = [
     { value: "present", label: "Present" },
@@ -27,6 +28,14 @@ const STATUS_STYLES: Record<Attendance["status"], string> = {
     late: "bg-amber-500 text-white hover:bg-amber-600",
     leave: "bg-blue-500 text-white hover:bg-blue-600",
     half_day: "bg-purple-500 text-white hover:bg-purple-600",
+};
+
+const STATUS_DOT: Record<Attendance["status"], string> = {
+    present: "bg-green-600",
+    absent: "bg-red-600",
+    late: "bg-amber-500",
+    leave: "bg-blue-500",
+    half_day: "bg-purple-500",
 };
 
 export function AttendanceTable() {
@@ -136,7 +145,63 @@ export function AttendanceTable() {
     }
 
     return (
-        <div className="overflow-x-auto">
+        <div>
+            <div className="flex flex-col gap-3 lg:hidden">
+                {data.map((row) => (
+                    <div key={row.attendanceId ?? row.staffId} className="rounded-lg border p-3">
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                                <Avatar className="h-8 w-8 shrink-0">
+                                    <AvatarImage src={row.image ?? undefined} />
+                                    <AvatarFallback>{row.firstName[0]}{row.lastName[0]}</AvatarFallback>
+                                </Avatar>
+                                <span className="truncate text-sm font-medium">{row.firstName} {row.lastName}</span>
+                                {row.isDeleted && (
+                                    <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive">Deleted</span>
+                                )}
+                            </div>
+                            {!row.isDeleted && row.hasOpenSession && (
+                                <Button size="sm" variant="outline" className="shrink-0 text-muted-foreground hover:text-destructive"
+                                    disabled={endShiftMutation.isPending}
+                                    onClick={() => handleEndShift(row.staffId, row.firstName, row.lastName)}>
+                                    End Shift
+                                </Button>
+                            )}
+                        </div>
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                            <span className="text-xs text-muted-foreground tabular-nums">
+                                {row.checkIn ? new Date(row.checkIn).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "—"}
+                                {" – "}
+                                {row.checkOut ? new Date(row.checkOut).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : row.checkIn ? "still in" : "—"}
+                            </span>
+                            {row.isDeleted ? (
+                                <span className="text-xs text-muted-foreground capitalize">{row.status?.replace("_", " ") ?? "—"}</span>
+                            ) : (
+                                <Select value={row.status ?? undefined} onValueChange={(v) => handleMark(row.staffId, v as Attendance["status"])}>
+                                    <SelectTrigger size="sm" className="w-32.5">
+                                        <span className="flex items-center gap-1.5 truncate">
+                                            {row.status && <span className={cn("h-2 w-2 shrink-0 rounded-full", STATUS_DOT[row.status])} />}
+                                            <SelectValue placeholder="Set status" />
+                                        </span>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {STATUS_OPTIONS.map((opt) => (
+                                            <SelectItem key={opt.value} value={opt.value}>
+                                                <span className="flex items-center gap-1.5">
+                                                    <span className={cn("h-2 w-2 rounded-full", STATUS_DOT[opt.value])} />
+                                                    {opt.label}
+                                                </span>
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div className="hidden lg:block overflow-x-auto">
         <Table className="w-full">
             <TableHeader>
                 <TableRow>
@@ -149,15 +214,15 @@ export function AttendanceTable() {
                 {data.map((row) => (
                     <TableRow key={row.attendanceId ?? row.staffId}>
                         <TableCell>
-                            <div className="flex items-center gap-2">
-                                <Avatar className="h-8 w-8">
+                            <div className="flex items-center gap-2 min-w-0">
+                                <Avatar className="h-8 w-8 shrink-0">
                                     <AvatarImage src={row.image ?? undefined} />
                                     <AvatarFallback>
                                         {row.firstName[0]}
                                         {row.lastName[0]}
                                     </AvatarFallback>
                                 </Avatar>
-                                <span>
+                                <span className="truncate max-w-40 block">
                                     {row.firstName} {row.lastName}
                                 </span>
                                 {row.isDeleted && (
@@ -216,6 +281,7 @@ export function AttendanceTable() {
                 ))}
             </TableBody>
         </Table>
+            </div>
         <ConfirmPasswordModal
             open={!!pendingMark}
             description={`Confirm your password to mark attendance for ${date}.`}

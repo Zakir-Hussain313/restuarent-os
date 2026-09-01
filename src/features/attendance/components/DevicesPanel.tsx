@@ -1,6 +1,5 @@
 "use client";
 
-import { useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getBranchDevicesAction, setDeviceStatusAction, deleteDeviceAction } from "@/features/devices/actions";
 import { Button } from "@/components/ui/button";
@@ -8,12 +7,13 @@ import { CheckCircle2, XCircle, Trash2 } from "lucide-react";
 import { useAttendanceFilters } from "./AttendanceFilters";
 import { useAlertModal } from "@/components/providers/AlertModalProvider";
 import { useBranchChannel } from "@/lib/realtime/useBranchChannel";
+import { useCallback, useMemo } from "react";
 
 export function DevicesPanel() {
     const { branchId } = useAttendanceFilters();
     const queryClient = useQueryClient();
     const { showAlert, showConfirm } = useAlertModal();
-    const queryKey = ["branch-devices", branchId];
+    const queryKey = useMemo(() => ["branch-devices", branchId], [branchId]);
 
     const { data, isLoading } = useQuery({
         queryKey,
@@ -26,7 +26,7 @@ export function DevicesPanel() {
 
     const onRealtimeEvent = useCallback(() => {
         queryClient.invalidateQueries({ queryKey });
-    }, [queryClient, branchId]);
+    }, [queryClient, queryKey]);
 
     useBranchChannel(branchId, "attendance", onRealtimeEvent);
 
@@ -80,7 +80,7 @@ export function DevicesPanel() {
 
     function ContactLine({ email, phone }: { email: string; phone: string | null }) {
         return (
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-muted-foreground mt-1 break-all">
                 {email}
                 {phone ? ` · ${phone}` : ""}
             </p>

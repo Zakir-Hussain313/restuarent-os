@@ -5,6 +5,7 @@ import { UtensilsCrossed, ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePosCart } from "../hooks/usePosCart";
 import { usePosMenu } from "../hooks/usePosMenu";
+import { usePosInit } from "../hooks/usePosInit";
 import { MenuPanel } from "./MenuPanel/MenuPanel";
 import { CategoryPills } from "./MenuPanel/CategoryPills";
 import { CartPanel } from "./CartPanel/CartPanel";
@@ -13,15 +14,14 @@ type MobileTab = "menu" | "cart";
 
 interface PosLayoutProps {
   branchId?: string;
-  autoConfirmOnPlace?: boolean;
   showClockButton?: boolean;
-  initialIsClockedIn?: boolean;
 }
 
-export function PosLayout({ branchId, autoConfirmOnPlace, showClockButton, initialIsClockedIn }: PosLayoutProps) {
+export function PosLayout({ branchId, showClockButton }: PosLayoutProps) {
   const [mobileTab, setMobileTab] = useState<MobileTab>("menu");
   const { itemCount } = usePosCart();
-  const menu = usePosMenu();
+  const { data: posInit, isLoading: posInitLoading } = usePosInit(branchId);
+  const menu = usePosMenu(posInit, posInitLoading);
 
   return (
     <div className="flex flex-col h-full">
@@ -33,9 +33,8 @@ export function PosLayout({ branchId, autoConfirmOnPlace, showClockButton, initi
         <div className="flex-2 overflow-hidden min-w-75 max-w-105">
           <CartPanel
             branchId={branchId}
-            autoConfirmOnPlace={autoConfirmOnPlace}
+            posInit={posInit}
             showClockButton={showClockButton}
-            initialIsClockedIn={initialIsClockedIn}
           />
         </div>
       </div>
@@ -57,9 +56,8 @@ export function PosLayout({ branchId, autoConfirmOnPlace, showClockButton, initi
           <div className="flex-2 overflow-hidden min-w-75 max-w-105">
             <CartPanel
               branchId={branchId}
-              autoConfirmOnPlace={autoConfirmOnPlace}
+              posInit={posInit}
               showClockButton={showClockButton}
-              initialIsClockedIn={initialIsClockedIn}
             />
           </div>
         </div>
@@ -74,9 +72,8 @@ export function PosLayout({ branchId, autoConfirmOnPlace, showClockButton, initi
           ) : (
             <CartPanel
               branchId={branchId}
-              autoConfirmOnPlace={autoConfirmOnPlace}
+              posInit={posInit}
               showClockButton={showClockButton}
-              initialIsClockedIn={initialIsClockedIn}
             />
           )}
         </div>

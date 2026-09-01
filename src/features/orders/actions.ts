@@ -158,7 +158,8 @@ export async function createOrderAction(
         return { error: "Cannot create an order with no items." };
     }
 
-    console.time("[createOrderAction] total");
+    const timerId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    console.time(`[createOrderAction] total ${timerId}`);
 
     // Idempotency check — if this exact order attempt already succeeded
     // (e.g. the client timed out waiting but the request actually landed,
@@ -181,7 +182,7 @@ export async function createOrderAction(
     }
 
     try {
-        console.time("[createOrderAction] transaction");
+        console.time(`[createOrderAction] transaction ${timerId}`);
         const result = await db.transaction(async (tx) => {
             // ── 1. Fetch real menu items for every line in the cart ──────
             // Runs in parallel with the table lookup below — independent
@@ -500,9 +501,9 @@ export async function createOrderAction(
 
             return { order: createdOrder, items: insertedItems, discounts: insertedDiscounts, tableNumber };
         });
-        console.timeEnd("[createOrderAction] transaction");
+        console.timeEnd(`[createOrderAction] transaction ${timerId}`);
 
-        console.time("[createOrderAction] audit+broadcast");
+        console.time(`[createOrderAction] audit+broadcast ${timerId}`);
         const auditPromises = [
             logAudit(db, currentStaffRow, "order", result.order.id, "create", {
                 branchId: result.order.branchId,
@@ -533,8 +534,8 @@ export async function createOrderAction(
 
         await Promise.all([...auditPromises, ...broadcastPromises]);
 
-        console.timeEnd("[createOrderAction] audit+broadcast");
-        console.timeEnd("[createOrderAction] total");
+        console.timeEnd(`[createOrderAction] audit+broadcast ${timerId}`);
+        console.timeEnd(`[createOrderAction] total ${timerId}`);
 
         return {
             success: true,

@@ -1,6 +1,5 @@
 "use client";
-import { useCallback, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { usePosStore } from "@/store/usePosStore";
@@ -8,41 +7,59 @@ import { getTablesAction, getTableSectionsAction } from "@/features/tables/actio
 import { useBranchChannel } from "@/lib/realtime/useBranchChannel";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import type { Table } from "@/types";
+import type { PosInitBundle } from "@/features/pos/actions";
+
 interface TableSelectorProps {
   branchId?: string;
+  posInit?: PosInitBundle;
 }
 
-export function TableSelector({ branchId }: TableSelectorProps) {
+export function TableSelector({ branchId, posInit }: TableSelectorProps) {
   const orderType = usePosStore((s) => s.orderType);
   const tableId = usePosStore((s) => s.tableId);
   const setTable = usePosStore((s) => s.setTable);
   const clearTable = usePosStore((s) => s.clearTable);
   const [search, setSearch] = useState("");
-  const queryClient = useQueryClient();
 
-  const { data: tables = [] } = useQuery<Table[]>({
-    queryKey: ["tables", undefined],
-    queryFn: async () => {
-      const res = await getTablesAction(undefined);
-      if (res.data === null) throw new Error(res.error);
-      return res.data;
-    },
-    enabled: orderType === "dine_in",
-  });
+  const [tables, setTables] = useState<Table[]>(posInit?.tables ?? []);
+  const [sections, setSections] = useState(posInit?.sections ?? []);
 
-  const { data: sections = [] } = useQuery({
-    queryKey: ["table-sections", undefined],
-    queryFn: async () => {
-      const res = await getTableSectionsAction(undefined);
-      if (res.data === null) throw new Error(res.error);
-      return res.data;
-    },
-    enabled: orderType === "dine_in",
-  });
+  // Seed local state from the POS init bundle when it changes (first load,
+  // or a branch switch) — render-time adjustment, not an effect.
+  const [seededFrom, setSeededFrom] = useState<PosInitBundle | undefined>(undefined);
+  if (posInit && posInit !== seededFrom) {
+    setSeededFrom(posInit);
+    setTables(posInit.tables);
+    setSections(posInit.sections);
+  }
+
+  const refetchTables = useCallback(async () => {
+    const res = await getTablesAction(undefined);
+    if (res.data !== null) setTables(res.data);
+  }, []);
+
+  // On mount without a seeded bundle yet (e.g. dine-in selected before
+  // posInit resolves), fall back to a direct fetch once.
+  useEffect(() => {
+    if (orderType !== "dine_in" || posInit) return;
+    let cancelled = false;
+    (async () => {
+      const [tablesRes, sectionsRes] = await Promise.all([
+        getTablesAction(undefined),
+        getTableSectionsAction(undefined),
+      ]);
+      if (cancelled) return;
+      if (tablesRes.data !== null) setTables(tablesRes.data);
+      if (sectionsRes.data !== null) setSections(sectionsRes.data);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [orderType, posInit]);
 
   const onRealtimeEvent = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ["tables", undefined] });
-  }, [queryClient]);
+    refetchTables();
+  }, [refetchTables]);
 
   useBranchChannel(orderType === "dine_in" ? branchId : undefined, "tables", onRealtimeEvent);
 

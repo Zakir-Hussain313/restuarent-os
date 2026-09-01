@@ -1,10 +1,8 @@
 "use client";
 
 import { useMemo, useState, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { queryKeys } from "@/hooks/useMockQuery";
-import { getMenuCategoriesAction, getMenuItemsAction } from "@/features/menu/actions";
 import type { MenuItem, MenuCategory } from "@/types";
+import type { PosInitBundle } from "@/features/pos/actions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,28 +24,15 @@ interface UsePosMenuReturn {
 const SEARCH_MIN_LENGTH = 1;
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
+// Categories/items now come from the seeded POS init bundle (fetched once
+// in PosLayout via usePosInit) instead of this hook fetching them itself.
 
-export function usePosMenu(): UsePosMenuReturn {
+export function usePosMenu(posInit?: PosInitBundle, isLoading = false): UsePosMenuReturn {
   const [searchQuery, setSearchQueryRaw] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
 
-  const { data: categories = [], isLoading: categoriesLoading } = useQuery<MenuCategory[]>({
-    queryKey: [...queryKeys.menu.categories, undefined],
-    queryFn: async () => {
-      const res = await getMenuCategoriesAction(undefined);
-      if (res.data === null) throw new Error(res.error);
-      return res.data;
-    },
-  });
-
-  const { data: items = [], isLoading: itemsLoading } = useQuery<MenuItem[]>({
-    queryKey: [...queryKeys.menu.items, undefined],
-    queryFn: async () => {
-      const res = await getMenuItemsAction(undefined);
-      if (res.data === null) throw new Error(res.error);
-      return res.data;
-    },
-  });
+  const categories = useMemo(() => posInit?.categories ?? [], [posInit]);
+  const items = useMemo(() => posInit?.items ?? [], [posInit]);
 
   const setSearchQuery = useCallback((query: string) => {
     setSearchQueryRaw(query);
@@ -87,7 +72,7 @@ export function usePosMenu(): UsePosMenuReturn {
     setSearchQuery,
     setSelectedCategoryId,
     clearFilters,
-    isLoading: categoriesLoading || itemsLoading,
+    isLoading,
     hasActiveFilter: searchQuery.length > 0 || selectedCategoryId !== null,
   };
 }
