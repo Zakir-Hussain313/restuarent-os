@@ -7,9 +7,10 @@ import { useLocationStore } from "@/store/useLocationStore";
 import { usePublicBranchInfo } from "@/features/online-ordering/hooks/useOnlineOrdering";
 import { LocationPickerModal } from "@/features/online-ordering/components/LocationPickerModal";
 import { BookingModal } from "@/features/reservations/components/BookingModal";
-import { getPublicTablesAction } from "@/features/tables/public-actions";
-import type { Table } from "@/types/table";
+import { getPublicTablesAction, getPublicTableSectionsAction } from "@/features/tables/public-actions";
+import type { Table, TableSection } from "@/types/table";
 import { BranchSwitcher } from "@/features/online-ordering/components/BranchSwitcher";
+import { cn } from "@/lib/utils";
 
 const TableFloorPlan = dynamic(
   () => import("@/features/tables/components/TableFloorPlan").then((mod) => mod.TableFloorPlan),
@@ -29,11 +30,13 @@ export default function TablesPage() {
         !branchInfoLoading && branchInfo && branchInfo.branchCount >= 2 && !location;
 
     const [tables, setTables] = useState<Table[]>([]);
+    const [sections, setSections] = useState<TableSection[]>([]);
     const [tablesLoading, setTablesLoading] = useState(false);
     const [tablesError, setTablesError] = useState<string | null>(null);
     const [selectedTable, setSelectedTable] = useState<Table | null>(null);
     const [modalOpen, setModalOpen] = useState(false);
     const [reloadKey, setReloadKey] = useState(0);
+    const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
 
     // Effect owns its own state-setting directly (per React's data-fetching
     // pattern) — the fetch call itself stays a pure, stateless function so
@@ -46,12 +49,23 @@ export default function TablesPage() {
         setTablesLoading(true);
         setTablesError(null);
 
-        getPublicTablesAction(resolvedBranchId).then((result) => {
+        Promise.all([
+            getPublicTablesAction(resolvedBranchId),
+            getPublicTableSectionsAction(resolvedBranchId),
+        ]).then(([tablesResult, sectionsResult]) => {
             if (ignore) return;
-            if (result.data === null) {
-                setTablesError(result.error);
+            if (tablesResult.data === null) {
+                setTablesError(tablesResult.error);
+            } else if (sectionsResult.data === null) {
+                setTablesError(sectionsResult.error);
             } else {
-                setTables(result.data);
+                setTables(tablesResult.data);
+                setSections(sectionsResult.data);
+                setActiveSectionId((prev) =>
+                    prev && sectionsResult.data.some((s) => s.id === prev)
+                        ? prev
+                        : sectionsResult.data[0]?.id ?? null
+                );
             }
             setTablesLoading(false);
         });
@@ -60,6 +74,10 @@ export default function TablesPage() {
             ignore = true;
         };
     }, [resolvedBranchId, reloadKey]);
+
+    const sectionTables = activeSectionId
+        ? tables.filter((t) => t.sectionId === activeSectionId)
+        : tables;
 
     // Booking a table should refresh availability — bump reloadKey to
     // re-trigger the effect above rather than exposing a separate function
@@ -127,12 +145,35 @@ export default function TablesPage() {
                         <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive max-w-md mx-auto">
                             {tablesError}
                         </div>
+                    ) : sections.length === 0 ? (
+                        <p className="text-sm text-[#8a8680] text-center py-16">
+                            No tables are set up for this branch yet.
+                        </p>
                     ) : (
-                        <TableFloorPlan
-                            tables={tables}
-                            onTableClick={handleTableClick}
-                            isClickable={(t) => t.status !== "out_of_service"}
-                        />
+                        <>
+                            <div className="flex items-center gap-1 border-b border-[#ebe9e4] overflow-x-auto flex-nowrap scrollbar-hide mb-4">
+                                {sections.map((s) => (
+                                    <button
+                                        key={s.id}
+                                        type="button"
+                                        onClick={() => setActiveSectionId(s.id)}
+                                        className={cn(
+                                            "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors shrink-0 whitespace-nowrap",
+                                            activeSectionId === s.id
+                                                ? "border-[#e8570e] text-[#e8570e]"
+                                                : "border-transparent text-[#8a8680] hover:text-[#1a1815]"
+                                        )}
+                                    >
+                                        {s.name}
+                                    </button>
+                                ))}
+                            </div>
+                            <TableFloorPlan
+                                tables={sectionTables}
+                                onTableClick={handleTableClick}
+                                isClickable={(t) => t.status !== "out_of_service"}
+                            />
+                        </>
                     )}
                 </div>
             )}

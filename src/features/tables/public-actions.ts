@@ -1,11 +1,36 @@
 "use server";
 
 import { db } from "@/db";
-import { restaurantTables } from "@/db/schema";
+import { restaurantTables, tableSections } from "@/db/schema";
 import { eq, and, asc } from "drizzle-orm";
-import type { Table } from "@/types/table";
+import type { Table, TableSection } from "@/types/table";
 
 const TENANT_ID = process.env.TENANT_ID!;
+
+export async function getPublicTableSectionsAction(
+    branchId: string
+): Promise<{ data: TableSection[]; error?: undefined } | { data: null; error: string }> {
+    if (!branchId) return { data: null, error: "A branch is required." };
+
+    const rows = await db.query.tableSections.findMany({
+        where: and(
+            eq(tableSections.tenantId, TENANT_ID),
+            eq(tableSections.branchId, branchId),
+            eq(tableSections.isActive, true)
+        ),
+        orderBy: [asc(tableSections.name)],
+    });
+
+    const data: TableSection[] = rows.map((s) => ({
+        id: s.id,
+        branchId: s.branchId,
+        name: s.name,
+        description: s.description ?? undefined,
+        isActive: s.isActive,
+    }));
+
+    return { data };
+}
 
 export async function getPublicTablesAction(
     branchId: string

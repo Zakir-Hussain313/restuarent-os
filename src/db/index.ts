@@ -19,7 +19,7 @@ if (!connectionString) {
 // `prepare: false` is required when using Supabase's transaction-mode
 // pooler (pgbouncer=true) — prepared statements aren't supported across
 // pooled connections in transaction mode.
-const client = postgres(connectionString, { prepare: false });
+const client = postgres(connectionString, { prepare: false, max: 30 });
 
 export const db = drizzle(client, {
   schema: { ...schema, ...relations },
