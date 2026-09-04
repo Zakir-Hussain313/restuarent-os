@@ -14,7 +14,6 @@ import {
     staff,
     restaurantTables,
     tableReservations,
-    payments,
     deliveries,
 } from "@/db/schema";
 import { getSupabaseServerClient } from "@/lib/supabase";
@@ -25,6 +24,7 @@ import { logAudit } from "@/lib/audit";
 import { getOfflineRef } from "@/features/orders/lib/printKitchenTicket";
 import { broadcastChange } from "@/lib/realtime/broadcast";
 import { createNotification } from "../notifications/actions";
+import { PaymentService } from "@/lib/payments/PaymentService";
 
 // ─── Input shape ────────────────────────────────────────────────────────
 
@@ -813,7 +813,8 @@ export async function confirmOrderAction(
 
 export async function completeBillAction(
     orderId: string,
-    paymentMethod: "cash" | "card" | "jazzcash" | "easypaisa" | "bank_transfer" | "complimentary" = "cash"
+    paymentMethod: "cash" | "card" | "jazzcash" | "easypaisa" | "bank_transfer" | "complimentary" = "cash",
+    clientPaymentId?: string
 ): Promise<{ success: true } | { success?: undefined; error: string }> {
     const auth = await getCurrentStaff();
     if (!auth.ok) return { error: auth.error };
@@ -828,6 +829,20 @@ export async function completeBillAction(
     }
     if (target.status === "completed" || target.status === "cancelled") {
         return { error: `Cannot complete an order that is already "${target.status}".` };
+    }
+
+    // A clientPaymentId means this call may be a resync of a payment that
+    // already succeeded once (offline queue retry) — if a payment with this
+    // id already exists, the order is already paid, so just report success
+    // instead of erroring on the "already completed" check above ever being
+    // reached differently, or double-counting totalPaid.
+    if (clientPaymentId) {
+        const existingPayment = await db.query.payments.findFirst({
+            where: (p, { eq: eqOp }) => eqOp(p.clientPaymentId, clientPaymentId),
+        });
+        if (existingPayment) {
+            return { success: true };
+        }
     }
 
     if (target.orderType === "delivery") {
@@ -853,16 +868,23 @@ export async function completeBillAction(
             })
             .where(eq(orders.id, orderId));
 
-        const [payment] = await tx.insert(payments).values({
-            tenantId: currentStaffRow.tenantId,
-            orderId,
-            method: paymentMethod,
-            amount: target.total,
-            processedBy: currentStaffRow.id,
-            processedByName: `${currentStaffRow.firstName} ${currentStaffRow.lastName}`,
-        }).returning();
+        const payment = await PaymentService.initiate(
+            {
+                tenantId: currentStaffRow.tenantId,
+                branchId: target.branchId,
+                orderId,
+                amount: target.total,
+                currency: "PKR",
+                method: paymentMethod,
+                clientPaymentId,
+                processedBy: currentStaffRow.id,
+                processedByName: `${currentStaffRow.firstName} ${currentStaffRow.lastName}`,
+            },
+            "manual",
+            tx
+        );
 
-        paymentId = payment.id;
+        paymentId = payment.paymentId;
 
         // Free up the table now that the order is done
         if (target.tableId) {

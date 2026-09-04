@@ -6,17 +6,56 @@ import {
   removePendingOrder,
   updatePendingOrder,
 } from "@/lib/offlineOrderQueue";
-import { createOrderAction, confirmOrderAction } from "@/features/orders/actions";
+import {
+  listPendingPayments,
+  removePendingPayment,
+  updatePendingPayment,
+} from "@/lib/offlinePaymentQueue";
+import { createOrderAction, confirmOrderAction, completeBillAction } from "@/features/orders/actions";
 import { clearStaffLedger } from "@/lib/couponTokenStore";
 
 // Runs once at app root. Listens for the browser regaining connectivity and
-// walks the offline order queue, resubmitting each pending order in turn.
-// Sequential by design (not parallel) — matches original placement order,
-// and avoids hammering the server the instant connectivity returns.
+// walks the offline order queue, then the offline payment queue, resubmitting
+// each pending item in turn. Sequential by design (not parallel) — matches
+// original placement/completion order, and avoids hammering the server the
+// instant connectivity returns.
 export function OfflineSyncManager() {
   const isSyncingRef = useRef(false);
 
   useEffect(() => {
+    async function syncPendingPayments() {
+      const pending = await listPendingPayments();
+
+      for (const payment of pending) {
+        try {
+          const result = await completeBillAction(
+            payment.orderId,
+            payment.paymentMethod,
+            payment.clientPaymentId
+          );
+
+          if (result.success) {
+            await removePendingPayment(payment.clientPaymentId);
+          } else {
+            // Server explicitly rejected it — not a connectivity problem.
+            // Record the error and move on; it needs manual attention.
+            await updatePendingPayment(payment.clientPaymentId, {
+              attempts: payment.attempts + 1,
+              lastError: result.error,
+            });
+          }
+        } catch (err) {
+          // Thrown error — assume connectivity dropped again mid-sync.
+          // Stop this pass; remaining payments retry on the next trigger.
+          await updatePendingPayment(payment.clientPaymentId, {
+            attempts: payment.attempts + 1,
+            lastError: err instanceof Error ? err.message : String(err),
+          });
+          break;
+        }
+      }
+    }
+
     async function syncPendingOrders() {
       if (isSyncingRef.current) return; // already running, don't overlap
       if (!navigator.onLine) return;
@@ -88,13 +127,18 @@ export function OfflineSyncManager() {
             break;
           }
         }
+
+        // Payments sync after orders, same pass — an order queued offline
+        // must exist on the server before any payment against it can
+        // possibly succeed, so ordering here matters, not just convenience.
+        await syncPendingPayments();
       } finally {
         isSyncingRef.current = false;
       }
     }
 
-    // Attempt once on mount, in case orders were queued last session and
-    // we're already online by the time this loads.
+    // Attempt once on mount, in case orders/payments were queued last
+    // session and we're already online by the time this loads.
     syncPendingOrders();
 
     window.addEventListener("online", syncPendingOrders);

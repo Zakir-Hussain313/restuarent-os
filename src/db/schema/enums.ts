@@ -59,6 +59,7 @@ export const orderStatusEnum = pgEnum("order_status", [
   "confirmed",
   "ready_for_delivery",
   "out_for_delivery",
+  "delivered",
   "completed",
   "cancelled",
 ]);
@@ -81,6 +82,21 @@ export const paymentStatusEnum = pgEnum("payment_status", [
   "partial",
   "paid",
   "refunded",
+]);
+
+// Payment record lifecycle (distinct from order-level paymentStatusEnum above,
+// which tracks the ORDER's aggregate paid/unpaid state). This tracks the
+// lifecycle of a single payment/transaction record.
+export const paymentStatusLifecycleEnum = pgEnum("payment_status_lifecycle", [
+  "pending",
+  "processing",
+  "paid",
+  "failed",
+  "cancelled",
+  "expired",
+  "refunded",
+  "partially_refunded",
+  "requires_verification",
 ]);
 
 // ── Deliveries ────────────────────────────────────────────────────────────

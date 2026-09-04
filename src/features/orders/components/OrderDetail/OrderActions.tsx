@@ -102,8 +102,26 @@ export function OrderActions({
   const [billOpen, setBillOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
-  const [billPrinted, setBillPrinted] = useState(false);
   const [branch, setBranch] = useState<Branch | undefined>(undefined);
+  const [dismissedAutoPrintFor, setDismissedAutoPrintFor] = useState<string | null>(null);
+  // Only cash payments have an offline path (see completeBillAction/
+  // offlinePaymentQueue) — card/JazzCash/Easypaisa/bank transfer all
+  // require a live connection, so they're disabled while offline instead
+  // of failing confusingly after the staff member already picked one.
+  const [isOnline, setIsOnline] = useState(
+    () => typeof navigator !== "undefined" && navigator.onLine
+  );
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,6 +136,15 @@ export function OrderActions({
 
   const isDelivery = order.orderType === "delivery";
   const hasActions = canPrintKitchenTicket || canMarkReady || canPrintBill || canCancel;
+
+  // Auto-open + auto-print the bill the moment a delivery order first
+  // reaches "ready_for_delivery" — derived at render time, no effect needed.
+  const autoOpenBill =
+    isDelivery &&
+    order.status === "ready_for_delivery" &&
+    dismissedAutoPrintFor !== order.id;
+
+  const isBillModalOpen = billOpen || autoOpenBill;
 
   if (!hasActions) return null;
 
@@ -155,40 +182,46 @@ export function OrderActions({
 
         {canPrintBill && (
           <>
-            <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}>
-              <SelectTrigger className="h-9 sm:h-8 w-auto text-xs font-medium" aria-label="Payment method">
-                <SelectValue>
-                  {(value: string) =>
-                    PAYMENT_METHOD_OPTIONS.find((opt) => opt.value === value)?.label ?? value
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {PAYMENT_METHOD_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex flex-col gap-1">
+              <Select
+                value={paymentMethod}
+                onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}
+              >
+                <SelectTrigger className="h-9 sm:h-8 w-auto text-xs font-medium" aria-label="Payment method">
+                  <SelectValue>
+                    {(value: string) =>
+                      PAYMENT_METHOD_OPTIONS.find((opt) => opt.value === value)?.label ?? value
+                    }
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {PAYMENT_METHOD_OPTIONS.map((opt) => (
+                    <SelectItem
+                      key={opt.value}
+                      value={opt.value}
+                      disabled={!isOnline && opt.value !== "cash"}
+                    >
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!isOnline && (
+                <span className="text-[10px] text-muted-foreground">
+                  Offline — only cash accepted, will sync when reconnected
+                </span>
+              )}
+            </div>
 
             {isDelivery ? (
-              billPrinted ? (
-                <ActionButton
-                  label="Complete Order"
-                  icon={<Receipt className="w-3.5 h-3.5" />}
-                  onClick={handleCompleteOrder}
-                  isLoading={isCompletingBill}
-                  variant="primary"
-                  disabled={!canCompleteBill}
-                />
-              ) : (
-                <ActionButton
-                  label="Print Bill"
-                  icon={<Receipt className="w-3.5 h-3.5" />}
-                  onClick={() => setBillOpen(true)}
-                  isLoading={false}
-                  variant="secondary"
-                />
-              )
+              <ActionButton
+                label="Complete Order"
+                icon={<Receipt className="w-3.5 h-3.5" />}
+                onClick={handleCompleteOrder}
+                isLoading={isCompletingBill}
+                variant="primary"
+                disabled={!canCompleteBill}
+              />
             ) : (
               <ActionButton
                 label="Print Bill"
@@ -236,21 +269,24 @@ export function OrderActions({
       />
 
       <BillModal
-        open={billOpen}
+        open={isBillModalOpen}
         order={order}
         branch={branch}
         paymentMethod={paymentMethod}
         isConfirming={isCompletingBill}
         onConfirm={() => {
           setBillOpen(false);
-          if (isDelivery) {
-            setBillPrinted(true);
-          } else {
+          setDismissedAutoPrintFor(order.id);
+          if (!isDelivery) {
             onCompleteBill(paymentMethod);
           }
         }}
-        onClose={() => setBillOpen(false)}
+        onClose={() => {
+          setBillOpen(false);
+          setDismissedAutoPrintFor(order.id);
+        }}
         mode={isDelivery ? "printOnly" : "printAndComplete"}
+        autoPrint={false}
       />
 
       <CancelConfirmModal

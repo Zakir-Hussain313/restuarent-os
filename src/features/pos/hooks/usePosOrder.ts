@@ -9,6 +9,7 @@ import { decrementStaffToken, getBranchCouponSnapshot, getOrCreateStaffLedger } 
 import { useAuthStore } from "@/store/useAuthStore";
 import { getOfflineRef, printOfflineTicketAndBill } from "@/features/orders/lib/printKitchenTicket";
 import { useAlertModal } from "@/components/providers/AlertModalProvider";
+import { withTimeout } from "@/lib/withTimeout";
 
 interface UsePosOrderReturn {
   placeOrder: () => void;
@@ -16,24 +17,6 @@ interface UsePosOrderReturn {
   isSubmitting: boolean;
   lastOrderId: string | null;
   error: string | null;
-}
-
-class TimeoutError extends Error { }
-
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new TimeoutError("Request timed out")), ms);
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (err) => {
-        clearTimeout(timer);
-        reject(err);
-      }
-    );
-  });
 }
 
 export function usePosOrder(autoConfirmOnPlace?: boolean): UsePosOrderReturn {

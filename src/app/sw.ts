@@ -1,5 +1,6 @@
 /// <reference lib="webworker" />
 import { Serwist, type PrecacheEntry, type SerwistGlobalConfig } from "serwist";
+import { NetworkOnly } from "serwist";
 import { defaultCache } from "@serwist/next/worker";
 
 declare global {
@@ -9,19 +10,55 @@ declare global {
 }
 declare const self: ServiceWorkerGlobalScope;
 
+// Protected/authenticated routes must never serve cached HTML — a cached
+// page here could belong to a different session, role, or logged-out
+// state entirely. These always require a live network response; if
+// offline, the /offline fallback below takes over instead.
+const PROTECTED_PATHS = [
+  "/dashboard", "/pos", "/orders", "/tables", "/menu", "/staff",
+  "/attendance", "/settings", "/audit-logs", "/admins", "/branches",
+  "/riders", "/reports",
+];
+
+const protectedPageRoute = {
+  matcher: ({ request, url, sameOrigin }: { request: Request; url: URL; sameOrigin: boolean }) =>
+    sameOrigin &&
+    request.destination === "document" &&
+    PROTECTED_PATHS.some((p) => url.pathname.startsWith(p)),
+  handler: new NetworkOnly(),
+};
+
 const serwist = new Serwist({
-  precacheEntries: self.__SW_MANIFEST,
+  precacheEntries: [
+    ...(self.__SW_MANIFEST || []),
+    { url: "/offline", revision: null },
+  ],
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
-  // defaultCache is Serwist's Next.js-tuned runtime caching: static
-  // chunks/fonts cache-first, RSC/document navigations network-first
-  // falling back to cache. This is what lets a page that was opened once
-  // while online keep working if the connection drops mid-shift.
-  runtimeCaching: defaultCache,
+  // Protected-route rule checked first, then Serwist's normal Next.js
+  // caching for everything else (static assets, public pages).
+  runtimeCaching: [protectedPageRoute, ...defaultCache],
+  fallbacks: {
+    entries: [
+      {
+        url: "/offline",
+        matcher: ({ request }) => request.destination === "document",
+      },
+    ],
+  },
 });
 
 serwist.addEventListeners();
+
+// One-time cleanup: remove any stale cached HTML from before this fix
+// existed, so an already-bad cached login page doesn't linger up to its
+// normal 24h expiry.
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.delete("pages").catch(() => {})
+  );
+});
 
 self.addEventListener("push", (event) => {
   const data = event.data ? event.data.json() : {};

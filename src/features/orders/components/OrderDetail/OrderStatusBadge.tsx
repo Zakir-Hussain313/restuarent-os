@@ -16,6 +16,7 @@ const STATUS_CONFIG: Record<OrderStatus, { label: string; variant: ChipVariant }
   confirmed: { label: "Confirmed", variant: "chip-blue" },
   ready_for_delivery: { label: "Ready for Delivery", variant: "chip-coral" },
   out_for_delivery: { label: "Out for Delivery", variant: "chip-violet" },
+  delivered: { label: "Delivered", variant: "chip-green" },
   completed: { label: "Completed", variant: "chip-green" },
   cancelled: { label: "Cancelled", variant: "destructive" },
 };

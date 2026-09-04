@@ -11,6 +11,9 @@ import {
 import { markOrderReadyAction } from "@/features/deliveries/actions";
 import type { Order, PaymentMethod } from "@/types";
 import { useAlertModal } from "@/components/providers/AlertModalProvider";
+import { enqueuePendingPayment } from "@/lib/offlinePaymentQueue";
+import { useAuthStore } from "@/store/useAuthStore";
+import { withTimeout } from "@/lib/withTimeout";
 
 interface UseOrderDetailReturn {
   order: Order | undefined;
@@ -33,6 +36,7 @@ interface UseOrderDetailReturn {
 export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
   const { showAlert } = useAlertModal();
   const queryClient = useQueryClient();
+  const currentStaff = useAuthStore((s) => s.currentStaff);
 
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.orders.detail(orderId ?? ""),
@@ -73,11 +77,42 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
         id: string;
         paymentMethod: PaymentMethod;
       }) => {
-        const result = await completeBillAction(id, paymentMethod);
-        if (!result.success) throw new Error(result.error);
-        return id;
+        try {
+          const result = await withTimeout(completeBillAction(id, paymentMethod), 15000);
+          if (!result.success) throw new Error(result.error);
+          return { id, queuedOffline: false };
+        } catch (err) {
+          // Only cash gets an offline fallback — card/JazzCash/bank
+          // require a live connection to ever be valid, so any failure
+          // for those is a real error, not a connectivity queue candidate.
+          if (paymentMethod !== "cash" || navigator.onLine) {
+            throw err;
+          }
+          if (!currentStaff?.id || !currentStaff?.branchId) {
+            throw err;
+          }
+
+          const clientPaymentId = crypto.randomUUID();
+          await enqueuePendingPayment({
+            clientPaymentId,
+            orderId: id,
+            paymentMethod,
+            createdAt: Date.now(),
+            attempts: 0,
+            staffId: currentStaff.id,
+            branchId: currentStaff.branchId,
+          });
+          return { id, queuedOffline: true };
+        }
       },
-      onSuccess: (id) => invalidateOrderQueries(id),
+      onSuccess: ({ id, queuedOffline }) => {
+        invalidateOrderQueries(id);
+        if (queuedOffline) {
+          showAlert(
+            "You're offline — this cash payment has been saved and will finish syncing once you're back online."
+          );
+        }
+      },
       onError: (err: Error) => showAlert(err.message),
     });
 
@@ -107,12 +142,12 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
   const canPrintBill =
     !!order &&
     (order.orderType === "delivery"
-      ? order.status === "ready_for_delivery"
+      ? order.status === "ready_for_delivery" || order.status === "out_for_delivery" || order.status === "delivered"
       : order.status === "confirmed");
   const canCompleteBill =
     !!order &&
     (order.orderType === "delivery"
-      ? order.status === "ready_for_delivery" && order.deliveryStatus === "delivered"
+      ? order.status === "delivered"
       : order.status === "confirmed");
   const canCancel =
     !!order &&

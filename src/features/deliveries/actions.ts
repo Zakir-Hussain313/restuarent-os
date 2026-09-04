@@ -261,13 +261,26 @@ export async function updateDeliveryStatusAction(
         })
         .where(eq(deliveries.orderId, orderId));
 
+    // Keep orders.status in step with the delivery's own status as the
+    // rider progresses it — out_for_delivery, then delivered.
+    if (status === "out_for_delivery") {
+        await db.update(orders).set({ status: "out_for_delivery", updatedAt: now }).where(eq(orders.id, orderId));
+    } else if (status === "delivered") {
+        await db.update(orders).set({ status: "delivered", updatedAt: now }).where(eq(orders.id, orderId));
+    } else if (status === "cancelled") {
+        await db.update(orders).set({ status: "cancelled", updatedAt: now }).where(eq(orders.id, orderId));
+    }
+
     await logAudit(db, currentStaffRow, "delivery", orderId, "status_change", {
         branchId: delivery.branchId,
         oldValue: { status: delivery.status },
         newValue: { status },
     });
 
-    if (delivery.branchId) await broadcastChange(delivery.branchId, "riders");
+    if (delivery.branchId) {
+        await broadcastChange(delivery.branchId, "riders");
+        await broadcastChange(delivery.branchId, "orders");
+    }
 
     if (delivery.branchId && (status === "out_for_delivery" || status === "delivered")) {
         const order = await db.query.orders.findFirst({ where: eq(orders.id, orderId) });

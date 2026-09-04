@@ -7,13 +7,12 @@ import { RESTAURANT_CONFIG } from "@/config/restaurant";
 const jakarta = Plus_Jakarta_Sans({
   variable: "--font-jakarta",
   subsets: ["latin"],
-  display: "optional",
+  display: "swap",
 });
-
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
-  display: "optional",
+  display: "swap",
 });
 
 export const metadata: Metadata = {

@@ -21,7 +21,9 @@ import {
     discountTypeEnum,
     paymentMethodEnum,
     paymentStatusEnum,
+    paymentStatusLifecycleEnum,
 } from "./enums";
+import { sql } from "drizzle-orm";
 
 export const orders = pgTable(
     "orders",
@@ -351,10 +353,40 @@ export const payments = pgTable(
         orderId: uuid("order_id")
             .notNull()
             .references(() => orders.id, { onDelete: "cascade" }),
+        branchId: uuid("branch_id")
+            .references(() => branches.id, { onDelete: "cascade" }),
 
         method: paymentMethodEnum("method").notNull(),
         amount: integer("amount").notNull(),
         reference: text("reference"), // transaction ref for card / JazzCash / Easypaisa
+
+        // Which payment provider processed this — "manual" for staff-recorded
+        // cash/card/bank payments, or a real gateway id ("payfast") once
+        // online payment integration goes live. Null for legacy pre-Phase-1 rows.
+        provider: text("provider"),
+        // Lifecycle status of this specific payment record. Defaults to "paid"
+        // to match existing manual-payment behavior (staff recording a payment
+        // means it's considered paid immediately) — only real gateway payments
+        // will use the full pending -> processing -> paid/failed lifecycle.
+        status: paymentStatusLifecycleEnum("status").notNull().default("paid"),
+
+        // Real gateway's own transaction id — unique when present, prevents a
+        // duplicate webhook from creating a second payment record.
+        providerTransactionId: text("provider_transaction_id"),
+        merchantTransactionId: text("merchant_transaction_id"),
+        // Client-generated id for offline-recorded payments, so a payment
+        // queued offline and synced later can't be double-inserted on retry
+        // (same pattern as orders.idempotencyKey).
+        clientPaymentId: text("client_payment_id"),
+        // Which POS terminal/device recorded this payment.
+        terminalId: text("terminal_id"),
+
+        currency: text("currency").notNull().default("PKR"),
+        metadata: jsonb("metadata"),
+
+        initiatedAt: timestamp("initiated_at", { withTimezone: true }),
+        verifiedAt: timestamp("verified_at", { withTimezone: true }),
+        failedAt: timestamp("failed_at", { withTimezone: true }),
 
         processedBy: uuid("processed_by")
             .references(() => staff.id, { onDelete: "set null" }),
@@ -366,8 +398,45 @@ export const payments = pgTable(
     (t) => [
         index("payments_order_id_idx").on(t.orderId),
         index("payments_tenant_id_idx").on(t.tenantId),
+        index("payments_branch_id_idx").on(t.branchId),
+        index("payments_status_idx").on(t.status),
         // Payment reconciliation by method
         index("payments_method_idx").on(t.method),
+        uniqueIndex("payments_provider_transaction_id_udx")
+            .on(t.providerTransactionId)
+            .where(sql`${t.providerTransactionId} IS NOT NULL`),
+        uniqueIndex("payments_client_payment_id_udx")
+            .on(t.clientPaymentId)
+            .where(sql`${t.clientPaymentId} IS NOT NULL`),
+    ]
+);
+
+export const paymentRefunds = pgTable(
+    "payment_refunds",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        tenantId: uuid("tenant_id")
+            .notNull()
+            .references(() => tenants.id, { onDelete: "cascade" }),
+        paymentId: uuid("payment_id")
+            .notNull()
+            .references(() => payments.id, { onDelete: "cascade" }),
+
+        amount: integer("amount").notNull(),
+        reason: text("reason"),
+        status: paymentStatusLifecycleEnum("status").notNull().default("pending"),
+        providerRefundId: text("provider_refund_id"),
+
+        createdBy: uuid("created_by")
+            .references(() => staff.id, { onDelete: "set null" }),
+        createdByName: text("created_by_name"),
+        createdAt: timestamp("created_at", { withTimezone: true })
+            .notNull()
+            .defaultNow(),
+    },
+    (t) => [
+        index("payment_refunds_payment_id_idx").on(t.paymentId),
+        index("payment_refunds_tenant_id_idx").on(t.tenantId),
     ]
 );
 
@@ -379,5 +448,7 @@ export type OrderDiscount = typeof orderDiscounts.$inferSelect;
 export type NewOrderDiscount = typeof orderDiscounts.$inferInsert;
 export type Payment = typeof payments.$inferSelect;
 export type NewPayment = typeof payments.$inferInsert;
+export type PaymentRefund = typeof paymentRefunds.$inferSelect;
+export type NewPaymentRefund = typeof paymentRefunds.$inferInsert;
 export type OrderCounter = typeof orderCounters.$inferSelect;
 export type NewOrderCounter = typeof orderCounters.$inferInsert;

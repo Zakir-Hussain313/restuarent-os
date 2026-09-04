@@ -1,7 +1,7 @@
 import type { CustomerType } from "./customer";
 import type { SelectedModifier, SelectedVariant } from "./menu";
 
-export type OrderStatus = "pending" | "confirmed" | "ready_for_delivery" | "out_for_delivery" | "completed" | "cancelled";
+export type OrderStatus = "pending" | "confirmed" | "ready_for_delivery" | "out_for_delivery" | "delivered" | "completed" | "cancelled";
 
 export type OrderType = Exclude<CustomerType, "walk_in">;
 

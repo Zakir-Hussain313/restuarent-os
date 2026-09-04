@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Printer, X, Loader2, Receipt } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils";
@@ -17,6 +17,8 @@ interface BillModalProps {
   onConfirm: () => void;
   onClose: () => void;
   mode?: "printAndComplete" | "printOnly" | "completeOnly";
+  /** Auto-trigger printing once, right when the modal opens — no manual click needed. */
+  autoPrint?: boolean;
 }
 
 const ORDER_TYPE_LABELS: Record<string, string> = {
@@ -59,8 +61,19 @@ export function BillModal({
   onConfirm,
   onClose,
   mode = "printAndComplete",
+  autoPrint = false,
 }: BillModalProps) {
   const billRef = useRef<HTMLDivElement>(null);
+  const autoPrintedRef = useRef(false);
+
+  useEffect(() => {
+    if (open && autoPrint && !autoPrintedRef.current) {
+      autoPrintedRef.current = true;
+      handleAction();
+    }
+    if (!open) autoPrintedRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, autoPrint]);
 
   if (!open) return null;
 

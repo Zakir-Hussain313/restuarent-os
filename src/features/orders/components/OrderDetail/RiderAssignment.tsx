@@ -71,20 +71,18 @@ export function RiderAssignment({ order, onAssigned }: RiderAssignmentProps) {
                         Rider
                     </span>
                 </div>
-                <span
-                    className={cn(
-                        "text-[11px] font-medium px-2 py-0.5 rounded-full",
-                        order.deliveryStatus === "delivered"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : order.deliveryStatus === "out_for_delivery"
-                            ? "bg-blue-100 text-blue-800"
-                            : order.deliveryStatus === "assigned"
-                            ? "bg-amber-100 text-amber-800"
-                            : "bg-gray-100 text-gray-700"
-                    )}
-                >
-                    {DELIVERY_STATUS_LABEL[order.deliveryStatus ?? "unassigned"]}
-                </span>
+                {(order.deliveryStatus === "unassigned" || order.deliveryStatus === "assigned") && (
+                    <span
+                        className={cn(
+                            "text-[11px] font-medium px-2 py-0.5 rounded-full",
+                            order.deliveryStatus === "assigned"
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-gray-100 text-gray-700"
+                        )}
+                    >
+                        {DELIVERY_STATUS_LABEL[order.deliveryStatus ?? "unassigned"]}
+                    </span>
+                )}
             </div>
 
             <div className="flex items-center justify-between gap-2">
