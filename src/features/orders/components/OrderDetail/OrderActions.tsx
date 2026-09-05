@@ -153,9 +153,7 @@ export function OrderActions({
       `Mark order ${order.orderNumber} as paid and complete?`,
       { title: "Complete order?", confirmLabel: "Mark Paid" }
     );
-    console.log("[debug] confirmed:", confirmed, "paymentMethod:", paymentMethod);
     if (!confirmed) return;
-    console.log("[debug] calling onCompleteBill");
     onCompleteBill(paymentMethod);
   }
 

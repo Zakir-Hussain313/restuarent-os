@@ -78,11 +78,16 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
         id: string;
         paymentMethod: PaymentMethod;
       }) => {
-        console.log("[debug] mutationFn started", { id, paymentMethod, online: navigator.onLine });
+        // If the browser already knows it's offline, skip the network
+        // attempt entirely and go straight to queueing — no need to
+        // wait out a timeout when we already know there's no connection.
+        const alreadyKnownOffline = paymentMethod === "cash" && !navigator.onLine;
+
         try {
-          console.log("[debug] calling completeBillAction");
-          const result = await withTimeout(completeBillAction(id, paymentMethod), 4000);
-          console.log("[debug] completeBillAction resolved", result);
+          if (alreadyKnownOffline) {
+            throw new Error("Offline");
+          }
+          const result = await withTimeout(completeBillAction(id, paymentMethod), 15000);
           if (!result.success) throw new Error(result.error);
           return { id, queuedOffline: false };
         } catch (err) {
