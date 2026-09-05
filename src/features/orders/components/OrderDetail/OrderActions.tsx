@@ -24,7 +24,7 @@ interface OrderActionsProps {
   canCancel: boolean;
   onPrintKitchenTicket: () => void;
   isPrintingKitchenTicket: boolean;
-  onCompleteBill: (paymentMethod: PaymentMethod) => void;
+  onCompleteBill: (paymentMethod: PaymentMethod, amount?: number) => void;
   isCompletingBill: boolean;
   onCancelOrder: () => void;
   isCancelling: boolean;
@@ -103,6 +103,8 @@ export function OrderActions({
   const [cancelOpen, setCancelOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [branch, setBranch] = useState<Branch | undefined>(undefined);
+  const [isSplitting, setIsSplitting] = useState(false);
+  const [splitAmount, setSplitAmount] = useState("");
   const [dismissedAutoPrintFor, setDismissedAutoPrintFor] = useState<string | null>(null);
   // Only cash payments have an offline path (see completeBillAction/
   // offlinePaymentQueue) — card/JazzCash/Easypaisa/bank transfer all
@@ -148,13 +150,27 @@ export function OrderActions({
 
   if (!hasActions) return null;
 
+  const balance = order.balance;
+  const parsedSplitAmount = Number(splitAmount);
+  const isSplitAmountValid =
+    !isSplitting ||
+    (splitAmount.trim() !== "" &&
+      Number.isFinite(parsedSplitAmount) &&
+      parsedSplitAmount > 0 &&
+      parsedSplitAmount <= balance);
+
   async function handleCompleteOrder() {
-    const confirmed = await showConfirm(
-      `Mark order ${order.orderNumber} as paid and complete?`,
-      { title: "Complete order?", confirmLabel: "Mark Paid" }
-    );
+    const amount = isSplitting ? parsedSplitAmount : undefined;
+    const confirmMessage = isSplitting
+      ? `Record a payment of Rs. ${parsedSplitAmount} toward order ${order.orderNumber}?`
+      : `Mark order ${order.orderNumber} as paid and complete?`;
+    const confirmed = await showConfirm(confirmMessage, {
+      title: isSplitting ? "Record partial payment?" : "Complete order?",
+      confirmLabel: isSplitting ? "Record Payment" : "Mark Paid",
+    });
     if (!confirmed) return;
-    onCompleteBill(paymentMethod);
+    onCompleteBill(paymentMethod, amount);
+    if (isSplitting) setSplitAmount("");
   }
 
   return (
@@ -214,14 +230,41 @@ export function OrderActions({
             </div>
 
             {isDelivery ? (
-              <ActionButton
-                label="Complete Order"
-                icon={<Receipt className="w-3.5 h-3.5" />}
-                onClick={handleCompleteOrder}
-                isLoading={isCompletingBill}
-                variant="primary"
-                disabled={!canCompleteBill}
-              />
+              <div className="flex flex-col gap-1.5">
+                <label className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground cursor-pointer w-fit">
+                  <input
+                    type="checkbox"
+                    checked={isSplitting}
+                    onChange={(e) => {
+                      setIsSplitting(e.target.checked);
+                      setSplitAmount("");
+                    }}
+                    style={{ accentColor: "var(--primary)" }}
+                  />
+                  Split payment
+                </label>
+                {isSplitting && (
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    max={balance}
+                    step="0.01"
+                    value={splitAmount}
+                    onChange={(e) => setSplitAmount(e.target.value)}
+                    placeholder={`Up to ${balance}`}
+                    className="h-9 sm:h-8 w-28 rounded-lg border border-input bg-background px-2 text-xs"
+                  />
+                )}
+                <ActionButton
+                  label={isSplitting ? "Record Payment" : "Complete Order"}
+                  icon={<Receipt className="w-3.5 h-3.5" />}
+                  onClick={handleCompleteOrder}
+                  isLoading={isCompletingBill}
+                  variant="primary"
+                  disabled={!canCompleteBill || !isSplitAmountValid}
+                />
+              </div>
             ) : (
               <ActionButton
                 label="Print Bill"

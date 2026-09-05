@@ -3,12 +3,22 @@
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Clock, Phone } from "lucide-react";
-import { Suspense, useState } from "react";
+import { Suspense, useSyncExternalStore } from "react";
+
+function subscribeNoop() {
+  return () => {};
+}
+function getPhoneSnapshot() {
+  return sessionStorage.getItem("rns-last-order-phone") ?? "—";
+}
+function getPhoneServerSnapshot() {
+  return "—";
+}
 
 function ConfirmedContent() {
   const params = useSearchParams();
   const orderNumber = params.get("order") ?? "—";
-  const [phone] = useState(() => sessionStorage.getItem("rns-last-order-phone") ?? "—");
+  const phone = useSyncExternalStore(subscribeNoop, getPhoneSnapshot, getPhoneServerSnapshot);
   
   return (
     <div className="min-h-screen bg-[#faf9f7] pt-16 flex items-center justify-center px-4">
@@ -39,7 +49,7 @@ function ConfirmedContent() {
             <Phone className="w-4 h-4 text-[#e8570e] shrink-0" />
             <div>
               <p className="text-sm font-medium text-[#1a1815]">We&apos;ll call you at</p>
-              <p className="text-xs text-[#8a8680]">{phone}</p>
+              <p className="text-xs text-[#8a8680]" suppressHydrationWarning>{phone}</p>
             </div>
           </div>
 

@@ -7,6 +7,7 @@ import {
   confirmOrderAction,
   completeBillAction,
   cancelOrderAction,
+  refundPaymentAction,
 } from "@/features/orders/actions";
 import { markOrderReadyAction } from "@/features/deliveries/actions";
 import type { Order, PaymentMethod } from "@/types";
@@ -27,10 +28,12 @@ interface UseOrderDetailReturn {
   isPrintingKitchenTicket: boolean;
   markReady: (riderId: string | "auto") => void;
   isMarkingReady: boolean;
-  completeBill: (paymentMethod?: PaymentMethod) => void;
+  completeBill: (paymentMethod?: PaymentMethod, amount?: number) => void;
   isCompletingBill: boolean;
   cancelOrder: () => void;
   isCancelling: boolean;
+  refundPayment: (paymentId: string, amount: number, reason?: string) => void;
+  isRefundingPayment: boolean;
 }
 
 export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
@@ -74,9 +77,11 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
       mutationFn: async ({
         id,
         paymentMethod,
+        amount,
       }: {
         id: string;
         paymentMethod: PaymentMethod;
+        amount?: number;
       }) => {
         // If the browser already knows it's offline, skip the network
         // attempt entirely and go straight to queueing — no need to
@@ -87,14 +92,20 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
           if (alreadyKnownOffline) {
             throw new Error("Offline");
           }
-          const result = await withTimeout(completeBillAction(id, paymentMethod), 15000);
+          const result = await withTimeout(
+            completeBillAction(id, paymentMethod, undefined, amount),
+            15000
+          );
           if (!result.success) throw new Error(result.error);
-          return { id, queuedOffline: false };
+          return { id, queuedOffline: false, fullyPaid: result.fullyPaid };
         } catch (err) {
           // Only cash gets an offline fallback — card/JazzCash/bank
           // require a live connection to ever be valid, so any failure
           // for those is a real error, not a connectivity queue candidate.
-          if (paymentMethod !== "cash" || navigator.onLine) {
+          // Partial/split payments also don't get an offline fallback —
+          // the queue's replay path (offlinePaymentQueue → syncPendingPayments)
+          // doesn't carry an amount, so only full-balance cash payments queue.
+          if (paymentMethod !== "cash" || navigator.onLine || amount !== undefined) {
             throw err;
           }
           if (!currentStaff?.id || !currentStaff?.branchId) {
@@ -145,6 +156,24 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
     onError: (err: Error) => showAlert(err.message),
   });
 
+  const { mutate: mutateRefundPayment, isPending: isRefundingPayment } = useMutation({
+    mutationFn: async ({
+      paymentId,
+      amount,
+      reason,
+    }: {
+      paymentId: string;
+      amount: number;
+      reason?: string;
+    }) => {
+      const result = await refundPaymentAction(paymentId, amount, reason);
+      if (!result.success) throw new Error(result.error);
+      return orderId as string;
+    },
+    onSuccess: (id) => invalidateOrderQueries(id),
+    onError: (err: Error) => showAlert(err.message),
+  });
+
   const canPrintKitchenTicket = !!order && order.status === "pending";
   const canMarkReady =
     !!order && order.orderType === "delivery" && order.status === "confirmed";
@@ -180,9 +209,9 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
       mutateMarkReady({ id: orderId, riderId });
     },
     isMarkingReady,
-    completeBill: (paymentMethod: PaymentMethod = "cash") => {
+    completeBill: (paymentMethod: PaymentMethod = "cash", amount?: number) => {
       if (!orderId || !canPrintBill) return;
-      mutateCompleteBill({ id: orderId, paymentMethod });
+      mutateCompleteBill({ id: orderId, paymentMethod, amount });
     },
     isCompletingBill,
     cancelOrder: () => {
@@ -190,5 +219,10 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
       mutateCancelled(orderId);
     },
     isCancelling,
+    refundPayment: (paymentId: string, amount: number, reason?: string) => {
+      if (!orderId) return;
+      mutateRefundPayment({ paymentId, amount, reason });
+    },
+    isRefundingPayment,
   };
 }

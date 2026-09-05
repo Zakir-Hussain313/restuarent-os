@@ -1,4 +1,5 @@
 import { ManualProvider } from "./providers/ManualProvider";
+import { PayFastProvider } from "./providers/PayFastProvider";
 import type {
     PaymentProvider,
     InitiatePaymentInput,
@@ -10,11 +11,10 @@ import type {
     DbClient,
 } from "./types";
 
-// Registry of available providers, keyed by provider id. Phase 3 adds
-// "payfast": new PayFastProvider() here — nothing else in this file, or
-// in any caller, needs to change.
+// Registry of available providers, keyed by provider id.
 const providers: Record<string, PaymentProvider> = {
     manual: new ManualProvider(),
+    payfast: new PayFastProvider(),
 };
 
 function resolveProvider(id: string): PaymentProvider {

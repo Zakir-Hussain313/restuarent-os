@@ -1,0 +1,13 @@
+name: Cancel Abandoned Orders
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch: {}
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call abandoned-order cleanup endpoint
+        run: |
+          curl -f -X GET "${{ secrets.APP_URL }}/api/cron/cancel-abandoned-orders" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

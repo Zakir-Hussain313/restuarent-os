@@ -54,6 +54,8 @@ export interface Payment {
   processedAt: string;
   processedBy: string | null;
   processedByName?: string | null;
+  provider: string | null;
+  status: string;
 }
 
 export interface Order {

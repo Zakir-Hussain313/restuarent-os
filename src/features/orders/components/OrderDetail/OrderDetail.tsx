@@ -87,6 +87,7 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
     isCompletingBill,
     cancelOrder,
     isCancelling,
+    refundPayment,
   } = useOrderDetail(orderId);
 
   if (isLoading) {
@@ -320,14 +321,33 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
                   <div key={p.id} className="flex items-center justify-between text-sm">
                     <div className="flex flex-col">
                       <span>{PAYMENT_METHOD_LABEL[p.method] ?? p.method}</span>
-                      {p.processedByName && (
-                        <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                          Processed by{" "}
-                          <AttributionName liveId={p.processedBy} name={p.processedByName} />
+                      {p.provider === "payfast" ? (
+                        <span className="text-[10px] text-muted-foreground">
+                          Online Customer
                         </span>
+                      ) : (
+                        p.processedByName && (
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                            Processed by{" "}
+                            <AttributionName liveId={p.processedBy} name={p.processedByName} />
+                          </span>
+                        )
                       )}
                     </div>
-                    <span className="font-medium">Rs. {p.amount.toLocaleString()}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">Rs. {p.amount.toLocaleString()}</span>
+                      {p.provider === "payfast" && p.status === "paid" && (
+                        <button
+                          onClick={() => refundPayment(p.id, p.amount)}
+                          className="text-[10px] text-destructive hover:underline"
+                        >
+                          Refund
+                        </button>
+                      )}
+                      {p.status === "refunded" && (
+                        <span className="text-[10px] text-muted-foreground">Refunded</span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

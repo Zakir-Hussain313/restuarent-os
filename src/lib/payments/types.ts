@@ -22,17 +22,25 @@ export interface InitiatePaymentInput {
     method: PaymentMethod;
     terminalId?: string;
     clientPaymentId?: string;
-    processedBy: string;
+    processedBy: string | null;
     processedByName: string;
     metadata?: Record<string, unknown>;
+    // Required for redirect-based gateways (PayFast) — not used by ManualProvider.
+    customerEmail?: string;
+    customerPhone?: string;
 }
 
 export interface InitiatePaymentResult {
     paymentId: string;
     status: PaymentStatusLifecycle;
-    // Present only for redirect-based gateways (e.g. PayFast checkout URL).
-    // ManualProvider never sets this.
-    redirectUrl?: string;
+    // Present only for redirect-based gateways. PayFast's checkout isn't a
+    // plain GET redirect — the browser must auto-submit an HTML form POST
+    // with these exact fields to `checkoutForm.url`. ManualProvider never
+    // sets this.
+    checkoutForm?: {
+        url: string;
+        fields: Record<string, string>;
+    };
 }
 
 // Input to verify/reconcile a payment already recorded (e.g. from a webhook,

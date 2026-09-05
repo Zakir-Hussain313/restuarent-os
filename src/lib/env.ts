@@ -42,6 +42,11 @@ const envSchema = z.object({
   // Rate limiting (Upstash)
   UPSTASH_REDIS_REST_URL: z.string().url("UPSTASH_REDIS_REST_URL must be a valid URL"),
   UPSTASH_REDIS_REST_TOKEN: z.string().min(1, "UPSTASH_REDIS_REST_TOKEN is required"),
+  // PayFast (optional — only tenants with online payments enabled set these;
+  // ManualProvider-only tenants work fine without them)
+  PAYFAST_MERCHANT_ID: z.string().optional(),
+  PAYFAST_SECURED_KEY: z.string().optional(),
+  PAYFAST_BASE_URL: z.string().url("PAYFAST_BASE_URL must be a valid URL").optional(),
 });
 
 export function validateEnv() {

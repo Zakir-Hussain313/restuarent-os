@@ -8,6 +8,7 @@ import { useCustomerCartStore } from "@/store/useCustomerCartStore";
 import { useLocationStore } from "@/store/useLocationStore";
 import { usePublicBranchInfo } from "@/features/online-ordering/hooks/useOnlineOrdering";
 import { createPublicOrderAction } from "@/features/online-ordering/actions";
+import { initiatePublicPaymentAction } from "@/features/online-ordering/payment-actions";
 import { formatCurrency } from "@/lib/utils";
 
 export default function CheckoutPage() {
@@ -22,7 +23,8 @@ export default function CheckoutPage() {
   const resolvedBranchId =
     branchInfo?.branchCount === 1 ? branchInfo.singleBranch?.id : location?.branchId;
 
-  const [form, setForm] = useState({ name: "", phone: "", address: "" });
+  const [form, setForm] = useState({ name: "", phone: "", address: "", email: "" });
+  const [paymentChoice, setPaymentChoice] = useState<"delivery" | "online">("delivery");
   const [isPlacing, setIsPlacing] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [orderPlaced, setOrderPlaced] = useState(false);
@@ -49,6 +51,9 @@ export default function CheckoutPage() {
     const e: Record<string, string> = {};
     if (!form.phone.trim()) e.phone = "Phone number is required";
     if (!form.address.trim()) e.address = "Delivery address is required";
+    if (paymentChoice === "online" && !form.email.trim()) {
+      e.email = "Email is required to pay online";
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -74,17 +79,45 @@ export default function CheckoutPage() {
       })),
     });
 
-    setIsPlacing(false);
-
     if (!res.success) {
+      setIsPlacing(false);
       setServerError(res.error);
       return;
     }
 
-    setOrderPlaced(true);
     clearCart();
     sessionStorage.setItem("rns-last-order-phone", form.phone);
-    router.push(`/order/confirmed?order=${res.order.orderNumber}`);
+
+    if (paymentChoice === "delivery") {
+      setIsPlacing(false);
+      setOrderPlaced(true);
+      router.push(`/order/confirmed?order=${res.order.orderNumber}`);
+      return;
+    }
+
+    // Pay Now — start PayFast checkout and auto-submit the browser to it.
+    const paymentRes = await initiatePublicPaymentAction(res.order.id, form.email.trim());
+    setIsPlacing(false);
+
+    if (!paymentRes.success) {
+      setServerError(paymentRes.error);
+      return;
+    }
+
+    setOrderPlaced(true);
+    const { url, fields } = paymentRes.checkoutForm;
+    const formEl = document.createElement("form");
+    formEl.method = "POST";
+    formEl.action = url;
+    for (const [key, value] of Object.entries(fields)) {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = key;
+      input.value = value;
+      formEl.appendChild(input);
+    }
+    document.body.appendChild(formEl);
+    formEl.submit();
   }
 
   return (
@@ -138,6 +171,51 @@ export default function CheckoutPage() {
                   </p>
                 )}
               </Field>
+              {paymentChoice === "online" && (
+                <Field label="Email" icon={<User className="w-4 h-4" />} error={errors.email}>
+                  <input
+                    type="email"
+                    placeholder="you@example.com"
+                    value={form.email}
+                    onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                    className="w-full px-3 py-2.5 text-sm border border-[#ebe9e4] rounded-xl bg-[#faf9f7] focus:outline-none focus:border-[#e8570e] focus:ring-1 focus:ring-[#e8570e]/20 placeholder:text-[#c4c0ba] text-[#1a1815]"
+                  />
+                </Field>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-[#ebe9e4] p-6">
+            <h2 className="text-sm font-semibold text-[#1a1815] mb-4">
+              Payment Method
+            </h2>
+            <div className="flex flex-col gap-3">
+              <label className="flex items-center gap-3 p-3 rounded-xl border border-[#ebe9e4] cursor-pointer has-checked:border-[#e8570e]has-checked:bg-[#e8570e]/5">
+                <input
+                  type="radio"
+                  name="paymentChoice"
+                  checked={paymentChoice === "delivery"}
+                  onChange={() => setPaymentChoice("delivery")}
+                  className="accent-[#e8570e]"
+                />
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium text-[#1a1815]">Pay on Delivery</span>
+                  <span className="text-xs text-[#8a8680]">Cash or card when your order arrives</span>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 p-3 rounded-xl border border-[#ebe9e4] cursor-pointer has-checked:border-[#e8570e]has-checked:bg-[#e8570e]/5">
+                <input
+                  type="radio"
+                  name="paymentChoice"
+                  checked={paymentChoice === "online"}
+                  onChange={() => setPaymentChoice("online")}
+                  className="accent-[#e8570e]"
+                />
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium text-[#1a1815]">Pay Now Online</span>
+                  <span className="text-xs text-[#8a8680]">Card, JazzCash, Easypaisa & more via PayFast</span>
+                </div>
+              </label>
             </div>
           </div>
 
@@ -185,12 +263,14 @@ export default function CheckoutPage() {
             </div>
           )}
 
-          <p className="text-xs text-[#8a8680] text-center">
-            <span className="flex items-center gap-1.5">
-              <Banknote className="w-4 h-4" />
-              Cash on delivery — pay when your order arrives.
-            </span>
-          </p>
+          {paymentChoice === "delivery" && (
+            <p className="text-xs text-[#8a8680] text-center">
+              <span className="flex items-center gap-1.5 justify-center">
+                <Banknote className="w-4 h-4" />
+                Cash on delivery — pay when your order arrives.
+              </span>
+            </p>
+          )}
 
           <button
             onClick={handleConfirm}
@@ -200,8 +280,10 @@ export default function CheckoutPage() {
             {isPlacing ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Placing your order...
+                {paymentChoice === "online" ? "Redirecting to payment..." : "Placing your order..."}
               </>
+            ) : paymentChoice === "online" ? (
+              "Continue to Payment"
             ) : (
               "Confirm Order"
             )}

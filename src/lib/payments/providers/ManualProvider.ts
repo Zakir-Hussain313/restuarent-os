@@ -1,5 +1,6 @@
 import { db } from "@/db";
 import { payments, paymentRefunds } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import type {
     PaymentProvider,
     InitiatePaymentInput,
@@ -57,6 +58,11 @@ export class ManualProvider implements PaymentProvider {
     async refund(input: RefundPaymentInput, dbClient: DbClient = db): Promise<RefundPaymentResult> {
         // No gateway to call — a manual refund is just a record of the
         // fact, actioned by staff outside the app (e.g. giving cash back).
+        const payment = await dbClient.query.payments.findFirst({
+            where: (p, { eq }) => eq(p.id, input.paymentId),
+        });
+        if (!payment) throw new Error(`Payment not found: ${input.paymentId}`);
+
         const [row] = await dbClient
             .insert(paymentRefunds)
             .values({
@@ -69,6 +75,13 @@ export class ManualProvider implements PaymentProvider {
                 createdByName: input.createdByName,
             })
             .returning();
+
+        await dbClient
+            .update(payments)
+            .set({
+                status: input.amount >= payment.amount ? "refunded" : "partially_refunded",
+            })
+            .where(eq(payments.id, input.paymentId));
 
         return { refundId: row.id, status: row.status };
     }

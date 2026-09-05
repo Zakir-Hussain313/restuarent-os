@@ -41,7 +41,8 @@ export type AuditAction =
     | "logout"
     | "assign"
     | "unassign"
-    | "print";
+    | "print"
+    | "refund";
 
 export const auditLogs = pgTable(
     "audit_logs",

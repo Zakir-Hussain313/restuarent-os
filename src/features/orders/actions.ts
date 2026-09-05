@@ -15,10 +15,12 @@ import {
     restaurantTables,
     tableReservations,
     deliveries,
+    payments,
 } from "@/db/schema";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import type { Order, OrderStatus, OrderType } from "@/types";
+import { hasPermission } from "@/types/staff";
 import { RESTAURANT_CONFIG } from "@/config/restaurant";
 import { logAudit } from "@/lib/audit";
 import { getOfflineRef } from "@/features/orders/lib/printKitchenTicket";
@@ -202,8 +204,8 @@ export async function createOrderAction(
                 }),
                 input.tableId
                     ? tx.query.restaurantTables.findFirst({
-                          where: eq(restaurantTables.id, input.tableId),
-                      })
+                        where: eq(restaurantTables.id, input.tableId),
+                    })
                     : Promise.resolve(null),
             ]);
 
@@ -662,6 +664,8 @@ export async function getOrdersAction(
             processedAt: p.processedAt.toISOString(),
             processedBy: p.processedBy,
             processedByName: p.processedByName,
+            provider: p.provider,
+            status: p.status,
         })),
         totalPaid: o.totalPaid,
         balance: o.balance,
@@ -761,6 +765,8 @@ export async function getOrderByIdAction(
                 processedAt: p.processedAt.toISOString(),
                 processedBy: p.processedBy,
                 processedByName: p.processedByName,
+                provider: p.provider,
+                status: p.status,
             })),
             totalPaid: row.totalPaid,
             balance: row.balance,
@@ -814,8 +820,9 @@ export async function confirmOrderAction(
 export async function completeBillAction(
     orderId: string,
     paymentMethod: "cash" | "card" | "jazzcash" | "easypaisa" | "bank_transfer" | "complimentary" = "cash",
-    clientPaymentId?: string
-): Promise<{ success: true } | { success?: undefined; error: string }> {
+    clientPaymentId?: string,
+    amount?: number
+): Promise<{ success: true; fullyPaid: boolean } | { success?: undefined; error: string }> {
     const auth = await getCurrentStaff();
     if (!auth.ok) return { error: auth.error };
     const { staff: currentStaffRow } = auth;
@@ -833,19 +840,78 @@ export async function completeBillAction(
 
     // A clientPaymentId means this call may be a resync of a payment that
     // already succeeded once (offline queue retry) — if a payment with this
-    // id already exists, the order is already paid, so just report success
-    // instead of erroring on the "already completed" check above ever being
-    // reached differently, or double-counting totalPaid.
+    // id already exists, this exact payment already landed, so just report
+    // success instead of double-inserting or double-counting totalPaid.
     if (clientPaymentId) {
         const existingPayment = await db.query.payments.findFirst({
             where: (p, { eq: eqOp }) => eqOp(p.clientPaymentId, clientPaymentId),
         });
         if (existingPayment) {
-            return { success: true };
+            // By this point target.status is guaranteed not "completed"
+            // (the guard above already returned early for that case), so
+            // a matching clientPaymentId here means this specific payment
+            // was already recorded but didn't fully pay off the order.
+            return { success: true, fullyPaid: false };
         }
     }
 
-    if (target.orderType === "delivery") {
+    const remainingBalance = target.total - target.totalPaid;
+
+    // Already fully paid (e.g. PayFast online payment) but still sitting
+    // in the normal order flow — just mark it completed, no new payment.
+    if (remainingBalance <= 0) {
+        if (target.orderType === "delivery") {
+            const delivery = await db.query.deliveries.findFirst({ where: eq(deliveries.orderId, orderId) });
+            if (!delivery || delivery.status !== "delivered") {
+                return { error: "This delivery hasn't been marked delivered by the rider yet." };
+            }
+        }
+
+        const now = new Date();
+        await db.transaction(async (tx) => {
+            await tx
+                .update(orders)
+                .set({ status: "completed", completedAt: now, updatedAt: now })
+                .where(eq(orders.id, orderId));
+
+            if (target.tableId) {
+                await tx
+                    .update(restaurantTables)
+                    .set({ status: "available", updatedAt: now })
+                    .where(eq(restaurantTables.id, target.tableId));
+            }
+        });
+
+        await logAudit(db, currentStaffRow, "order", orderId, "status_change", {
+            branchId: target.branchId,
+            oldValue: { status: target.status },
+            newValue: { status: "completed", orderNumber: target.orderNumber },
+        });
+
+        await broadcastChange(target.branchId, "orders");
+        if (target.tableId) {
+            await broadcastChange(target.branchId, "tables");
+        }
+
+        return { success: true, fullyPaid: true };
+    }
+
+    // Defaults to a full payment (remaining balance) — every existing
+    // caller that doesn't pass `amount` keeps working exactly as before.
+    const paymentAmount = amount ?? remainingBalance;
+    if (paymentAmount <= 0) {
+        return { error: "Payment amount must be greater than zero." };
+    }
+    if (paymentAmount > remainingBalance) {
+        return { error: `Payment amount exceeds the remaining balance of ${remainingBalance}.` };
+    }
+
+    const willFullyPay = paymentAmount === remainingBalance;
+
+    // A delivery order can only be FULLY completed once the rider has
+    // marked it delivered — a partial payment taken earlier (e.g. a
+    // deposit at order time) doesn't need to wait for that.
+    if (willFullyPay && target.orderType === "delivery") {
         const delivery = await db.query.deliveries.findFirst({ where: eq(deliveries.orderId, orderId) });
         if (!delivery || delivery.status !== "delivered") {
             return { error: "This delivery hasn't been marked delivered by the rider yet." };
@@ -856,14 +922,18 @@ export async function completeBillAction(
 
     await db.transaction(async (tx) => {
         const now = new Date();
+        const newTotalPaid = target.totalPaid + paymentAmount;
+
         await tx
             .update(orders)
             .set({
-                status: "completed",
-                paymentStatus: "paid",
-                totalPaid: target.total,
-                balance: 0,
-                completedAt: now,
+                // Only flips to "completed" once the full total is paid —
+                // a partial payment leaves status untouched so the order
+                // stays open for the next payment.
+                ...(willFullyPay ? { status: "completed" as const, completedAt: now } : {}),
+                paymentStatus: willFullyPay ? "paid" : "partial",
+                totalPaid: newTotalPaid,
+                balance: target.total - newTotalPaid,
                 updatedAt: now,
             })
             .where(eq(orders.id, orderId));
@@ -873,7 +943,7 @@ export async function completeBillAction(
                 tenantId: currentStaffRow.tenantId,
                 branchId: target.branchId,
                 orderId,
-                amount: target.total,
+                amount: paymentAmount,
                 currency: "PKR",
                 method: paymentMethod,
                 clientPaymentId,
@@ -886,7 +956,9 @@ export async function completeBillAction(
 
         paymentId = payment.paymentId;
 
-        // Free up the table now that the order is done
+        // Table frees up on ANY payment against the order, not just a
+        // full one — Zakir's explicit call, since taking a payment (even
+        // partial) generally means the table is being vacated.
         if (target.tableId) {
             await tx
                 .update(restaurantTables)
@@ -898,12 +970,18 @@ export async function completeBillAction(
     await logAudit(db, currentStaffRow, "order", orderId, "status_change", {
         branchId: target.branchId,
         oldValue: { status: target.status, paymentStatus: target.paymentStatus },
-        newValue: { status: "completed", paymentStatus: "paid", paymentMethod, amount: target.total, orderNumber: target.orderNumber },
+        newValue: {
+            status: willFullyPay ? "completed" : target.status,
+            paymentStatus: willFullyPay ? "paid" : "partial",
+            paymentMethod,
+            amount: paymentAmount,
+            orderNumber: target.orderNumber,
+        },
     });
 
     await logAudit(db, currentStaffRow, "payment", paymentId, "create", {
         branchId: target.branchId,
-        newValue: { orderId, method: paymentMethod, amount: target.total, orderNumber: target.orderNumber },
+        newValue: { orderId, method: paymentMethod, amount: paymentAmount, orderNumber: target.orderNumber },
     });
 
     await broadcastChange(target.branchId, "orders");
@@ -911,7 +989,7 @@ export async function completeBillAction(
         await broadcastChange(target.branchId, "tables");
     }
 
-    return { success: true };
+    return { success: true, fullyPaid: willFullyPay };
 }
 
 // ─── Cancel Order ────────────────────────────────────────────────────────
@@ -960,3 +1038,55 @@ export async function cancelOrderAction(
 }
 
 
+// ─── Refund Payment ─────────────────────────────────────────────────────
+
+export async function refundPaymentAction(
+    paymentId: string,
+    amount: number,
+    reason?: string
+): Promise<{ success: true } | { success?: undefined; error: string }> {
+    const auth = await getCurrentStaff();
+    if (!auth.ok) return { error: auth.error };
+    const { staff: currentStaffRow } = auth;
+
+    if (!hasPermission(currentStaffRow.role, "manage_orders")) {
+        return { error: "You don't have permission to refund payments." };
+    }
+
+    const payment = await db.query.payments.findFirst({ where: eq(payments.id, paymentId) });
+    if (!payment || payment.tenantId !== currentStaffRow.tenantId) {
+        return { error: "Payment not found." };
+    }
+    if (currentStaffRow.role !== "SUPER_ADMIN" && payment.branchId !== currentStaffRow.branchId) {
+        return { error: "You can only manage your own branch's payments." };
+    }
+    if (payment.status !== "paid") {
+        return { error: `Cannot refund a payment that is "${payment.status}".` };
+    }
+    if (amount <= 0 || amount > payment.amount) {
+        return { error: "Refund amount must be between 0 and the original payment amount." };
+    }
+
+    const result = await PaymentService.refund(
+        {
+            paymentId: payment.id,
+            tenantId: payment.tenantId,
+            amount,
+            reason,
+            createdBy: currentStaffRow.id,
+            createdByName: `${currentStaffRow.firstName} ${currentStaffRow.lastName}`,
+        },
+        payment.provider ?? "manual"
+    );
+
+    await logAudit(db, currentStaffRow, "payment", payment.id, "refund", {
+        branchId: payment.branchId,
+        newValue: { amount, reason, refundId: result.refundId },
+    });
+
+    if (payment.branchId) {
+        await broadcastChange(payment.branchId, "orders");
+    }
+
+    return { success: true };
+}

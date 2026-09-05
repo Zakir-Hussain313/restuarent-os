@@ -1,0 +1,3 @@
+category,item_name,description,price,variants,modifiers,image_url
+Burgers,Zinger Burger,Crispy chicken burger,450,Regular:450;Large:600,"Spice Level(1-1): Mild:+0, Spicy:+0, Extra Spicy:+0 | Add-ons(0-2): Extra Cheese:+100, Extra Patty:+200",
+Drinks,Coke,Chilled soft drink,80,,,
