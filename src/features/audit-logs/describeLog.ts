@@ -93,6 +93,7 @@ const GENERIC_ACTION_VERB: Record<AuditAction, string> = {
   assign: "assigned",
   unassign: "unassigned",
   print: "printed",
+  refund: "refunded",
 };
 
 export function describeAuditLog(log: AuditLog): string {
