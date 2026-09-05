@@ -77,8 +77,11 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
         id: string;
         paymentMethod: PaymentMethod;
       }) => {
+        console.log("[debug] mutationFn started", { id, paymentMethod, online: navigator.onLine });
         try {
+          console.log("[debug] calling completeBillAction");
           const result = await withTimeout(completeBillAction(id, paymentMethod), 15000);
+          console.log("[debug] completeBillAction resolved", result);
           if (!result.success) throw new Error(result.error);
           return { id, queuedOffline: false };
         } catch (err) {
