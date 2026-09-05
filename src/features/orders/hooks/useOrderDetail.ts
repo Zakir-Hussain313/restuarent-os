@@ -70,6 +70,7 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
 
   const { mutate: mutateCompleteBill, isPending: isCompletingBill } =
     useMutation({
+      networkMode: "always",
       mutationFn: async ({
         id,
         paymentMethod,
@@ -80,7 +81,7 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
         console.log("[debug] mutationFn started", { id, paymentMethod, online: navigator.onLine });
         try {
           console.log("[debug] calling completeBillAction");
-          const result = await withTimeout(completeBillAction(id, paymentMethod), 15000);
+          const result = await withTimeout(completeBillAction(id, paymentMethod), 4000);
           console.log("[debug] completeBillAction resolved", result);
           if (!result.success) throw new Error(result.error);
           return { id, queuedOffline: false };
