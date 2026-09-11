@@ -13,7 +13,7 @@ echo "== Backing up tenant: ${TENANT_SLUG} =="
 
 mkdir -p "$TENANT_DIR"
 
-pg_dump -Fc --no-owner --no-privileges "$DB_URL" -f "$DUMP_FILE"
+/usr/lib/postgresql/17/bin/pg_dump -Fc --no-owner --no-privileges "$DB_URL" -f "$DUMP_FILE"
 if [ $? -ne 0 ]; then
   echo "::error::pg_dump failed for tenant ${TENANT_SLUG}"
   exit 1
