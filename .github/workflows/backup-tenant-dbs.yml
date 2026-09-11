@@ -6,12 +6,6 @@ on:
 jobs:
   backup:
     runs-on: ubuntu-latest
-    env:
-      R2_BUCKET: ${{ secrets.R2_BUCKET }}
-      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-      AWS_DEFAULT_REGION: auto
     steps:
       - uses: actions/checkout@v4
 
@@ -20,17 +14,40 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client
 
+      - name: Clone backup repo
+        run: |
+          git clone "https://x-access-token:${{ secrets.BACKUP_REPO_TOKEN }}@github.com/${{ secrets.BACKUP_REPO }}.git" backup-repo
+          cd backup-repo
+          git config user.name "backup-bot"
+          git config user.email "backup-bot@users.noreply.github.com"
+
       - name: Run backups for all tenants
+        id: run_backups
         run: |
           chmod +x scripts/backup-tenant-db.sh
           echo '${{ secrets.TENANT_DB_URLS }}' > /tmp/tenants.json
           FAILED=0
           for slug in $(jq -r 'keys[]' /tmp/tenants.json); do
             url=$(jq -r --arg s "$slug" '.[$s]' /tmp/tenants.json)
-            if ! ./scripts/backup-tenant-db.sh "$slug" "$url"; then
+            if ! ./scripts/backup-tenant-db.sh "$slug" "$url" "backup-repo"; then
               echo "::error::Backup failed for tenant: $slug"
               FAILED=1
             fi
           done
           rm -f /tmp/tenants.json
-          exit $FAILED
+          echo "failed=$FAILED" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push backups
+        run: |
+          cd backup-repo
+          git add .
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Backup $(date -u +"%Y-%m-%d %H:%M UTC")"
+            git push
+          fi
+
+      - name: Fail job if any tenant backup failed
+        if: steps.run_backups.outputs.failed == '1'
+        run: exit 1
