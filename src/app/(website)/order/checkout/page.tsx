@@ -24,7 +24,8 @@ export default function CheckoutPage() {
     branchInfo?.branchCount === 1 ? branchInfo.singleBranch?.id : location?.branchId;
 
   const [form, setForm] = useState({ name: "", phone: "", address: "", email: "" });
-  const [paymentChoice, setPaymentChoice] = useState<"delivery" | "online">("delivery");
+  const [paymentChoice, setPaymentChoice] = useState<"delivery" | "online" | "split">("delivery");
+  const [splitAmount, setSplitAmount] = useState("");
   const [isPlacing, setIsPlacing] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [orderPlaced, setOrderPlaced] = useState(false);
@@ -51,8 +52,16 @@ export default function CheckoutPage() {
     const e: Record<string, string> = {};
     if (!form.phone.trim()) e.phone = "Phone number is required";
     if (!form.address.trim()) e.address = "Delivery address is required";
-    if (paymentChoice === "online" && !form.email.trim()) {
+    if ((paymentChoice === "online" || paymentChoice === "split") && !form.email.trim()) {
       e.email = "Email is required to pay online";
+    }
+    if (paymentChoice === "split") {
+      const amount = Number(splitAmount);
+      if (!splitAmount.trim() || !Number.isFinite(amount) || amount <= 0) {
+        e.splitAmount = "Enter how much you'd like to pay online now";
+      } else if (amount >= estimatedTotal) {
+        e.splitAmount = "This should be less than the total — use 'Pay Now Online' instead for the full amount";
+      }
     }
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -95,8 +104,17 @@ export default function CheckoutPage() {
       return;
     }
 
-    // Pay Now — start PayFast checkout and auto-submit the browser to it.
-    const paymentRes = await initiatePublicPaymentAction(res.order.id, form.email.trim());
+    // "online" pays the full real total; "split" pays whatever the customer
+    // typed, capped against the real order total (not the display estimate,
+    // which can differ slightly from the server-confirmed delivery fee).
+    // The remainder is left as the order's balance — collected in cash on
+    // delivery, same as a normal Pay on Delivery order.
+    const onlineAmount =
+      paymentChoice === "split"
+        ? Math.min(Number(splitAmount), res.order.total)
+        : undefined;
+
+    const paymentRes = await initiatePublicPaymentAction(res.order.id, form.email.trim(), onlineAmount);
     setIsPlacing(false);
 
     if (!paymentRes.success) {
@@ -171,7 +189,7 @@ export default function CheckoutPage() {
                   </p>
                 )}
               </Field>
-              {paymentChoice === "online" && (
+              {(paymentChoice === "online" || paymentChoice === "split") && (
                 <Field label="Email" icon={<User className="w-4 h-4" />} error={errors.email}>
                   <input
                     type="email"
@@ -215,6 +233,46 @@ export default function CheckoutPage() {
                   <span className="text-sm font-medium text-[#1a1815]">Pay Now Online</span>
                   <span className="text-xs text-[#8a8680]">Card, JazzCash, Easypaisa & more via PayFast</span>
                 </div>
+              </label>
+              <label className="flex flex-col gap-3 p-3 rounded-xl border border-[#ebe9e4] cursor-pointer has-checked:border-[#e8570e]has-checked:bg-[#e8570e]/5">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="radio"
+                    name="paymentChoice"
+                    checked={paymentChoice === "split"}
+                    onChange={() => setPaymentChoice("split")}
+                    className="accent-[#e8570e]"
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium text-[#1a1815]">Split Payment</span>
+                    <span className="text-xs text-[#8a8680]">Pay part now online, rest collected on delivery</span>
+                  </div>
+                </div>
+                {paymentChoice === "split" && (
+                  <div className="pl-7 flex flex-col gap-1.5">
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      max={estimatedTotal}
+                      step="0.01"
+                      value={splitAmount}
+                      onChange={(e) => setSplitAmount(e.target.value)}
+                      placeholder="Amount to pay online now"
+                      className="w-full px-3 py-2.5 text-sm border border-[#ebe9e4] rounded-xl bg-[#faf9f7] focus:outline-none focus:border-[#e8570e] focus:ring-1 focus:ring-[#e8570e]/20 placeholder:text-[#c4c0ba] text-[#1a1815]"
+                    />
+                    {errors.splitAmount && (
+                      <p className="text-xs text-destructive">{errors.splitAmount}</p>
+                    )}
+                    {!errors.splitAmount &&
+                      splitAmount.trim() !== "" &&
+                      Number.isFinite(Number(splitAmount)) && (
+                        <p className="text-xs text-[#8a8680]">
+                          Rs. {(estimatedTotal - Number(splitAmount)).toLocaleString()} due on delivery
+                        </p>
+                      )}
+                  </div>
+                )}
               </label>
             </div>
           </div>
@@ -271,6 +329,17 @@ export default function CheckoutPage() {
               </span>
             </p>
           )}
+          {paymentChoice === "split" &&
+            !errors.splitAmount &&
+            splitAmount.trim() !== "" &&
+            Number.isFinite(Number(splitAmount)) && (
+              <p className="text-xs text-[#8a8680] text-center">
+                <span className="flex items-center gap-1.5 justify-center">
+                  <Banknote className="w-4 h-4" />
+                  Pay Rs. {Number(splitAmount).toLocaleString()} now, rest collected on delivery.
+                </span>
+              </p>
+            )}
 
           <button
             onClick={handleConfirm}
@@ -280,9 +349,11 @@ export default function CheckoutPage() {
             {isPlacing ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                {paymentChoice === "online" ? "Redirecting to payment..." : "Placing your order..."}
+                {paymentChoice === "online" || paymentChoice === "split"
+                  ? "Redirecting to payment..."
+                  : "Placing your order..."}
               </>
-            ) : paymentChoice === "online" ? (
+            ) : paymentChoice === "online" || paymentChoice === "split" ? (
               "Continue to Payment"
             ) : (
               "Confirm Order"

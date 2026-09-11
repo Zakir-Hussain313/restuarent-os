@@ -20,6 +20,7 @@ import type {
 } from "@/types";
 import { logAudit } from "@/lib/audit";
 import { broadcastChange } from "@/lib/realtime/broadcast";
+import { revalidatePath } from "next/cache";
 
 // ─── Shared input types (mirrors useMenuActions.ts exactly) ───────────────
 
@@ -491,6 +492,8 @@ export async function createMenuItemAction(
             newValue: { name: created.item.name, basePrice: created.item.basePrice, categoryId: created.item.categoryId, image: created.item.image },
         });
 
+        revalidatePath("/");
+
         return {
             success: true,
             item: {
@@ -631,6 +634,8 @@ export async function updateMenuItemAction(
             newValue: { name: input.name, basePrice: input.basePrice, status: input.status, image: input.image },
         });
 
+        revalidatePath("/");
+
         return { success: true };
     } catch (err) {
         return { error: `Failed to update menu item: ${(err as Error).message}` };
@@ -665,6 +670,8 @@ export async function deleteMenuItemAction(
         branchId: target.branchId,
         oldValue: { name: target.name, basePrice: target.basePrice },
     });
+
+    revalidatePath("/");
 
     return { success: true };
 }
@@ -752,6 +759,12 @@ export async function toggleItemFeaturedAction(
         .update(menuItems)
         .set({ isFeatured: nextFeatured, updatedAt: new Date() })
         .where(eq(menuItems.id, id));
+
+    // The homepage's Featured Dishes section is a server-rendered page with
+    // no dynamic APIs in it, so Next.js caches it as static HTML by default
+    // — it never re-checks the database on its own. This tells Next to
+    // throw away that cached copy so the next visitor gets a fresh render.
+    revalidatePath("/");
 
     return { success: true, isFeatured: nextFeatured };
 }

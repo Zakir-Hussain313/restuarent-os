@@ -1,0 +1,12 @@
+{
+  "table": "old_menu",
+  "columns": {
+    "category": "cat",
+    "item_name": "name",
+    "description": "notes",
+    "price": "cost",
+    "variants": "variant_str",
+    "modifiers": "modifier_str",
+    "image_url": "img"
+  }
+}

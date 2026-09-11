@@ -100,6 +100,7 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
+  billPrintedAt?: string;
 }
 
 export type OrderSummary = Pick<Order, "id" | "orderNumber" | "orderType" | "status" | "paymentStatus" | "total" | "tableNumber" | "items" | "staffId" | "createdAt" | "wasOfflineOrder" | "offlineRef">;

@@ -25,9 +25,26 @@ export async function GET(request: NextRequest) {
             return NextResponse.redirect(`${appUrl}/order/payment-failed?reason=payment_not_found`);
         }
 
+        // Capture this BEFORE calling verify() — verify() itself sets the
+        // payment's status to "paid", so checking after would always say
+        // "already paid" even on the very first real hit.
+        const wasAlreadyAppliedToOrder = payment.status === "paid";
+
         const verifyResult = await PaymentService.verify({ paymentId }, "payfast");
 
         if (verifyResult.status === "paid") {
+            // This exact payment's amount was already added to the order's
+            // totalPaid on a previous hit to this route (browser retry,
+            // refresh, back button, etc.) — redirect to the same success
+            // page again without re-adding the amount a second time.
+            if (wasAlreadyAppliedToOrder) {
+                const order = await db.query.orders.findFirst({ where: eq(orders.id, payment.orderId) });
+                if (order) {
+                    return NextResponse.redirect(`${appUrl}/order/confirmed?order=${order.orderNumber}`);
+                }
+                return NextResponse.redirect(`${appUrl}/order/payment-failed?reason=order_not_found`);
+            }
+
             const order = await db.query.orders.findFirst({ where: eq(orders.id, payment.orderId) });
             if (order) {
                 const now = new Date();

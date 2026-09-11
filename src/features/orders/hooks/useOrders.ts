@@ -59,6 +59,14 @@ export function useOrders(options: UseOrdersOptions = {}): UseOrdersReturn {
       if (res.data === null) throw new Error(res.error);
       return res.data;
     },
+    // Orders lists (Active Orders, Delivery) are operationally critical and
+    // often mounted right after a change made from a page that doesn't
+    // subscribe to realtime (e.g. POS). The dashboard-wide 60s staleTime
+    // default would let a stale persisted cache render on mount with no
+    // refetch. Override it here: always treat as stale, always refetch on
+    // mount, regardless of the global default.
+    staleTime: 0,
+    refetchOnMount: "always",
     refetchInterval: 60000, // safety-net fallback; realtime broadcast drives primary updates
   });
 

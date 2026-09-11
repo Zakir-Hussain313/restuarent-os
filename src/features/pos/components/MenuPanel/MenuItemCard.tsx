@@ -23,10 +23,12 @@ export function MenuItemCard({ item, cartQuantity, categoryIcon }: MenuItemCardP
   const isUnavailable = item.status !== "available";
   const hasOptions = item.variants.length > 0 || item.modifierGroups.length > 0;
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [optionsInstance, setOptionsInstance] = useState(0);
 
   function handleClick() {
     if (isUnavailable) return;
     if (hasOptions) {
+      setOptionsInstance((n) => n + 1);
       setOptionsOpen(true);
       return;
     }
@@ -96,6 +98,7 @@ export function MenuItemCard({ item, cartQuantity, categoryIcon }: MenuItemCardP
     </button>
     {hasOptions && (
       <ItemOptionsModal
+        key={optionsInstance}
         item={item}
         open={optionsOpen}
         onOpenChange={setOptionsOpen}

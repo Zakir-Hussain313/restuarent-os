@@ -19,7 +19,7 @@ import {
 } from "@/db/schema";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { eq, and, inArray, sql } from "drizzle-orm";
-import type { Order, OrderStatus, OrderType } from "@/types";
+import type { Order, OrderStatus, OrderType, PaymentMethod } from "@/types";
 import { hasPermission } from "@/types/staff";
 import { RESTAURANT_CONFIG } from "@/config/restaurant";
 import { logAudit } from "@/lib/audit";
@@ -122,6 +122,7 @@ function buildOrderResponse(
         staffName: order.staffName,
         createdAt: order.createdAt.toISOString(),
         updatedAt: order.updatedAt.toISOString(),
+        billPrintedAt: order.billPrintedAt?.toISOString(),
     };
 }
 
@@ -413,6 +414,12 @@ export async function createOrderAction(
                     totalDiscount,
                     deliveryFee,
                     total,
+                    // Balance starts as the full total — nothing paid yet.
+                    // Without this, a fresh order's balance sits at 0 (the
+                    // column default) until its first payment recalculates
+                    // it, which broke split/deposit payments taken before
+                    // any other payment exists on the order.
+                    balance: total,
                     deliveryAddress: input.deliveryAddress ?? null,
                     notes: input.notes ?? null,
                     staffId: currentStaffRow.id,
@@ -677,6 +684,7 @@ export async function getOrdersAction(
         createdAt: o.createdAt.toISOString(),
         updatedAt: o.updatedAt.toISOString(),
         completedAt: o.completedAt?.toISOString(),
+        billPrintedAt: o.billPrintedAt?.toISOString(),
     }));
 
     return { data };
@@ -778,6 +786,7 @@ export async function getOrderByIdAction(
             createdAt: row.createdAt.toISOString(),
             updatedAt: row.updatedAt.toISOString(),
             completedAt: row.completedAt?.toISOString(),
+            billPrintedAt: row.billPrintedAt?.toISOString(),
         },
     };
 }
@@ -811,6 +820,35 @@ export async function confirmOrderAction(
     });
 
     await broadcastChange(target.branchId, "orders");
+
+    return { success: true };
+}
+
+// ─── Mark Bill Printed ──────────────────────────────────────────────────
+
+// Called once the delivery bill has actually been printed. Persisted in
+// the DB (not just component state) so re-opening the order — even in a
+// fresh session, even on a different device — never re-triggers the
+// auto-print popup for an order that's already been printed once.
+export async function markBillPrintedAction(
+    orderId: string
+): Promise<{ success: true } | { success?: undefined; error: string }> {
+    const auth = await getCurrentStaff();
+    if (!auth.ok) return { error: auth.error };
+    const { staff: currentStaffRow } = auth;
+
+    const target = await db.query.orders.findFirst({ where: eq(orders.id, orderId) });
+    if (!target || target.tenantId !== currentStaffRow.tenantId) {
+        return { error: "Order not found." };
+    }
+    if (currentStaffRow.role !== "SUPER_ADMIN" && target.branchId !== currentStaffRow.branchId) {
+        return { error: "You can only manage your own branch's orders." };
+    }
+
+    await db
+        .update(orders)
+        .set({ billPrintedAt: new Date() })
+        .where(eq(orders.id, orderId));
 
     return { success: true };
 }
@@ -992,6 +1030,132 @@ export async function completeBillAction(
     return { success: true, fullyPaid: willFullyPay };
 }
 
+// ─── Record Split Payment ────────────────────────────────────────────────
+
+export interface SplitPaymentLine {
+    method: PaymentMethod;
+    amount: number;
+}
+
+// Records multiple payments (different methods) against one order in a
+// single transaction — e.g. a dine-in customer paying Rs. 1000 cash + Rs.
+// 1500 EasyPaisa for one bill. Only completes the order once the lines add
+// up to the exact remaining balance; otherwise it stays open with a
+// smaller balance (same "partial" behavior as completeBillAction's amount
+// param, just across several methods at once instead of one).
+export async function recordSplitPaymentAction(
+    orderId: string,
+    lines: SplitPaymentLine[]
+): Promise<{ success: true; fullyPaid: boolean } | { success?: undefined; error: string }> {
+    const auth = await getCurrentStaff();
+    if (!auth.ok) return { error: auth.error };
+    const { staff: currentStaffRow } = auth;
+
+    const target = await db.query.orders.findFirst({ where: eq(orders.id, orderId) });
+    if (!target || target.tenantId !== currentStaffRow.tenantId) {
+        return { error: "Order not found." };
+    }
+    if (currentStaffRow.role !== "SUPER_ADMIN" && target.branchId !== currentStaffRow.branchId) {
+        return { error: "You can only manage your own branch's orders." };
+    }
+    if (target.status === "completed" || target.status === "cancelled") {
+        return { error: `Cannot record a payment on an order that is already "${target.status}".` };
+    }
+
+    if (lines.length === 0) {
+        return { error: "Add at least one payment line." };
+    }
+    for (const line of lines) {
+        if (!line.amount || line.amount <= 0) {
+            return { error: "Every payment line must have an amount greater than zero." };
+        }
+    }
+
+    const remainingBalance = target.total - target.totalPaid;
+    const linesTotal = lines.reduce((sum, l) => sum + l.amount, 0);
+
+    if (linesTotal > remainingBalance) {
+        return { error: `These payments add up to more than the remaining balance of ${remainingBalance}.` };
+    }
+
+    // Split Payment only ever RECORDS payment lines â€” it never completes
+    // the order itself, even if the lines happen to sum to the full
+    // balance. Completing (and printing the final bill) is always a
+    // separate, explicit step via Complete Order / Print Bill â€” same as
+    // how an already-fully-paid PayFast order still needs completing.
+    const fullyPaid = linesTotal === remainingBalance;
+
+    const paymentIds: string[] = [];
+
+    await db.transaction(async (tx) => {
+        const now = new Date();
+        const newTotalPaid = target.totalPaid + linesTotal;
+
+        await tx
+            .update(orders)
+            .set({
+                paymentStatus: fullyPaid ? "paid" : "partial",
+                totalPaid: newTotalPaid,
+                balance: target.total - newTotalPaid,
+                updatedAt: now,
+            })
+            .where(eq(orders.id, orderId));
+
+        for (const line of lines) {
+            const payment = await PaymentService.initiate(
+                {
+                    tenantId: currentStaffRow.tenantId,
+                    branchId: target.branchId,
+                    orderId,
+                    amount: line.amount,
+                    currency: "PKR",
+                    method: line.method,
+                    processedBy: currentStaffRow.id,
+                    processedByName: `${currentStaffRow.firstName} ${currentStaffRow.lastName}`,
+                },
+                "manual",
+                tx
+            );
+            paymentIds.push(payment.paymentId);
+        }
+
+        // Table frees on any payment, partial or full â€” same as
+        // completeBillAction's existing behavior.
+        if (target.tableId) {
+            await tx
+                .update(restaurantTables)
+                .set({ status: "available", updatedAt: now })
+                .where(eq(restaurantTables.id, target.tableId));
+        }
+    });
+
+    await logAudit(db, currentStaffRow, "order", orderId, "status_change", {
+        branchId: target.branchId,
+        oldValue: { status: target.status, paymentStatus: target.paymentStatus },
+        newValue: {
+            status: target.status,
+            paymentStatus: fullyPaid ? "paid" : "partial",
+            splitPayment: true,
+            lines,
+            orderNumber: target.orderNumber,
+        },
+    });
+
+    for (const paymentId of paymentIds) {
+        await logAudit(db, currentStaffRow, "payment", paymentId, "create", {
+            branchId: target.branchId,
+            newValue: { orderId, orderNumber: target.orderNumber },
+        });
+    }
+
+    await broadcastChange(target.branchId, "orders");
+    if (target.tableId) {
+        await broadcastChange(target.branchId, "tables");
+    }
+
+    return { success: true, fullyPaid };
+}
+
 // ─── Cancel Order ────────────────────────────────────────────────────────
 
 export async function cancelOrderAction(
@@ -1078,6 +1242,27 @@ export async function refundPaymentAction(
         },
         payment.provider ?? "manual"
     );
+
+    // The refund above only updated the payment row itself — the order's
+    // own totals must be corrected too, or it keeps showing "Paid" for
+    // money that was actually returned to the customer.
+    const order = await db.query.orders.findFirst({ where: eq(orders.id, payment.orderId) });
+    if (order) {
+        const newTotalPaid = Math.max(0, order.totalPaid - amount);
+        const newBalance = order.total - newTotalPaid;
+        const newPaymentStatus =
+            newTotalPaid <= 0 ? "refunded" : newBalance > 0 ? "partial" : "paid";
+
+        await db
+            .update(orders)
+            .set({
+                totalPaid: newTotalPaid,
+                balance: newBalance,
+                paymentStatus: newPaymentStatus,
+                updatedAt: new Date(),
+            })
+            .where(eq(orders.id, order.id));
+    }
 
     await logAudit(db, currentStaffRow, "payment", payment.id, "refund", {
         branchId: payment.branchId,

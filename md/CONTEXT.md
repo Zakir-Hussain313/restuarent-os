@@ -95,7 +95,7 @@ Login is always email + password — there is no 4-digit PIN login anywhere. Zak
 
 ## 5. Codebase Reference
 
-**Stack:** Next.js (App Router, Turbopack), TypeScript strict, Tailwind, shadcn/ui, @base-ui/react primitives (Select, Popover, Dialog, AlertDialog), Drizzle ORM, PostgreSQL (Supabase), Supabase Auth + Realtime + Storage, Zustand, TanStack Query (IndexedDB-persisted for offline POS), idb-keyval, Zod, react-hook-form + zodResolver. Windows dev, PowerShell only, VS Code integrated terminal.
+**Stack:** Next.js (App Router, Turbopack), TypeScript strict, Tailwind, shadcn/ui, @base-ui/react primitives (Select, Popover, Dialog, AlertDialog), Drizzle ORM, PostgreSQL (Supabase), Supabase Auth + Realtime + Storage, Zustand, TanStack Query (IndexedDB-persisted for offline POS), idb-keyval, Zod, react-hook-form + zodResolver. `better-sqlite3` (menu migration tool only, not app runtime — see §12). Windows dev, PowerShell only, VS Code integrated terminal.
 
 **Folder structure (feature-based):**
 
@@ -171,6 +171,8 @@ Deleting an external resource (e.g. Supabase Auth user) and a DB row are two non
 
 **Payments architecture:** provider-agnostic `PaymentService` + `PaymentProvider` adapter interface (`src/lib/payments/`), never hardcoded to one gateway. `ManualProvider` (Phase 1, no external API — staff records cash/card/bank, recording = considered paid immediately) and `PayFastProvider` (Phase 3, PayFast's hosted Web Checkout — see §8) both implement the same `initiate`/`verify`/`refund` interface, all accepting an optional `dbClient` param so they can run inside an existing transaction. `completeBillAction` calls `PaymentService.initiate()` inside its own `db.transaction()`, keeping the payment insert atomic with the order-status update. Split payments: `completeBillAction` accepts an optional `amount` param (defaults to remaining balance); table frees on ANY payment, partial or full; `order.status` only flips to `"completed"` once `totalPaid >= total`.
 
+**Split Payment (multi-method, `recordSplitPaymentAction`):** records one or more payment lines (different methods) against an order in a single transaction, updating `totalPaid`/`balance`/`paymentStatus` only — it deliberately NEVER flips `order.status` to `"completed"`, even if the lines sum to the exact remaining balance. Completing the order (and printing the final bill) is always a separate, explicit step via Complete Order / Print Bill, same as an already-fully-paid PayFast order still needing an explicit complete. `SplitPaymentModal` shows any already-recorded payment lines ("Already recorded") when reopened on a partially-paid order. `canSplitPayment` requires `order.status` to be past `"pending"` (i.e. `"confirmed"` or later) and not `"completed"`/`"cancelled"`.
+
 ---
 
 ## 6. Design System (Dashboard/POS/Admin only)
@@ -243,6 +245,11 @@ All native `confirm()`/`alert()` replaced with `showConfirm()`/`showAlert()` fro
 34. `supabaseAdmin.auth.admin.inviteUserByEmail()` ALWAYS uses Supabase's implicit/hash-fragment flow, never PKCE — this is a Supabase platform limitation. Hash fragments never reach the server, so a PKCE-based `/auth/callback` route can never process an invite link. Point invite `redirectTo` directly at the destination page instead, and add a client-side effect there that reads `window.location.hash` and calls `supabase.auth.setSession()`. `resetPasswordForEmail` is a DIFFERENT method that DOES support PKCE and correctly uses `/auth/callback` — don't change that path to match the invite fix.
 35. Supabase's own Auth dashboard "Site URL" setting can override the app's `redirectTo` parameter entirely for implicit-flow methods. This is separate from `NEXT_PUBLIC_APP_URL`. If invite/magic links go to the wrong URL despite a correct env var, check Site URL in Supabase directly.
 36. Deleting an external resource (e.g. Supabase Auth user) and a DB row in two non-transactional steps means a failure between the two steps leaves partial state on retry — treat "not found" on the external-delete step as already-done, not a blocking error.
+37. A component gating its own render/unmount on derived "can-do-X" flags (e.g. `hasActions`) can self-unmount mid-flow when an action's success flips every flag to false in the same render (e.g. an order completing removes every action). Track "is any modal currently open" as its own condition and keep the component mounted whenever true, regardless of whether new actions are available.
+38. Action-availability flags like `canSplitPayment` must explicitly exclude every status where the action shouldn't yet be possible (e.g. `pending`), not just the terminal states where it's clearly over (`completed`/`cancelled`) — excluding only the terminal states leaves earlier invalid states wrongly enabled.
+39. A persisted, cross-session React Query cache (IndexedDB, global `staleTime`) can serve stale data on mount to a page that wasn't subscribed to realtime when a change happened elsewhere (e.g. POS creates an order while Active Orders wasn't mounted to receive the broadcast). Any operationally-critical list query needs its own `staleTime: 0` + `refetchOnMount: "always"` override — don't rely on a shared dashboard-wide default.
+40. PowerShell's `Get-Content`/terminal output re-encodes an em dash (—) as garbled bytes like `â€”` in what gets pasted back. This is a display/copy artifact only (see gotcha #4) — the real file on disk has a normal dash. When writing NEW code or comments (not editing existing ones), never copy a garbled sequence like `â€”` verbatim into a diff — always write a plain hyphen/em dash directly instead.
+41. A hand-written text/SQL parser that uses a naive `indexOf(delimiter)` to find a boundary (e.g. end-of-statement `;`) will misfire if that same delimiter character can legitimately appear inside a quoted value (e.g. a variant string like `Half:500;Full:900`). Any boundary search inside hand-rolled parsing must track quoted-string state (and paren depth, where relevant) and only match the delimiter outside of it.
 
 ---
 
@@ -261,6 +268,8 @@ Typical MDR: wallets ~1.5-3%, cards ~2.5-3.5%, Raast usually <1%, no setup/month
 Real end-to-end verification is blocked until a real restaurant client signs up for their own PayFast account with real CNIC/NTN. A fake local dev simulator exists at `src/app/api/dev/fake-payfast/` (auto-disabled in production via NODE_ENV check) to test the integration's logic end-to-end without real credentials — swap `PAYFAST_BASE_URL` back to the real PayFast base URL once real credentials exist, no other code changes needed.
 
 Architecture decision: CNIC/NTN and gateway API keys are meant to be stored as encrypted columns in the tenant's own DB, never in `.env` files, once multi-tenant onboarding is real (currently still using `.env` per the single dev tenant).
+
+**Current status:** Manual/cash payments (single and split, across methods) are fully built and tested end-to-end, including refunds on split-paid orders. PayFast is intentionally parked — no PayFast merchant account exists yet (needs a real restaurant's CNIC/NTN). Zakir's plan: create the merchant account once an actual paying customer signs up, then do real end-to-end PayFast testing at that point, including resolving the Web Checkout vs. Direct API question above with PayFast support directly.
 
 ---
 
@@ -306,11 +315,12 @@ General-purpose menu migrator for onboarding restaurants off a prior system. Bui
 - `migrators/lib/csv-reader.mjs` — CSV format reader (columns: `category, item_name, description, price, variants, modifiers, image_url`).
 - `migrators/lib/importer.mjs` — `buildPreview()` (dry-run summary) and `importMenu()` (the shared transaction-safe write engine, format-independent).
 
-**Format coverage — realistic plan, not built speculatively ahead of real data:**
+**Format coverage:**
 - CSV — done, fully tested.
-- Excel (.xlsx) — planned, same column layout as CSV, `exceljs` already in package.json.
-- SQLite — planned as a config-driven reader (table name + column-name mapping passed in, not hardcoded) so it works against any actual old-POS SQLite schema without needing to see it in advance.
-- SQL dump (.sql, raw `INSERT INTO` statements) — planned as a config-driven reader, same mapping approach.
+- Excel (.xlsx) — done (`migrators/lib/excel-reader.mjs`, via `exceljs`), same column layout as CSV.
+- SQLite (.sqlite/.sqlite3/.db) — done (`migrators/lib/sqlite-reader.mjs`, via `better-sqlite3`), config-driven (table + column-name mapping passed via `--config=<path.json>`, not hardcoded) so it works against any actual old-POS SQLite schema. Not yet tested against a real old-POS export — only smoke-tested with a hand-made file.
+- SQL dump (.sql, raw `INSERT INTO` statements) — done (`migrators/lib/sql-dump-reader.mjs`), same config-driven mapping approach, plus an optional `columnOrder` for dumps whose INSERT statements omit explicit column names. Hand-written character-scan parser (not a full SQL parser) — built for typical MySQL/SQLite dump syntax; review the dry-run preview carefully on a real dump before `--commit`, unusual escaping/dialects may not parse perfectly. Statement-end detection (`findStatementEnd`) must scan respecting quoted-string state, not a naive `indexOf(";")` — a value can legitimately contain a semicolon (e.g. a variant string like `Half:500;Full:900`), which would otherwise cut the INSERT statement off mid-way and silently corrupt/drop every row after it. Caught and fixed via a full 4-format fixture test (`migrators/create-test-fixtures.mjs`) before any real use.
+- Config file shape documented in `migrators/config.example.json`.
 - MS Access (.mdb/.accdb) — deliberately not building a native parser (poor Node support, low likelihood of need); plan is to convert Access → SQLite or CSV using an external tool first, then reuse the SQLite/CSV readers.
 - Manual entry (notebook, photos, PDFs, WhatsApp/Google catalog listings) — not a code path at all, just staff/Zakir typing directly into Menu Management during onboarding.
 
@@ -357,7 +367,7 @@ Only once all four are done for a given country should Zaiqa be described as eli
 - Database backups — solved via Supabase Pro plan per tenant, no custom code needed (see §10).
 - Migration/import script from prior POS systems — CSV done, Excel/SQLite/SQL-dump readers planned next (see §12).
 - Professional branded emails via Resend SMTP — deferred on purpose, not yet built.
-- Payment gateway (PayFast) merchant onboarding — per-restaurant, owner signs up themselves, hands credentials to Zakir for env setup (see §8).
+- Payment gateway (PayFast) merchant onboarding — per-restaurant, owner signs up themselves, hands credentials to Zakir for env setup (see §8). Blocked until a real customer signs up (needs their CNIC/NTN); once that happens, must also confirm with PayFast support whether hosted Web Checkout is actually available or whether Direct API is required (see §8 field-verification status) before going live with real payments.
 - Privacy Policy (GDPR-compliant, covering payment data handling — "never store card numbers/CVV/PINs/OTPs") — required before going live with any payment processing, not yet drafted.
 - Staging environment — needed before real load/stress testing at scale.
 - Before onboarding any restaurant with many concurrent terminals: upgrade that tenant's Supabase instance to Pro + adequate compute size, then re-run load testing at their expected concurrency.  

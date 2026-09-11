@@ -104,6 +104,12 @@ export const orders = pgTable(
             .notNull()
             .defaultNow(),
         completedAt: timestamp("completed_at", { withTimezone: true }),
+        // Persisted stamp — once a delivery bill is actually printed, this
+        // stays set forever, so re-opening the order (even in a fresh
+        // session) never re-triggers the auto-print popup. Ephemeral
+        // component state alone (dismissedAutoPrintFor) doesn't survive
+        // a remount, which was the root cause of the bill re-popping bug.
+        billPrintedAt: timestamp("bill_printed_at", { withTimezone: true }),
     },
     (t) => [
         // RLS + all tenant-scoped queries

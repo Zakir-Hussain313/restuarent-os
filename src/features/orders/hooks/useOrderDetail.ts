@@ -8,6 +8,9 @@ import {
   completeBillAction,
   cancelOrderAction,
   refundPaymentAction,
+  markBillPrintedAction,
+  recordSplitPaymentAction,
+  type SplitPaymentLine,
 } from "@/features/orders/actions";
 import { markOrderReadyAction } from "@/features/deliveries/actions";
 import type { Order, PaymentMethod } from "@/types";
@@ -34,6 +37,10 @@ interface UseOrderDetailReturn {
   isCancelling: boolean;
   refundPayment: (paymentId: string, amount: number, reason?: string) => void;
   isRefundingPayment: boolean;
+  markBillPrinted: () => void;
+  canSplitPayment: boolean;
+  splitPayment: (lines: SplitPaymentLine[]) => void;
+  isRecordingSplitPayment: boolean;
 }
 
 export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
@@ -174,6 +181,27 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
     onError: (err: Error) => showAlert(err.message),
   });
 
+  // Fire-and-forget — called right after an actual print happens, never
+  // blocks the print flow itself. No error alert on failure; worst case
+  // the auto-print popup shows once more next time, which is harmless.
+  const { mutate: mutateMarkBillPrinted } = useMutation({
+    mutationFn: async (id: string) => {
+      await markBillPrintedAction(id);
+      return id;
+    },
+    onSuccess: (id) => invalidateOrderQueries(id),
+  });
+
+  const { mutate: mutateSplitPayment, isPending: isRecordingSplitPayment } = useMutation({
+    mutationFn: async ({ id, lines }: { id: string; lines: SplitPaymentLine[] }) => {
+      const result = await recordSplitPaymentAction(id, lines);
+      if (!result.success) throw new Error(result.error);
+      return id;
+    },
+    onSuccess: (id) => invalidateOrderQueries(id),
+    onError: (err: Error) => showAlert(err.message),
+  });
+
   const canPrintKitchenTicket = !!order && order.status === "pending";
   const canMarkReady =
     !!order && order.orderType === "delivery" && order.status === "confirmed";
@@ -190,7 +218,18 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
   const canCancel =
     !!order &&
     (order.status === "pending" || order.status === "confirmed" || order.status === "ready_for_delivery");
-
+  // Broader than canPrintBill on purpose — a split payment (e.g. a deposit,
+  // or a dine-in customer paying across two methods) can happen at any
+  // point before the order is completed or cancelled. Whether it can
+  // actually complete the order (delivery must be "delivered" first) is
+  // still enforced server-side in recordSplitPaymentAction.
+  const canSplitPayment =
+    !!order &&
+    order.balance > 0 &&
+    order.status !== "pending" &&
+    order.status !== "completed" &&
+    order.status !== "cancelled";
+    
   return {
     order,
     isLoading,
@@ -210,7 +249,12 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
     },
     isMarkingReady,
     completeBill: (paymentMethod: PaymentMethod = "cash", amount?: number) => {
-      if (!orderId || !canPrintBill) return;
+      if (!orderId) return;
+      // Full payment needs the order fully ready to close (delivered).
+      // A split/partial payment is a deposit — it only needs the bill
+      // to be printable, same as canPrintBill.
+      const isFullPayment = amount === undefined;
+      if (isFullPayment ? !canCompleteBill : !canPrintBill) return;
       mutateCompleteBill({ id: orderId, paymentMethod, amount });
     },
     isCompletingBill,
@@ -224,5 +268,15 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
       mutateRefundPayment({ paymentId, amount, reason });
     },
     isRefundingPayment,
+    markBillPrinted: () => {
+      if (!orderId) return;
+      mutateMarkBillPrinted(orderId);
+    },
+    canSplitPayment,
+    splitPayment: (lines: SplitPaymentLine[]) => {
+      if (!orderId || !canSplitPayment) return;
+      mutateSplitPayment({ id: orderId, lines });
+    },
+    isRecordingSplitPayment,
   };
 }

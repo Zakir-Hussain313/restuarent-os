@@ -357,6 +357,12 @@ export async function createPublicOrderAction(
                     totalDiscount: 0,
                     deliveryFee,
                     total,
+                    // Same fix as the dashboard's createOrderAction — balance
+                    // must start at the full total, not the column's 0
+                    // default, or a deposit/split payment before any other
+                    // payment exists shows "Balance: Rs. 0" instead of the
+                    // real amount owed.
+                    balance: total,
                     deliveryAddress: [input.deliveryAddress, input.area, input.city]
                         .filter((part) => part && part.trim().length > 0)
                         .join(", "),

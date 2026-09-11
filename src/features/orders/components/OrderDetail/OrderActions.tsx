@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Printer, Receipt, XCircle, Loader2, Bike } from "lucide-react";
+import { Printer, Receipt, XCircle, Loader2, Bike, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { KitchenTicketModal } from "../modals/KitchenTicketModal";
 import { BillModal } from "../modals/BillModal";
 import { CancelConfirmModal } from "../modals/CancelConfirmModal";
 import { MarkReadyModal } from "../modals/MarkReadyModal";
+import { SplitPaymentModal } from "../modals/SplitPaymentModal";
 import { getBranchesAction } from "@/features/staff/actions";
 import type { Branch } from "@/db/schema";
 import type { Order, PaymentMethod } from "@/types";
+import type { SplitPaymentLine } from "@/features/orders/actions";
 import { useAlertModal } from "@/components/providers/AlertModalProvider";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
@@ -24,10 +26,14 @@ interface OrderActionsProps {
   canCancel: boolean;
   onPrintKitchenTicket: () => void;
   isPrintingKitchenTicket: boolean;
-  onCompleteBill: (paymentMethod: PaymentMethod, amount?: number) => void;
+  onCompleteBill: (paymentMethod: PaymentMethod) => void;
   isCompletingBill: boolean;
   onCancelOrder: () => void;
   isCancelling: boolean;
+  onBillPrinted: () => void;
+  canSplitPayment: boolean;
+  onSplitPayment: (lines: SplitPaymentLine[]) => void;
+  isRecordingSplitPayment: boolean;
 }
 
 interface ActionButtonProps {
@@ -95,6 +101,10 @@ export function OrderActions({
   isCompletingBill,
   onCancelOrder,
   isCancelling,
+  onBillPrinted,
+  canSplitPayment,
+  onSplitPayment,
+  isRecordingSplitPayment,
 }: OrderActionsProps) {
   const { showConfirm } = useAlertModal();
   const [kitchenTicketOpen, setKitchenTicketOpen] = useState(false);
@@ -103,8 +113,11 @@ export function OrderActions({
   const [cancelOpen, setCancelOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [branch, setBranch] = useState<Branch | undefined>(undefined);
-  const [isSplitting, setIsSplitting] = useState(false);
-  const [splitAmount, setSplitAmount] = useState("");
+  const [splitModalOpen, setSplitModalOpen] = useState(false);
+  // Bumped every time the split modal opens — passed as the modal's `key`
+  // so it fully remounts (and its internal draft lines reset) instead of
+  // needing a setState-in-effect to clear stale state from last time.
+  const [splitModalInstance, setSplitModalInstance] = useState(0);
   const [dismissedAutoPrintFor, setDismissedAutoPrintFor] = useState<string | null>(null);
   // Only cash payments have an offline path (see completeBillAction/
   // offlinePaymentQueue) — card/JazzCash/Easypaisa/bank transfer all
@@ -137,40 +150,48 @@ export function OrderActions({
   }, [order.branchId]);
 
   const isDelivery = order.orderType === "delivery";
-  const hasActions = canPrintKitchenTicket || canMarkReady || canPrintBill || canCancel;
+  const hasActions = canPrintKitchenTicket || canMarkReady || canPrintBill || canCancel || canSplitPayment;
+  // A split payment can complete the order in the same tick this renders,
+  // flipping every can* flag above to false before the post-split print
+  // modal gets a chance to show. Stay mounted whenever any modal is open,
+  // regardless of whether new actions are currently available.
+  const anyModalOpen =
+    kitchenTicketOpen || markReadyOpen || billOpen || cancelOpen || splitModalOpen;
 
   // Auto-open + auto-print the bill the moment a delivery order first
   // reaches "ready_for_delivery" — derived at render time, no effect needed.
+  // Gated on the persisted billPrintedAt flag (not just dismissedAutoPrintFor,
+  // which is component state and resets on every remount — e.g. navigating
+  // away and back — causing the popup to reappear even after it was
+  // already printed once).
   const autoOpenBill =
     isDelivery &&
     order.status === "ready_for_delivery" &&
+    !order.billPrintedAt &&
     dismissedAutoPrintFor !== order.id;
 
   const isBillModalOpen = billOpen || autoOpenBill;
 
-  if (!hasActions) return null;
-
-  const balance = order.balance;
-  const parsedSplitAmount = Number(splitAmount);
-  const isSplitAmountValid =
-    !isSplitting ||
-    (splitAmount.trim() !== "" &&
-      Number.isFinite(parsedSplitAmount) &&
-      parsedSplitAmount > 0 &&
-      parsedSplitAmount <= balance);
+  if (!hasActions && !anyModalOpen) return null;
 
   async function handleCompleteOrder() {
-    const amount = isSplitting ? parsedSplitAmount : undefined;
-    const confirmMessage = isSplitting
-      ? `Record a payment of Rs. ${parsedSplitAmount} toward order ${order.orderNumber}?`
-      : `Mark order ${order.orderNumber} as paid and complete?`;
-    const confirmed = await showConfirm(confirmMessage, {
-      title: isSplitting ? "Record partial payment?" : "Complete order?",
-      confirmLabel: isSplitting ? "Record Payment" : "Mark Paid",
-    });
+    const confirmed = await showConfirm(
+      `Mark order ${order.orderNumber} as paid and complete?`,
+      { title: "Complete order?", confirmLabel: "Mark Paid" }
+    );
     if (!confirmed) return;
-    onCompleteBill(paymentMethod, amount);
-    if (isSplitting) setSplitAmount("");
+    onCompleteBill(paymentMethod);
+  }
+
+  async function handleSplitConfirm(lines: SplitPaymentLine[]) {
+    const total = lines.reduce((sum, l) => sum + l.amount, 0);
+    const confirmed = await showConfirm(
+      `Record ${lines.length} payment${lines.length > 1 ? "s" : ""} totaling Rs. ${total.toLocaleString()} toward order ${order.orderNumber}?`,
+      { title: "Record payments?", confirmLabel: "Confirm" }
+    );
+    if (!confirmed) return;
+    onSplitPayment(lines);
+    setSplitModalOpen(false);
   }
 
   return (
@@ -230,41 +251,14 @@ export function OrderActions({
             </div>
 
             {isDelivery ? (
-              <div className="flex flex-col gap-1.5">
-                <label className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground cursor-pointer w-fit">
-                  <input
-                    type="checkbox"
-                    checked={isSplitting}
-                    onChange={(e) => {
-                      setIsSplitting(e.target.checked);
-                      setSplitAmount("");
-                    }}
-                    style={{ accentColor: "var(--primary)" }}
-                  />
-                  Split payment
-                </label>
-                {isSplitting && (
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    min={0}
-                    max={balance}
-                    step="0.01"
-                    value={splitAmount}
-                    onChange={(e) => setSplitAmount(e.target.value)}
-                    placeholder={`Up to ${balance}`}
-                    className="h-9 sm:h-8 w-28 rounded-lg border border-input bg-background px-2 text-xs"
-                  />
-                )}
-                <ActionButton
-                  label={isSplitting ? "Record Payment" : "Complete Order"}
-                  icon={<Receipt className="w-3.5 h-3.5" />}
-                  onClick={handleCompleteOrder}
-                  isLoading={isCompletingBill}
-                  variant="primary"
-                  disabled={!canCompleteBill || !isSplitAmountValid}
-                />
-              </div>
+              <ActionButton
+                label="Complete Order"
+                icon={<Receipt className="w-3.5 h-3.5" />}
+                onClick={handleCompleteOrder}
+                isLoading={isCompletingBill}
+                variant="primary"
+                disabled={!canCompleteBill}
+              />
             ) : (
               <ActionButton
                 label="Print Bill"
@@ -275,6 +269,19 @@ export function OrderActions({
               />
             )}
           </>
+        )}
+
+        {canSplitPayment && (
+          <ActionButton
+            label="Split Payment"
+            icon={<Layers className="w-3.5 h-3.5" />}
+            onClick={() => {
+              setSplitModalInstance((n) => n + 1);
+              setSplitModalOpen(true);
+            }}
+            isLoading={false}
+            variant="secondary"
+          />
         )}
 
         {canCancel && (
@@ -311,7 +318,18 @@ export function OrderActions({
         onClose={() => setMarkReadyOpen(false)}
       />
 
-      <BillModal
+      <SplitPaymentModal
+        key={splitModalInstance}
+        open={splitModalOpen}
+        orderNumber={order.orderNumber}
+        balance={order.balance}
+        existingPayments={order.payments.filter((p) => p.status === "paid")}
+        isSubmitting={isRecordingSplitPayment}
+        onConfirm={handleSplitConfirm}
+        onClose={() => setSplitModalOpen(false)}
+      />
+
+            <BillModal
         open={isBillModalOpen}
         order={order}
         branch={branch}
@@ -328,6 +346,7 @@ export function OrderActions({
           setBillOpen(false);
           setDismissedAutoPrintFor(order.id);
         }}
+        onPrinted={onBillPrinted}
         mode={isDelivery ? "printOnly" : "printAndComplete"}
         autoPrint={false}
       />

@@ -16,6 +16,8 @@ interface BillModalProps {
   isConfirming: boolean;
   onConfirm: () => void;
   onClose: () => void;
+  /** Called right after an actual print happens (not for completeOnly mode). */
+  onPrinted?: () => void;
   mode?: "printAndComplete" | "printOnly" | "completeOnly";
   /** Auto-trigger printing once, right when the modal opens — no manual click needed. */
   autoPrint?: boolean;
@@ -60,6 +62,7 @@ export function BillModal({
   isConfirming,
   onConfirm,
   onClose,
+  onPrinted,
   mode = "printAndComplete",
   autoPrint = false,
 }: BillModalProps) {
@@ -133,10 +136,13 @@ export function BillModal({
     printWindow.print();
     printWindow.close();
 
+    onPrinted?.();
     onConfirm();
   }
 
   const activeItems = order.items.filter((item) => item.status !== "cancelled");
+  const paidPayments = order.payments.filter((p) => p.status === "paid");
+  const isSplitPayment = paidPayments.length > 0 && order.balance > 0;
 
   return (
     <div
@@ -311,12 +317,38 @@ export function BillModal({
                 <span className="tabular-nums">{formatCurrency(order.total)}</span>
               </div>
 
-              <div className="flex justify-between text-xs text-gray-600 pt-1">
-                <span>Payment Method</span>
-                <span className="font-medium">
-                  {PAYMENT_METHOD_LABELS[paymentMethod]}
-                </span>
-              </div>
+              {isSplitPayment && (
+                <div className="flex justify-between text-xs font-bold text-gray-700 pt-1">
+                  <span>Split Payment</span>
+                  <span>Yes</span>
+                </div>
+              )}
+
+              {paidPayments.map((p) => (
+                <div key={p.id} className="flex justify-between text-xs text-gray-600">
+                  <span>
+                    Paid — {PAYMENT_METHOD_LABELS[p.method] ?? p.method}
+                    {p.provider === "payfast" ? " (Online)" : ""}
+                  </span>
+                  <span className="tabular-nums">{formatCurrency(p.amount)}</span>
+                </div>
+              ))}
+
+              {order.balance > 0 ? (
+                <div className="flex justify-between text-xs text-gray-600">
+                  <span>Balance Due — {PAYMENT_METHOD_LABELS[paymentMethod]}</span>
+                  <span className="tabular-nums">{formatCurrency(order.balance)}</span>
+                </div>
+              ) : (
+                paidPayments.length === 0 && (
+                  <div className="flex justify-between text-xs text-gray-600 pt-1">
+                    <span>Payment Method</span>
+                    <span className="font-medium">
+                      {PAYMENT_METHOD_LABELS[paymentMethod]}
+                    </span>
+                  </div>
+                )
+              )}
             </div>
 
             <div className="border-t border-dashed border-gray-400" />

@@ -5,34 +5,53 @@
  *   node migrate-menu.mjs <file> --branch=<branchId>            (preview only, no writes)
  *   node migrate-menu.mjs <file> --branch=<branchId> --commit   (actually writes)
  *
- * Supported formats right now: .csv
- * To add a new format later (Excel, SQLite, etc.): write one reader in
- * migrators/lib/ that produces the same flat row shape (category, item_name,
- * description, price, variants, modifiers, image_url) and reuse
- * rows-to-menu.mjs — or produce the { categories: [...] } shape directly.
+ * Supported formats right now: .csv, .xlsx, .sqlite/.db/.sqlite3, .sql (dump)
+ *
+ * SQLite and SQL dump formats need a --config=<path.json> flag, since their
+ * table/column names are unknown ahead of time. See
+ * migrators/config.example.json for the shape.
  *
  * Setup: npm i -D csv-parse
  */
 
-import { config } from "dotenv";
-config({ path: ".env.local" });
+import { config as loadEnv } from "dotenv";
+loadEnv({ path: ".env.local" });
+import { readFileSync } from "node:fs";
 import postgres from "postgres";
 import readline from "node:readline/promises";
 import { readCsvMenu } from "./migrators/lib/csv-reader.mjs";
+import { readExcelMenu } from "./migrators/lib/excel-reader.mjs";
+import { readSqliteMenu } from "./migrators/lib/sqlite-reader.mjs";
+import { readSqlDumpMenu } from "./migrators/lib/sql-dump-reader.mjs";
 import { buildPreview, importMenu } from "./migrators/lib/importer.mjs";
 
 const [, , filePath, ...flags] = process.argv;
 const branchId = flags.find((f) => f.startsWith("--branch="))?.split("=")[1];
+const configPath = flags.find((f) => f.startsWith("--config="))?.split("=")[1];
 const commit = flags.includes("--commit");
 
 if (!filePath || !branchId) {
-  console.error("Usage: node migrate-menu.mjs <file> --branch=<branchId> [--commit]");
+  console.error("Usage: node migrate-menu.mjs <file> --branch=<branchId> [--config=<path.json>] [--commit]");
   process.exit(1);
 }
 
-function readMenu(path) {
+function loadReaderConfig(path) {
+  if (!path) return null;
+  return JSON.parse(readFileSync(path, "utf-8"));
+}
+
+async function readMenu(path, readerConfig) {
   if (path.endsWith(".csv")) return readCsvMenu(path);
-  throw new Error(`Unsupported file type: ${path}. Only .csv is supported right now.`);
+  if (path.endsWith(".xlsx")) return readExcelMenu(path);
+  if (/\.(sqlite3?|db)$/i.test(path)) {
+    if (!readerConfig) throw new Error("SQLite files require --config=<path.json>. See migrators/config.example.json.");
+    return readSqliteMenu(path, readerConfig);
+  }
+  if (path.endsWith(".sql")) {
+    if (!readerConfig) throw new Error("SQL dump files require --config=<path.json>. See migrators/config.example.json.");
+    return readSqlDumpMenu(path, readerConfig);
+  }
+  throw new Error(`Unsupported file type: ${path}.`);
 }
 
 async function main() {
@@ -47,7 +66,8 @@ async function main() {
   const tenantId = branch.tenant_id;
   console.log(`Target branch: ${branch.name}\n`);
 
-  const { categories, errors: rowErrors } = readMenu(filePath);
+  const readerConfig = loadReaderConfig(configPath);
+  const { categories, errors: rowErrors } = await readMenu(filePath, readerConfig);
 
   if (rowErrors.length) {
     console.log(`⚠ ${rowErrors.length} row issue(s):`);

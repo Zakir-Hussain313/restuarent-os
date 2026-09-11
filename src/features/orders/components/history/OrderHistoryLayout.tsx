@@ -7,7 +7,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { OrderHistoryFilters } from "./OrderHistoryFilters";
 import { OrderHistoryTable } from "./OrderHistoryTable";
 import { OrderDetail } from "@/features/orders/components/OrderDetail/OrderDetail";
@@ -90,11 +89,11 @@ export function OrderHistoryLayout({
               Order Detail
             </SheetTitle>
           </SheetHeader>
-          <ScrollArea className="flex-1 px-6 pb-6 mt-4">
+          <div className="flex-1 min-h-0 px-6 pb-6 mt-4">
             {selectedOrderId && (
               <OrderDetail orderId={selectedOrderId} />
             )}
-          </ScrollArea>
+          </div>
         </SheetContent>
       </Sheet>
     </div>

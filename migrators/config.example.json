@@ -1,0 +1,13 @@
+{
+  "table": "menu_items",
+  "columnOrder": ["id", "category_name", "name", "desc", "price", "variant_str", "modifier_str", "img"],
+  "columns": {
+    "category": "category_name",
+    "item_name": "name",
+    "description": "desc",
+    "price": "price",
+    "variants": "variant_str",
+    "modifiers": "modifier_str",
+    "image_url": "img"
+  }
+}

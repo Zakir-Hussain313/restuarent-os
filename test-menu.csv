@@ -1,0 +1,6 @@
+category,item_name,description,price,variants,modifiers,image_url
+"Burgers","Zinger Burger","Crispy chicken burger","650","Regular:650;Large:850","Extras(0-3): Cheese:+100, Fries:+150 | Spice(1-1): Mild:+0, Hot:+0",""
+"Burgers","Beef Burger","Classic beef patty","700","","",""
+"Drinks","Coke","330ml can","150","","",""
+"","Missing Category Item","","100","","",""
+"Drinks","Bad Price Item","","not-a-number","","",""

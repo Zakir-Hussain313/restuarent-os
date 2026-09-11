@@ -1,0 +1,36 @@
+name: Backup Tenant Databases
+on:
+  schedule:
+    - cron: '0 22 * * *'
+  workflow_dispatch: {}
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client (pg_dump)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Run backups for all tenants
+        run: |
+          chmod +x scripts/backup-tenant-db.sh
+          echo '${{ secrets.TENANT_DB_URLS }}' > /tmp/tenants.json
+          FAILED=0
+          for slug in $(jq -r 'keys[]' /tmp/tenants.json); do
+            url=$(jq -r --arg s "$slug" '.[$s]' /tmp/tenants.json)
+            if ! ./scripts/backup-tenant-db.sh "$slug" "$url"; then
+              echo "::error::Backup failed for tenant: $slug"
+              FAILED=1
+            fi
+          done
+          rm -f /tmp/tenants.json
+          exit $FAILED

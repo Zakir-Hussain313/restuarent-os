@@ -19,13 +19,24 @@ export function MenuItemCard({ item, cartQuantity, categoryIcon }: MenuItemCardP
   const items = useCustomerCartStore((s) => s.items);
   const updateQuantity = useCustomerCartStore((s) => s.updateQuantity);
 
-  const cartItem = items.find((ci) => ci.menuItem.id === item.id);
-  const isInCart = cartQuantity > 0;
   const hasOptions = item.variants.length > 0 || item.modifierGroups.length > 0;
+  // For a simple item (no variants/modifiers) there can only ever be one
+  // cart line for it, so finding by menuItem.id alone is safe and lets the
+  // +/- stepper work. For an item WITH options, there can be several
+  // distinct lines (different variant/modifier combos) — grabbing "the"
+  // cart item by id alone would just grab whichever combo was added first
+  // and permanently hide the Add button behind that one line's stepper.
+  const cartItem = hasOptions ? undefined : items.find((ci) => ci.menuItem.id === item.id);
+  const isInCart = !hasOptions && cartQuantity > 0;
   const [optionsOpen, setOptionsOpen] = useState(false);
+  // Bumped every time the picker opens, passed as its `key` below — forces
+  // it to fully remount so its selected variant/modifiers reset, instead
+  // of reusing the same instance (and stale selection) from last time.
+  const [optionsInstance, setOptionsInstance] = useState(0);
 
   function handleAddClick() {
     if (hasOptions) {
+      setOptionsInstance((n) => n + 1);
       setOptionsOpen(true);
       return;
     }
@@ -106,15 +117,21 @@ export function MenuItemCard({ item, cartQuantity, categoryIcon }: MenuItemCardP
         ) : (
           <button
             onClick={handleAddClick}
-            className="w-full flex items-center justify-center gap-1.5 bg-[#e8570e] hover:bg-[#c44a0c] text-white text-xs font-semibold py-2 rounded-lg transition-colors"
+            className="relative w-full flex items-center justify-center gap-1.5 bg-[#e8570e] hover:bg-[#c44a0c] text-white text-xs font-semibold py-2 rounded-lg transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
             Add to Cart
+            {hasOptions && cartQuantity > 0 && (
+              <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-white text-[#e8570e] border border-[#e8570e] text-[10px] font-bold flex items-center justify-center">
+                {cartQuantity}
+              </span>
+            )}
           </button>
         )}
       </div>
       {hasOptions && (
         <ItemOptionsModal
+          key={optionsInstance}
           item={item}
           open={optionsOpen}
           onOpenChange={setOptionsOpen}

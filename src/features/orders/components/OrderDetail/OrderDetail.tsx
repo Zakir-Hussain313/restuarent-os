@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { RiderAssignment } from "./RiderAssignment";
 import { queryKeys } from "@/hooks/useMockQuery";
+import { useAlertModal } from "@/components/providers/AlertModalProvider";
 
 interface OrderDetailProps {
   orderId: string;
@@ -71,6 +72,7 @@ function AttributionName({
 
 export function OrderDetail({ orderId }: OrderDetailProps) {
   const queryClient = useQueryClient();
+  const { showConfirm } = useAlertModal();
   const {
     order,
     isLoading,
@@ -88,6 +90,10 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
     cancelOrder,
     isCancelling,
     refundPayment,
+    markBillPrinted,
+    canSplitPayment,
+    splitPayment,
+    isRecordingSplitPayment,
   } = useOrderDetail(orderId);
 
   if (isLoading) {
@@ -295,14 +301,22 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
             "flex justify-between text-sm font-medium px-3 py-2 rounded-lg border",
             order.paymentStatus === "paid"
               ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600"
+              : order.paymentStatus === "partial"
+              ? "bg-amber-500/10 border-amber-500/20 text-amber-600"
               : "bg-destructive/10 border-destructive/20 text-destructive"
           )}>
             <span>
-              {order.paymentStatus === "paid" ? "Paid" : "Unpaid"}
+              {order.paymentStatus === "paid"
+                ? "Paid"
+                : order.paymentStatus === "partial"
+                ? "Partial"
+                : "Unpaid"}
             </span>
             <span>
               {order.paymentStatus === "paid"
                 ? `Rs. ${order.totalPaid.toLocaleString()}`
+                : order.paymentStatus === "partial"
+                ? `Rs. ${order.totalPaid.toLocaleString()} paid · Rs. ${order.balance.toLocaleString()} due`
                 : `Rs. ${order.total.toLocaleString()} due`}
             </span>
           </div>
@@ -336,9 +350,15 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-medium">Rs. {p.amount.toLocaleString()}</span>
-                      {p.provider === "payfast" && p.status === "paid" && (
+                      {p.status === "paid" && (
                         <button
-                          onClick={() => refundPayment(p.id, p.amount)}
+                          onClick={async () => {
+                            const confirmed = await showConfirm(
+                              `Refund Rs. ${p.amount.toLocaleString()} (${PAYMENT_METHOD_LABEL[p.method] ?? p.method})? This cannot be undone.`,
+                              { title: "Refund payment?", confirmLabel: "Refund" }
+                            );
+                            if (confirmed) refundPayment(p.id, p.amount);
+                          }}
                           className="text-[10px] text-destructive hover:underline"
                         >
                           Refund
@@ -388,6 +408,10 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
           isCompletingBill={isCompletingBill}
           onCancelOrder={cancelOrder}
           isCancelling={isCancelling}
+          onBillPrinted={markBillPrinted}
+          canSplitPayment={canSplitPayment}
+          onSplitPayment={splitPayment}
+          isRecordingSplitPayment={isRecordingSplitPayment}
         />
       </div>
     </div>

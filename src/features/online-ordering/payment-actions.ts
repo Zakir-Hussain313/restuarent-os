@@ -11,7 +11,12 @@ import { PaymentService } from "@/lib/payments/PaymentService";
 // the order's full total — no staff/auth involved, this is customer-facing.
 export async function initiatePublicPaymentAction(
     orderId: string,
-    customerEmail: string
+    customerEmail: string,
+    // Optional — when the customer chose "Split Payment" at checkout, this
+    // is the amount they're paying online now (less than order.total). The
+    // rest is left as the order's balance, to be collected in cash on
+    // delivery. Omit (or pass the full total) for a normal "Pay Now Online".
+    amount?: number
 ): Promise < 
     | { success: true; checkoutForm: { url: string; fields: Record<string, string> } }
     | { success?: undefined; error: string }
@@ -26,13 +31,18 @@ export async function initiatePublicPaymentAction(
         return { error: "This order can no longer be paid online." };
     }
 
+    const payAmount = amount ?? order.total;
+    if (!Number.isFinite(payAmount) || payAmount <= 0 || payAmount > order.total) {
+        return { error: "Invalid payment amount." };
+    }
+
     try {
         const result = await PaymentService.initiate(
             {
                 tenantId,
                 branchId: order.branchId,
                 orderId: order.id,
-                amount: order.total,
+                amount: payAmount,
                 currency: "PKR",
                 method: "card",
                 // No real staff for a customer-facing payment — null FK,
