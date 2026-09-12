@@ -28,7 +28,8 @@ export type AuditResource =
     | "branch_settings"
     | "branch"
     | "coupon"
-    | "branch_device";
+    | "branch_device"
+    | "biometric_enrollment";
 
 // The actions that can be audited.
 // Same reasoning as AuditResource — plain union, not pgEnum.

@@ -1,0 +1,11 @@
+{
+  "scannerIp": "192.168.1.201",
+  "scannerPort": 4370,
+  "inPort": 4000,
+  "timeoutMs": 10000,
+  "apiBaseUrl": "https://your-tenant-domain.com",
+  "branchDeviceId": "paste the scanner's device ID here",
+  "syncSecret": "paste the syncSecret shown in ScannerPanel here",
+  "pollIntervalMs": 30000,
+  "stateFilePath": "./sync-state.json"
+}

@@ -1,21 +1,35 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Loader2, LogIn, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getDeviceToken } from "@/lib/deviceToken";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { clockInAction, clockOutAction } from "@/features/attendance/actions";
+import { getBranchAttendanceMethodAction } from "@/features/devices/actions";
 import { useAlertModal } from "@/components/providers/AlertModalProvider";
 
 interface ClockButtonProps {
   initialIsClockedIn: boolean;
+  branchId?: string;
 }
 
-export function ClockButton({ initialIsClockedIn }: ClockButtonProps) {
+export function ClockButton({ initialIsClockedIn, branchId }: ClockButtonProps) {
   const [isClockedIn, setIsClockedIn] = useState(initialIsClockedIn);
   const [isLoading, setIsLoading] = useState(false);
   const { showAlert } = useAlertModal();
+
+  // A branch with an approved fingerprint scanner uses it exclusively —
+  // the POS clock-in button is hidden in favor of the scanner.
+  const { data: attendanceMethod } = useQuery({
+    queryKey: ["branch-attendance-method", branchId],
+    queryFn: async () => {
+      const res = await getBranchAttendanceMethodAction(branchId);
+      if (res.error) throw new Error(res.error);
+      return res.data;
+    },
+  });
 
   async function handleClick() {
     setIsLoading(true);
@@ -41,6 +55,10 @@ export function ClockButton({ initialIsClockedIn }: ClockButtonProps) {
       return;
     }
     setIsClockedIn(true);
+  }
+
+  if (attendanceMethod?.hasApprovedScanner) {
+    return null;
   }
 
   return (

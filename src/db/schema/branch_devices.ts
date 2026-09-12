@@ -2,7 +2,7 @@ import { pgTable, uuid, text, timestamp, index } from "drizzle-orm/pg-core";
 import { tenants } from "./tenants";
 import { branches } from "./branches";
 import { staff } from "./staff";
-import { deviceStatusEnum } from "./enums";
+import { deviceStatusEnum, deviceTypeEnum } from "./enums";
 
 // A device (browser/terminal) approved by an admin to clock in/out staff
 // at a specific branch. Not tied to one staff member — multiple staff can
@@ -18,9 +18,20 @@ export const branchDevices = pgTable(
       .notNull()
       .references(() => branches.id, { onDelete: "cascade" }),
 
+    // Which kind of device this row represents. Default 'browser' keeps
+    // all existing self-service clock-in rows correctly classified.
+    deviceType: deviceTypeEnum("device_type").notNull().default("browser"),
+
     // Random token generated client-side (localStorage), sent on every
     // login/clock action from that browser to identify the device.
-    deviceToken: text("device_token").notNull(),
+    // Only set for deviceType 'browser' — a fingerprint scanner has no
+    // browser token.
+    deviceToken: text("device_token"),
+
+    // Only set for deviceType 'fingerprint_scanner' — the scanner's own
+    // identifier (e.g. serial number or local IP), used by the sync
+    // script to know which physical unit a punch came from.
+    externalDeviceId: text("external_device_id"),
 
     status: deviceStatusEnum("status").notNull().default("pending"),
 
@@ -40,6 +51,7 @@ export const branchDevices = pgTable(
     index("branch_devices_branch_id_idx").on(table.branchId),
     index("branch_devices_tenant_id_idx").on(table.tenantId),
     index("branch_devices_token_idx").on(table.deviceToken),
+    index("branch_devices_external_id_idx").on(table.externalDeviceId),
   ]
 );
 

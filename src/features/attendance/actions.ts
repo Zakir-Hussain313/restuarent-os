@@ -8,21 +8,8 @@ import { getSupabaseServerClient } from "@/lib/supabase";
 import { broadcastChange } from "@/lib/realtime/broadcast";
 import { createNotification } from "@/features/notifications/actions";
 import { and, eq, gte, lt, ne, sql } from "drizzle-orm";
-import { RESTAURANT_CONFIG } from "@/lib/restaurantConfig";
 import { createClient } from "@supabase/supabase-js";
-
-function todayInTenantTz(): string {
-  return new Date().toLocaleDateString("en-CA", {
-    timeZone: RESTAURANT_CONFIG.timezone,
-  });
-}
-
-function dayRange(dateStr: string) {
-  const start = new Date(`${dateStr}T00:00:00.000Z`);
-  const end = new Date(start);
-  end.setUTCDate(end.getUTCDate() + 1);
-  return { start, end };
-}
+import { todayInTenantTz, dayRange } from "./dateUtils";
 
 export interface AttendanceRow {
   staffId: string;
@@ -582,10 +569,6 @@ export async function clockInAction(
       })
       .returning();
     attendanceId = created.id;
-  }
-
-  if (currentStaffRow.role === "RIDER") {
-    await db.update(staff).set({ isAvailable: true, updatedAt: new Date() }).where(eq(staff.id, currentStaffRow.id));
   }
 
   if (currentStaffRow.role === "RIDER") {

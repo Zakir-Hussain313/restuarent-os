@@ -55,3 +55,12 @@ export const reservationLookupRateLimit = new Ratelimit({
   limiter: Ratelimit.slidingWindow(5, "60 s"),
   prefix: "ratelimit:reservation-lookup",
 });
+
+// Biometric scanner sync: 30 per minute per device secret — a legitimate
+// sync script polls every few minutes with a batch of punches; this is a
+// backstop against a leaked/brute-forced device secret being hammered.
+export const biometricSyncRateLimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(30, "60 s"),
+  prefix: "ratelimit:biometric-sync",
+});

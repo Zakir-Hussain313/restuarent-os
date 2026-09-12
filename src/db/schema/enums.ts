@@ -120,6 +120,19 @@ export const attendanceStatusEnum = pgEnum("attendance_status", [
 // ── Devices (branch-approved clock-in/out terminals) ────────────────────────
 export const deviceStatusEnum = pgEnum("device_status", ["pending", "approved", "rejected"]);
 
+// A branch_devices row is either a browser/terminal (existing self-service
+// clock-in flow) or a physical fingerprint scanner unit. Default 'browser'
+// so all existing rows stay correctly classified without a backfill.
+export const deviceTypeEnum = pgEnum("device_type", ["browser", "fingerprint_scanner"]);
+
+// Which path produced an attendance row — for reporting/audit only, no
+// behavior differs by source today.
+export const attendanceSourceEnum = pgEnum("attendance_source", [
+  "manual",
+  "self_service",
+  "biometric",
+]);
+
 // ── Tenants ───────────────────────────────────────────────────────────────
 export const subscriptionStatusEnum = pgEnum("subscription_status", [
   "trialing",

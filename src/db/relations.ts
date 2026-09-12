@@ -9,7 +9,7 @@ import { deliveries } from "./schema/deliveries";
 import { attendance } from "./schema/attendance";
 import { auditLogs } from "./schema/audit_logs";
 import { tenantSettings } from "./schema/tenant_settings";
-import { branchDevices } from "./schema";
+import { branchDevices, staffBiometricEnrollments } from "./schema";
 
 // ── Tenants ───────────────────────────────────────────────────────────────
 
@@ -355,7 +355,7 @@ export const attendanceRelations = relations(attendance, ({ one }) => ({
 
 // ── Branch Devices ────────────────────────────────────────────────────────
 
-export const branchDevicesRelations = relations(branchDevices, ({ one }) => ({
+export const branchDevicesRelations = relations(branchDevices, ({ one, many }) => ({
     tenant: one(tenants, {
         fields: [branchDevices.tenantId],
         references: [tenants.id],
@@ -373,6 +373,30 @@ export const branchDevicesRelations = relations(branchDevices, ({ one }) => ({
         fields: [branchDevices.approvedBy],
         references: [staff.id],
         relationName: "deviceApprovedBy",
+    }),
+    biometricEnrollments: many(staffBiometricEnrollments),
+}));
+
+// ── Staff Biometric Enrollments ─────────────────────────────────────────────
+
+export const staffBiometricEnrollmentsRelations = relations(staffBiometricEnrollments, ({ one }) => ({
+    tenant: one(tenants, {
+        fields: [staffBiometricEnrollments.tenantId],
+        references: [tenants.id],
+    }),
+    staff: one(staff, {
+        fields: [staffBiometricEnrollments.staffId],
+        references: [staff.id],
+        relationName: "enrollmentStaff",
+    }),
+    branchDevice: one(branchDevices, {
+        fields: [staffBiometricEnrollments.branchDeviceId],
+        references: [branchDevices.id],
+    }),
+    createdByStaff: one(staff, {
+        fields: [staffBiometricEnrollments.createdBy],
+        references: [staff.id],
+        relationName: "enrollmentCreatedBy",
     }),
 }));
 

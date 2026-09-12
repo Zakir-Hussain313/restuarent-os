@@ -27,6 +27,9 @@ Before writing code: Analyze → Design → Validate (consistency with existing 
 - Give changes as diffs only — never full file rewrites, even when many changes hit one file (exception: this context.md document itself, which is not code). Diffs must be exact Before/After blocks (full replaced text, copy-pasteable) — NOT unified-diff +/- notation. When an entire file is being replaced rather than patched, skip the before/after pair — just give the full replacement content and say "replace your current <filename> with this".
 - Zakir wants explanations kept as simple and short as possible — this applies to every response, not just code diffs.
 - When Zakir flags that a stated conclusion is wrong, don't just soften the wording — actually revisit and fix the underlying issue, and be direct about having been wrong.
+- "What's done/remaining" and "deployment checklist" are different questions. §14 (Deployment Checklist) is shown only when explicitly asked for by name. General status questions ("what's remaining", "what's left") get a fresh synthesized answer from the whole doc — don't paste §14 content into those answers just because it overlaps.
+
+- "What's done/remaining" and "deployment checklist" are different questions. §14 (Deployment Checklist) is shown only when explicitly asked for by name. General status questions ("what's remaining", "what's left") get a fresh synthesized answer from the whole doc — don't paste §14 content into those answers just because it overlaps.
 
 ---
 
@@ -52,7 +55,7 @@ Login is always email + password — there is no 4-digit PIN login anywhere. Zak
 
 **Stack:** PostgreSQL, Drizzle ORM, Supabase (Auth + Realtime + Storage). One dedicated DB per tenant.
 
-**31 live tables:** attendance, audit_logs, branch_settings, branch_delivery_areas, branches, branch_devices, deliveries, tenants, staff, menu_categories, menu_item_variants, menu_items, modifier_groups, modifier_options, restaurant_tables, table_sections, table_reservations, coupon_branch_allocations, coupons, order_counters, order_discounts, order_items, orders, payments, payment_refunds, tenant_settings, reservation_counters, push_subscriptions, notification_reads, notifications, notification_clears.
+**32 live tables:** attendance, audit_logs, branch_settings, branch_delivery_areas, branches, branch_devices, deliveries, tenants, staff, menu_categories, menu_item_variants, menu_items, modifier_groups, modifier_options, restaurant_tables, table_sections, table_reservations, coupon_branch_allocations, coupons, order_counters, order_discounts, order_items, orders, payments, payment_refunds, tenant_settings, reservation_counters, push_subscriptions, notification_reads, notifications, notification_clears, staff_biometric_enrollments.
 
 `staff.id = auth.users.id` (1:1). Supabase Auth = authentication; `staff` table = authorization (tenant, branch, role). `staff.pinHash` column exists in schema but is NOT used anywhere — login is email+password only.
 
@@ -281,9 +284,40 @@ FBR POS integration is currently only legally mandatory for large "Tier 1" retai
 
 ## 10. Database Backups & Infrastructure
 
-Real DB backups are handled per-tenant via **Supabase Pro plan** ($25/month) — includes automatic daily backups (7-day rolling retention) with no custom code needed, since each restaurant gets its own dedicated Supabase project. This is the default plan for any real production tenant.
+**Current setup (dev tenant, built this session):** A custom pg_dump-based backup pipeline, not dependent on any paid plan. GitHub Actions workflow (`.github/workflows/backup-tenant-dbs.yml`, daily at 22:00 UTC / 3am PKT, plus manual `workflow_dispatch` trigger) loops over tenants defined in the `TENANT_DB_URLS` secret (JSON: `{"tenant-slug": "postgres-url", ...}`). For each tenant it runs `pg_dump -Fc --no-owner --no-privileges` (custom format, matched to PostgreSQL 17 client via PGDG repo — Supabase's server is 17.6, and a client/server major-version mismatch causes `pg_dump` to refuse to run), then commits the resulting `.dump` file into a separate **private** GitHub repo (`Zakir-Hussain313/restaurant-data-backups`), one subfolder per tenant slug. After each successful dump, the script (`scripts/backup-tenant-db.sh`) prunes that tenant's folder to the 7 most recent files. On any pg_dump/upload failure, the partial file is deleted and the job exits non-zero, triggering GitHub's built-in failure-notification email — one tenant failing does not block others in the same run, since the loop continues and commits whatever succeeded before failing the overall job at the end.
+
+No cost, no external storage service, no card required — uses only GitHub (already in use for the app repo) via a fine-grained Personal Access Token (`BACKUP_REPO_TOKEN` secret, Contents: Read and write, scoped only to the backups repo).
+
+Use the **direct/session connection string** (`DATABASE_URL`, port 5432) for `TENANT_DB_URLS`, not the pooled/pgbouncer one (`DATABASE_POOL_URL`, port 6543, `pgbouncer=true`) — pg_dump needs session-level behavior the transaction-mode pooler doesn't reliably support.
+
+**For real paying customers:** the plan is **Supabase Pro plan** ($25/month per tenant) — includes automatic daily backups (7-day rolling retention) with no custom code needed, since each restaurant gets its own dedicated Supabase project. This remains the default plan for any real production tenant. The custom pg_dump pipeline above serves as a second, self-controlled layer of protection that works regardless of Supabase plan tier (including free-tier dev/demo tenants, which have zero backup coverage from Supabase itself) — not a replacement for Pro on real tenants, but insurance underneath it.
 
 Self-hosting Supabase (Docker, own VPS) was evaluated as an alternative — real option, ~$14-43/month fixed cost regardless of usage, full control over compute/storage. Trade-off: loses Supabase's managed daily backups, managed email delivery (would need own SMTP provider like Resend/SendGrid), and managed uptime/patching — all become Zakir's own operational responsibility (~1-2 hrs/month maintenance minimum). Decision: stick with managed Supabase Pro per-tenant for now; revisit self-hosting only if per-tenant costs become a real problem at meaningful scale.
+
+---
+
+## 10a. Backup Restore Procedure
+
+Restore is intentionally manual, not automated — a human must decide when/how to restore, not a script.
+
+**Restore steps:**
+
+1. Get the dump file from `restaurant-data-backups/<tenant-slug>/<timestamp>.dump` (download directly from GitHub, or clone the repo).
+2. Identify the target DB — same Supabase project (if only data is corrupted/deleted) or a new Supabase project (if the whole project is gone).
+3. Run, from a machine with the PostgreSQL 17 client installed (matches server version 17.6 — a version mismatch here fails the same way it does for backups):
+
+pg_restore --no-owner --no-privileges --clean --if-exists \
+  -d "<target DATABASE_URL, port 5432, not the 6543 pgbouncer one>" \
+  ./<timestamp>.dump
+
+   - `--clean --if-exists` drops existing objects first, so it fully replaces current state (safe even against a partially-corrupted target).
+   - `--no-owner --no-privileges` skips recreating original role/ownership, which won't match a fresh Supabase project anyway.
+4. Verify: spot-check row counts on key tables (`staff`, `orders`, `menu_items`) and confirm the app functions correctly against the restored tenant.
+
+**Caveats:**
+- Restore reflects state as of that backup's timestamp — anything after is lost. With daily backups, worst case is up to ~24h of data.
+- 7 days of rollback points exist (oldest kept backup) in case corruption isn't noticed immediately.
+- This procedure should be dry-run once against a throwaway Supabase project before ever being needed for real, so it isn't being learned live during an actual incident.
 
 ---
 
@@ -332,7 +366,7 @@ Non-menu data (staff, past order history, customer records) is intentionally out
 
 Priority order across all versions: security → reliability → performance → UX → real customer demand → business value. POS staff must never be burdened with admin-level work (inventory, purchasing, analytics) during service.
 
-**V1 (current):** website, multi-branch, reservations, full RBAC, dashboard analytics, POS (offline-first), coupons, orders, attendance + clock-in/device-approval, permanent staff/admin delete, staff mgmt, audit logs, menu/table mgmt, realtime, notifications, reports/printing, subscription blocking, security (RLS deferred), backups (via Supabase Pro), deployment/control plane, FBR (deferred) + payment gateways (Pakistan launch).
+**V1 (current):** website, multi-branch, reservations, full RBAC, dashboard analytics, POS (offline-first), coupons, orders, attendance + clock-in/device-approval, permanent staff/admin delete, staff mgmt, audit logs, menu/table mgmt, realtime, notifications, reports/printing, subscription blocking, security (RLS deferred), backups (custom pg_dump pipeline for dev, Supabase Pro for real tenants — see §10), deployment/control plane, FBR (deferred) + payment gateways (Pakistan launch).
 
 **V2 — Inventory & Business Mgmt:** ingredient/stock system, receiving/adjustments/transfers, recipe/BOM auto-deduction, food costing, supplier/purchasing, wastage/expense tracking, profitability reporting, CRM (profiles, loyalty, feedback, campaigns).
 
@@ -364,10 +398,40 @@ Only once all four are done for a given country should Zaiqa be described as eli
 
 ## 14. Deployment Checklist (running list, not yet formalized as a document)
 
-- Database backups — solved via Supabase Pro plan per tenant, no custom code needed (see §10).
-- Migration/import script from prior POS systems — CSV done, Excel/SQLite/SQL-dump readers planned next (see §12).
+- Database backups — custom pg_dump-to-GitHub pipeline built and confirmed working for the dev tenant (see §10); Supabase Pro plan remains the plan for real production tenants, with the pg_dump pipeline as an extra layer of protection regardless of tier. Restore procedure documented (see §10a) but not yet dry-run end-to-end against a throwaway project — do this before it's ever needed for real.
+- Migration/import script from prior POS systems — CSV, Excel, SQLite, and SQL-dump readers all done (see §12). SQLite reader only smoke-tested on a hand-made file, not a real old-POS export yet.
 - Professional branded emails via Resend SMTP — deferred on purpose, not yet built.
-- Payment gateway (PayFast) merchant onboarding — per-restaurant, owner signs up themselves, hands credentials to Zakir for env setup (see §8). Blocked until a real customer signs up (needs their CNIC/NTN); once that happens, must also confirm with PayFast support whether hosted Web Checkout is actually available or whether Direct API is required (see §8 field-verification status) before going live with real payments.
+- Payment gateway (PayFast) — integration built and complete. Remaining: per-restaurant merchant account creation (owner signs up themselves with their CNIC/NTN) and setting the resulting credentials as that tenant's env vars (see §8). Blocked until a real customer signs up.
 - Privacy Policy (GDPR-compliant, covering payment data handling — "never store card numbers/CVV/PINs/OTPs") — required before going live with any payment processing, not yet drafted.
 - Staging environment — needed before real load/stress testing at scale.
-- Before onboarding any restaurant with many concurrent terminals: upgrade that tenant's Supabase instance to Pro + adequate compute size, then re-run load testing at their expected concurrency.  
+- Before onboarding any restaurant with many concurrent terminals: upgrade that tenant's Supabase instance to Pro + adequate compute size, then re-run load testing at their expected concurrency.
+- Fingerprint attendance (scanner-based clock-in) — code complete and verified via simulated API punches; blocked on real ZKTeco-class hardware for final verification. Once the client's scanner arrives: (1) `npm install node-zklib` and set up `sync-config.json` (from `sync-config.example.json`) on a machine on the scanner's local network; (2) run `sync-fingerprint-attendance.mjs --inspect` against the real device first and fix `extractPunch()`'s field mapping if the raw output doesn't match `deviceUserId`/`recordTime`; (3) register the scanner and enroll a real staff member via the Attendance page's Scanner tab; (4) run `--once` for a first real punch before leaving the continuous poll loop running; (5) watch for node-zklib's known inconsistent-record-count issue on `getAttendances()` during real testing — `zkteco-js` is a fallback if it proves problematic.
+
+---
+
+## 15. Fingerprint Attendance (code-complete, pending real-hardware verification)
+
+**Architecture:** Fingerprint scanner (ZKTeco-class hardware) is an additional, parallel attendance input — NOT a replacement for the existing browser self-service clock-in (device-approval based), which stays fully intact for branches without a scanner. GPS-gating and WiFi-IP-gating were both considered and explicitly rejected as the "no scanner" safeguard; the decision is "get a scanner if you don't want attendance conflicts," not a software workaround. Riders never use the scanner — their self-clock-in is unaffected regardless of branch scanner status.
+
+Scanner does all fingerprint matching on-device; Zaiqa only ever receives `{ externalUserId, timestamp }` — no biometric data stored. A local sync script polls the unit and POSTs punch batches to Zaiqa.
+
+**UI behavior:** a branch with an *approved* fingerprint scanner shows a "Scanner" tab on the Attendance page (replacing "Devices") and hides the POS `ClockButton`. A branch without one keeps both exactly as before.
+
+**Schema (live, migration 0031 applied):**
+- `branch_devices`: `deviceType` ('browser'|'fingerprint_scanner', default 'browser'), `externalDeviceId`; `deviceToken` nullable (browsers only). A scanner's `deviceToken` doubles as its sync-auth secret, server-generated at registration, stored plaintext (not hashed) so an admin can view it again anytime — no one-time-reveal UX.
+- `attendance`: `source` ('manual'|'self_service'|'biometric', default 'manual') for reporting only, no behavior differs by source.
+- New table `staff_biometric_enrollments`: maps staffId ↔ (branchDeviceId, externalUserId), unique per (branchDeviceId, externalUserId).
+
+**Backend (done):** `biometricActions.ts` (registerFingerprintScannerAction, enrollStaffBiometricAction — with a branch-match check preventing SUPER_ADMIN cross-enrolling staff onto the wrong branch's scanner, processBiometricPunchBatch), the sync API route (`/api/attendance/biometric-sync`, per-device-secret auth via `crypto.timingSafeEqual`, rate-limited, max 500 punches/request), and `devices/actions.ts` additions (getBranchAttendanceMethodAction, getBranchScannerDevicesAction, getScannerEnrollmentsAction, unenrollStaffBiometricAction). `processBiometricPunchBatch` is batch-efficient — O(1) lookups per batch, single transaction, bulk audit insert, one realtime broadcast per batch, notifications suppressed for punches older than ~10 minutes.
+
+**UI (done):** `AttendanceTabs.tsx` swaps Devices↔Scanner. `ScannerPanel.tsx` — register-scanner dialog (shows/re-shows the sync secret), per-scanner card (label, enrolled count, masked secret with show/copy, delete-with-confirm), enroll-staff dialog (staff dropdown filtered client-side to the branch), enrollment list with remove. `ClockButton.tsx` hides on POS whenever `getBranchAttendanceMethodAction` returns `hasApprovedScanner: true`.
+
+**Local sync script (done, code-side):** `sync-fingerprint-attendance.mjs` (project root) + `sync-config.example.json`, using `node-zklib`. Modes: `--inspect` (dumps raw scanner records so the field mapping can be confirmed/fixed against real hardware before trusting it), `--once` (single poll-and-sync, for a first real test), and continuous polling (for a long-running process via pm2/Task Scheduler on a machine on the scanner's local network). Tracks last-synced timestamp in a local state file so re-polling the device's full log never double-sends. Setup requires `npm install node-zklib`.
+
+**Verification status:** everything except the physical scanner connection has been tested — via simulated punches sent directly to `/api/attendance/biometric-sync` with `Invoke-RestMethod` (register scanner → enroll staff → simulated punch correctly clocks in/out with `source: 'biometric'`, realtime updates the Attendance table live). **Not yet verified:** `node-zklib`'s actual field names (`deviceUserId`/`recordTime` are best-guess fallbacks — node-zklib's shape isn't reliably documented across firmware versions) and a known upstream GitHub issue where `getAttendances()` can return an inconsistent record count between calls. Blocked on the client's real ZKTeco-class hardware — see deployment checklist for the exact steps to run once it arrives.
+
+**Fixed along the way (unrelated to this feature):** the duplicated RIDER `isAvailable: true` block in `clockInAction` was collapsed to one statement. `todayInTenantTz`/`dayRange` were moved out of `actions.ts` (a `"use server"` file, which can only export async functions) into a new plain file `src/features/attendance/dateUtils.ts`, since they'd been exported as sync helpers for reuse in `biometricActions.ts` and were silently breaking the Turbopack build.
+
+**Dev-DB gotcha hit during this feature (add to gotchas list §7 if it recurs):** migration 0031 had been marked applied in a prior session but had genuinely never run against the DB the dev server was actually pointed at — `source`, `device_type`, and `staff_biometric_enrollments` were all missing despite the ledger looking clean. Verify with `information_schema.columns`/`pg_type` directly rather than trusting a prior session's "migration applied" claim, especially across a session gap.
+
+**Infrastructure note — flag for whenever the business (referenced as "primeGlow" when this note was requested — name doesn't match "Zaiqa" used elsewhere in this doc, worth confirming which name is correct) gets its first real paying customers' money in:** at that point, search for and switch to the closest-but-cheapest available VPS option for hosting, rather than defaulting to whatever was used during dev — minimize infra cost once real revenue exists, don't over-provision on assumption.

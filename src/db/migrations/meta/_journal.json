@@ -218,6 +218,13 @@
       "when": 1788692143575,
       "tag": "0030_broad_james_howlett",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1789189948815,
+      "tag": "0031_fingerprint_attendance",
+      "breakpoints": true
     }
   ]
 }

@@ -16,6 +16,7 @@ mkdir -p "$TENANT_DIR"
 pg_dump -Fc --no-owner --no-privileges "$DB_URL" -f "$DUMP_FILE"
 if [ $? -ne 0 ]; then
   echo "::error::pg_dump failed for tenant ${TENANT_SLUG}"
+  rm -f "$DUMP_FILE"
   exit 1
 fi
 

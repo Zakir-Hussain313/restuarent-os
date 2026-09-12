@@ -8,7 +8,7 @@ import {
 import { tenants } from "./tenants";
 import { branches } from "./branches";
 import { staff } from "./staff";
-import { attendanceStatusEnum } from "./enums";
+import { attendanceStatusEnum, attendanceSourceEnum } from "./enums";
 
 export const attendance = pgTable(
     "attendance",
@@ -31,6 +31,11 @@ export const attendance = pgTable(
         staffIdSnapshot: text("staff_id_snapshot"),
 
         status: attendanceStatusEnum("status").notNull(),
+
+        // Which path produced this row. Defaults to 'manual' so existing
+        // rows (all admin-entered or self-clocked before this column
+        // existed) remain valid without a backfill.
+        source: attendanceSourceEnum("source").notNull().default("manual"),
 
         // Both nullable — a super_admin may log attendance manually without
         // exact clock times (e.g. marking someone absent after the fact).

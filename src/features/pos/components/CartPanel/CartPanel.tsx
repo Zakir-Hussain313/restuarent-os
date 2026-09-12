@@ -22,7 +22,9 @@ export function CartPanel({ branchId, posInit, showClockButton }: CartPanelProps
       <div className="shrink-0 px-4 pt-5 pb-4 min-[760px]:pt-4 min-[760px]:pb-3 border-b">
         <div className="flex items-center justify-between gap-2 mb-3">
           <h2 className="text-base font-semibold">Current Order</h2>
-          {showClockButton && <ClockButton initialIsClockedIn={posInit?.isClockedIn ?? false} />}
+          {showClockButton && (
+            <ClockButton initialIsClockedIn={posInit?.isClockedIn ?? false} branchId={branchId} />
+          )}
         </div>
         <OrderTypeSelector />
       </div>
