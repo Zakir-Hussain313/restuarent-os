@@ -16,6 +16,10 @@ export function usePosInit(branchId?: string) {
       if (res.data === null) throw new Error(res.error);
       return res.data;
     },
+    // Backstop for the offline coupon split staying fresh — realtime
+    // ("coupons" broadcast) is the primary trigger, this just covers a
+    // missed event. No-op while offline (default networkMode pauses it).
+    refetchInterval: 60_000,
   });
 
   const invalidate = useCallback(() => {

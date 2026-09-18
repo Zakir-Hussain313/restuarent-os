@@ -13,7 +13,9 @@ export type NotificationType =
     | "rider_status"
     | "staff_created"
     | "manual_override"
-    | "device_pending_approval";
+    | "device_pending_approval"
+    | "coupon_overuse"
+    | "order_completion_conflict";
 
 export const notifications = pgTable(
     "notifications",

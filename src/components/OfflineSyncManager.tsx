@@ -5,6 +5,7 @@ import {
   listPendingOrders,
   removePendingOrder,
   updatePendingOrder,
+  MAX_SYNC_ATTEMPTS,
 } from "@/lib/offlineOrderQueue";
 import {
   listPendingPayments,
@@ -27,6 +28,11 @@ export function OfflineSyncManager() {
       const pending = await listPendingPayments();
 
       for (const payment of pending) {
+        if (payment.attempts >= MAX_SYNC_ATTEMPTS) {
+          // Stopped auto-retrying — needs manual attention. Skip it (don't
+          // let it keep blocking payments behind it in the queue).
+          continue;
+        }
         try {
           const result = await completeBillAction(
             payment.orderId,
@@ -65,6 +71,11 @@ export function OfflineSyncManager() {
         const pending = await listPendingOrders();
 
         for (const order of pending) {
+          if (order.attempts >= MAX_SYNC_ATTEMPTS) {
+            // Stopped auto-retrying — needs manual attention. Skip it so
+            // orders queued behind it can still sync normally.
+            continue;
+          }
           try {
             const result = await createOrderAction(
               order.input,

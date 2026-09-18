@@ -473,8 +473,15 @@ export async function createOrderAction(
                 .returning();
 
             let insertedDiscounts: (typeof orderDiscounts.$inferSelect)[] = [];
+            // Only ever populated for the overuse check below — two offline
+            // terminals can each independently allow the same coupon, since
+            // neither can see the other's usage while disconnected. Can't be
+            // prevented, only caught once both sync and this number is real.
+            let updatedAllocation: typeof couponBranchAllocations.$inferSelect | undefined;
+            let appliedCouponSnapshot: { id: string; name: string } | null = null;
             if (appliedCoupon) {
-                const [discountRows] = await Promise.all([
+                appliedCouponSnapshot = { id: appliedCoupon.id, name: appliedCoupon.name };
+                const [discountRows, , allocationRows] = await Promise.all([
                     tx
                         .insert(orderDiscounts)
                         .values({
@@ -503,12 +510,21 @@ export async function createOrderAction(
                                 eq(couponBranchAllocations.couponId, appliedCoupon.id),
                                 eq(couponBranchAllocations.branchId, branchId)
                             )
-                        ),
+                        )
+                        .returning(),
                 ]);
                 insertedDiscounts = discountRows;
+                updatedAllocation = allocationRows[0];
             }
 
-            return { order: createdOrder, items: insertedItems, discounts: insertedDiscounts, tableNumber };
+            return {
+                order: createdOrder,
+                items: insertedItems,
+                discounts: insertedDiscounts,
+                tableNumber,
+                updatedAllocation,
+                appliedCouponSnapshot,
+            };
         });
         console.timeEnd(`[createOrderAction] transaction ${timerId}`);
 
@@ -539,6 +555,44 @@ export async function createOrderAction(
         ];
         if (input.tableId) {
             broadcastPromises.push(broadcastChange(result.order.branchId, "tables"));
+        }
+        if (result.appliedCouponSnapshot) {
+            // Lets every other POS terminal at this branch refresh its
+            // cached "remaining uses" number right away, instead of only
+            // finding out next time that terminal happens to refetch.
+            broadcastPromises.push(broadcastChange(result.order.branchId, "coupons"));
+        }
+
+        // Two offline terminals can each independently allow the same
+        // coupon past its real remaining count, since neither can see the
+        // other's usage while disconnected — this can only be caught here,
+        // once a synced order pushes the real count past the branch's
+        // allocation. Never blocks the order (it already happened); just
+        // flags it for a person to review, same pattern as offline
+        // table/rider conflicts.
+        if (
+            wasOfflineOrder &&
+            result.updatedAllocation &&
+            result.appliedCouponSnapshot &&
+            result.updatedAllocation.usedCount > result.updatedAllocation.allocatedUses
+        ) {
+            auditPromises.push(
+                logAudit(db, currentStaffRow, "coupon", result.appliedCouponSnapshot.id, "update", {
+                    branchId: result.order.branchId,
+                    description: `Coupon "${result.appliedCouponSnapshot.name}" over-redeemed at this branch after an offline sync — ${result.updatedAllocation.usedCount}/${result.updatedAllocation.allocatedUses} used. Likely two offline terminals both allowed it independently.`,
+                })
+            );
+            broadcastPromises.push(
+                createNotification({
+                    tenantId: result.order.tenantId,
+                    branchId: result.order.branchId,
+                    type: "coupon_overuse",
+                    title: "Coupon over-redeemed",
+                    message: `"${result.appliedCouponSnapshot.name}" was used ${result.updatedAllocation.usedCount} times at this branch (allowed: ${result.updatedAllocation.allocatedUses}) — likely from multiple offline terminals syncing independently.`,
+                    resourceType: "coupon",
+                    resourceId: result.appliedCouponSnapshot.id,
+                })
+            );
         }
 
         await Promise.all([...auditPromises, ...broadcastPromises]);
@@ -873,6 +927,39 @@ export async function completeBillAction(
         return { error: "You can only manage your own branch's orders." };
     }
     if (target.status === "completed" || target.status === "cancelled") {
+        if (target.status === "completed" && clientPaymentId) {
+            // Two offline terminals can each independently complete the
+            // same order, since neither can see the other while
+            // disconnected — offline completion is always a full-balance
+            // cash payment (never partial), so if the payment that
+            // already completed this order also covered the full total,
+            // this is that harmless duplicate, not a real conflict.
+            const completingPayment = await db.query.payments.findFirst({
+                where: eq(payments.orderId, orderId),
+                orderBy: (p, { desc }) => [desc(p.initiatedAt)],
+            });
+            if (completingPayment && completingPayment.amount === target.total) {
+                return { success: true, fullyPaid: true };
+            }
+            // Doesn't match — a real mismatch, never guess. Flag it for a
+            // person instead of silently keeping one side or the other.
+            await Promise.all([
+                logAudit(db, currentStaffRow, "order", orderId, "update", {
+                    branchId: target.branchId,
+                    description: `A duplicate offline completion attempt on order ${target.orderNumber} didn't match the amount already recorded (recorded: ${completingPayment?.amount ?? "none found"}, order total: ${target.total}) — needs review.`,
+                }),
+                createNotification({
+                    tenantId: currentStaffRow.tenantId,
+                    branchId: target.branchId,
+                    type: "order_completion_conflict",
+                    title: "Order completion mismatch",
+                    message: `Order ${target.orderNumber} was completed with an amount that doesn't match a duplicate offline completion attempt. Please review.`,
+                    resourceType: "order",
+                    resourceId: orderId,
+                }),
+            ]);
+            return { error: "This order was already completed, but the recorded amount doesn't match — flagged for review." };
+        }
         return { error: `Cannot complete an order that is already "${target.status}".` };
     }
 
@@ -949,10 +1036,23 @@ export async function completeBillAction(
     // A delivery order can only be FULLY completed once the rider has
     // marked it delivered — a partial payment taken earlier (e.g. a
     // deposit at order time) doesn't need to wait for that.
+    let deliveryNeedsAutoConfirm = false;
     if (willFullyPay && target.orderType === "delivery") {
         const delivery = await db.query.deliveries.findFirst({ where: eq(deliveries.orderId, orderId) });
-        if (!delivery || delivery.status !== "delivered") {
-            return { error: "This delivery hasn't been marked delivered by the rider yet." };
+        if (!delivery) {
+            return { error: "Delivery record not found." };
+        }
+        if (delivery.status !== "delivered") {
+            if (!clientPaymentId) {
+                return { error: "This delivery hasn't been marked delivered by the rider yet." };
+            }
+            // Offline completion: riders don't use the app mid-delivery
+            // while offline (per design — staff assigns them, they
+            // deliver and bring cash back physically). Staff completing
+            // the bill IS the delivery confirmation here, so mark it
+            // delivered as part of this same action instead of requiring
+            // a rider-side step that can't happen without a connection.
+            deliveryNeedsAutoConfirm = true;
         }
     }
 
@@ -961,6 +1061,13 @@ export async function completeBillAction(
     await db.transaction(async (tx) => {
         const now = new Date();
         const newTotalPaid = target.totalPaid + paymentAmount;
+
+        if (deliveryNeedsAutoConfirm) {
+            await tx
+                .update(deliveries)
+                .set({ status: "delivered", updatedAt: now, actualDeliveryTime: now })
+                .where(eq(deliveries.orderId, orderId));
+        }
 
         await tx
             .update(orders)
@@ -1004,6 +1111,17 @@ export async function completeBillAction(
                 .where(eq(restaurantTables.id, target.tableId));
         }
     });
+
+    if (deliveryNeedsAutoConfirm) {
+        await Promise.all([
+            logAudit(db, currentStaffRow, "delivery", orderId, "status_change", {
+                branchId: target.branchId,
+                oldValue: { status: "assigned/out_for_delivery" },
+                newValue: { status: "delivered", note: "Auto-confirmed at offline completion — rider had no connection to confirm it themselves." },
+            }),
+            broadcastChange(target.branchId, "riders"),
+        ]);
+    }
 
     await logAudit(db, currentStaffRow, "order", orderId, "status_change", {
         branchId: target.branchId,

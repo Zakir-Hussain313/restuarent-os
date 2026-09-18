@@ -26,6 +26,15 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  experimental: {
+    serverActions: {
+      // Server Actions default to 1MB — uploads/actions.ts already
+      // advertises a 5MB file limit, so this was always broken for
+      // anything over ~1MB. 6MB gives headroom above that 5MB cap for
+      // FormData/multipart overhead.
+      bodySizeLimit: "6mb",
+    },
+  },
 };
 
 const withAnalyzer = withBundleAnalyzer({

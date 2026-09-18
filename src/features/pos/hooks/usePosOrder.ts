@@ -84,7 +84,15 @@ export function usePosOrder(autoConfirmOnPlace?: boolean): UsePosOrderReturn {
     const input = buildInput();
     const idempotencyKey = getIdempotencyKey(JSON.stringify(input));
 
+    const totals = usePosStore.getState().getTotals();
+
     try {
+      if (!navigator.onLine) {
+        // Known offline — skip the live attempt entirely instead of waiting
+        // out the full timeout for a call we already know will fail.
+        throw new Error("OFFLINE_SKIP_LIVE_ATTEMPT");
+      }
+
       const result = await withTimeout(
         createOrderAction(input, undefined, idempotencyKey),
         15000
@@ -122,7 +130,10 @@ export function usePosOrder(autoConfirmOnPlace?: boolean): UsePosOrderReturn {
       idempotencyRef.current = null;
       clearCart();
     } catch (err) {
-      console.error("[usePosOrder] placeOrder failed, queueing locally:", err);
+      const wasKnownOffline = err instanceof Error && err.message === "OFFLINE_SKIP_LIVE_ATTEMPT";
+      if (!wasKnownOffline) {
+        console.error("[usePosOrder] placeOrder failed, queueing locally:", err);
+      }
 
       try {
         const queuedAt = new Date();
@@ -131,10 +142,27 @@ export function usePosOrder(autoConfirmOnPlace?: boolean): UsePosOrderReturn {
           input,
           createdAt: queuedAt.getTime(),
           attempts: 0,
-          lastError: err instanceof Error ? err.message : String(err),
+          lastError: wasKnownOffline
+            ? "No connection at time of placement"
+            : err instanceof Error
+              ? err.message
+              : String(err),
           autoConfirmOnPlace,
           staffId: currentStaff?.id ?? "",
           branchId: currentStaff?.branchId ?? "",
+          localStatus: "pending",
+          displaySnapshot: {
+            orderType,
+            tableNumber,
+            notes,
+            cartItems,
+            totals: {
+              subtotal: totals.subtotal,
+              discountAmount: totals.discountAmount,
+              deliveryFee: totals.deliveryFee,
+              total: totals.total,
+            },
+          },
         });
 
         if (appliedCoupon && currentStaff?.id && currentStaff?.branchId) {
@@ -163,7 +191,6 @@ export function usePosOrder(autoConfirmOnPlace?: boolean): UsePosOrderReturn {
         // (derived from the idempotency key) stays matched to it forever.
         if (autoConfirmOnPlace) {
           const offlineRef = getOfflineRef(idempotencyKey);
-          const totals = usePosStore.getState().getTotals();
 
           // One combined print job (ticket + bill as two pages) instead of
           // two separate print() calls — see printOfflineTicketAndBill for

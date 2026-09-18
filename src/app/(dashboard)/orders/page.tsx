@@ -9,6 +9,9 @@ import { ClipboardList, Search, Utensils, ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { OrderListSkeleton } from "@/features/orders/shared/OrderListSkeleton";
 import { OrderCard } from "@/features/orders/shared/OrderCard";
+import { StuckSyncBanner } from "@/components/StuckSyncBanner";
+import { usePendingSyncOrders } from "@/features/orders/hooks/usePendingSyncOrders";
+import { PendingSyncOrderCard } from "@/features/orders/components/PendingSyncOrderCard";
 
 export default function ActiveOrdersPage() {
   const {
@@ -19,6 +22,7 @@ export default function ActiveOrdersPage() {
     filteredCount,
   } = useActiveOrders();
 
+  const { orders: pendingSyncOrders, refresh: refreshPendingSyncOrders } = usePendingSyncOrders();
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
   const effectiveOrderId = selectedOrderId ?? filteredOrders[0]?.id ?? null;
@@ -59,6 +63,8 @@ export default function ActiveOrdersPage() {
         )}
       </div>
 
+      <StuckSyncBanner />
+
       <div className="flex flex-1 min-h-0">
         <div
           className={cn(
@@ -79,6 +85,17 @@ export default function ActiveOrdersPage() {
           </div>
 
           <ScrollArea className="flex-1 min-h-0">
+            {pendingSyncOrders.length > 0 && (
+              <div className="flex flex-col">
+                {pendingSyncOrders.map((order) => (
+                  <PendingSyncOrderCard
+                    key={order.idempotencyKey}
+                    order={order}
+                    onChanged={refreshPendingSyncOrders}
+                  />
+                ))}
+              </div>
+            )}
             {isLoading ? (
               <OrderListSkeleton />
             ) : filteredOrders.length === 0 ? (

@@ -34,7 +34,7 @@ import type { NavItem, NavChild } from "@/config/nav";
 import { useAuthStore } from "@/store/useAuthStore";
 import { logoutAction } from "@/features/auth/actions";
 import { hasPermission } from "@/types/staff";
-import { usePendingOrdersCount } from "@/features/orders/hooks/usePendingOrdersCount";
+import { useOfflineSyncStatus } from "@/hooks/useOfflineSyncStatus";
 import { NotificationBell } from "@/features/notifications/components/NotificationBell";
 import { useSidebarStore } from "@/store/useSidebarStore";
 
@@ -100,6 +100,7 @@ interface SidebarNavItemProps {
   sidebarOpen: boolean;
   pathname: string;
   pendingOrdersCount: number;
+  stuckSyncCount: number;
 }
 
 function SidebarNavItem({
@@ -107,6 +108,7 @@ function SidebarNavItem({
   sidebarOpen,
   pathname,
   pendingOrdersCount,
+  stuckSyncCount,
 }: SidebarNavItemProps) {
   const Icon = ICON_MAP[item.icon];
   const hasChildren = !!item.children?.length;
@@ -199,14 +201,25 @@ function SidebarNavItem({
             )}
           />
           {!sidebarOpen && item.href === "/pos" && pendingOrdersCount > 0 && (
-            <span className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-coral ring-2 ring-[#5B21B6]" />
+            <span
+              className={cn(
+                "absolute -top-1 -right-1.5 w-2 h-2 rounded-full ring-2 ring-[#5B21B6]",
+                stuckSyncCount > 0 ? "bg-destructive" : "bg-coral"
+              )}
+            />
           )}
         </span>
         {sidebarOpen && (
           <>
             <span className="flex-1 truncate">{item.label}</span>
             {item.href === "/pos" && pendingOrdersCount > 0 && (
-              <span className="shrink-0 min-w-4.5 h-4.5 px-1 rounded-full bg-coral text-white text-[10px] font-semibold flex items-center justify-center">
+              <span
+                title={stuckSyncCount > 0 ? `${stuckSyncCount} item(s) need attention` : undefined}
+                className={cn(
+                  "shrink-0 min-w-4.5 h-4.5 px-1 rounded-full text-white text-[10px] font-semibold flex items-center justify-center",
+                  stuckSyncCount > 0 ? "bg-destructive" : "bg-coral"
+                )}
+              >
                 {pendingOrdersCount > 99 ? "99+" : pendingOrdersCount}
               </span>
             )}
@@ -255,7 +268,7 @@ export function Sidebar() {
     },
   });
 
-  const pendingOrdersCount = usePendingOrdersCount();
+  const { pendingCount: pendingOrdersCount, stuckCount: stuckSyncCount } = useOfflineSyncStatus();
 
   const visibleGroups = NAV_GROUPS
     .map((group) => ({
@@ -332,6 +345,7 @@ export function Sidebar() {
                   sidebarOpen={open}
                   pathname={pathname}
                   pendingOrdersCount={pendingOrdersCount}
+                  stuckSyncCount={stuckSyncCount}
                 />
               ))}
             </ul>

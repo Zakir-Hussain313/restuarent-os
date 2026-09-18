@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { UtensilsCrossed, ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCallback } from "react";
 import { usePosCart } from "../hooks/usePosCart";
 import { usePosMenu } from "../hooks/usePosMenu";
 import { usePosInit } from "../hooks/usePosInit";
+import { useBranchChannel } from "@/lib/realtime/useBranchChannel";
 import { MenuPanel } from "./MenuPanel/MenuPanel";
 import { CategoryPills } from "./MenuPanel/CategoryPills";
 import { CartPanel } from "./CartPanel/CartPanel";
@@ -20,8 +22,13 @@ interface PosLayoutProps {
 export function PosLayout({ branchId, showClockButton }: PosLayoutProps) {
   const [mobileTab, setMobileTab] = useState<MobileTab>("menu");
   const { itemCount } = usePosCart();
-  const { data: posInit, isLoading: posInitLoading } = usePosInit(branchId);
+  const { data: posInit, isLoading: posInitLoading, invalidate: invalidatePosInit } = usePosInit(branchId);
   const menu = usePosMenu(posInit, posInitLoading);
+
+  const onCouponUsedElsewhere = useCallback(() => {
+    invalidatePosInit();
+  }, [invalidatePosInit]);
+  useBranchChannel(branchId, "coupons", onCouponUsedElsewhere);
 
   return (
     <div className="flex flex-col h-full">
