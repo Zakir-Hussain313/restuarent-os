@@ -88,6 +88,32 @@ export const NAV_GROUPS: NavGroup[] = [
         permission: "manage_menu",
       },
       {
+        label: "Inventory",
+        href: "/inventory/ingredients",
+        icon: "Boxes",
+        permission: "manage_inventory",
+        children: [
+          {
+            label: "Ingredients",
+            href: "/inventory/ingredients",
+            icon: "Wheat",
+            permission: "manage_inventory",
+          },
+          {
+            label: "Suppliers",
+            href: "/inventory/suppliers",
+            icon: "Truck",
+            permission: "manage_inventory",
+          },
+          {
+            label: "Stock History",
+            href: "/inventory/history",
+            icon: "History",
+            permission: "manage_inventory",
+          },
+        ],
+      },
+      {
         label: "Staff",
         href: "/staff",
         icon: "UserCog",
@@ -128,7 +154,7 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/reports/sales",
         icon: "BarChart3",
         permission: "view_reports",
-      },
+      }
     ],
   },
 ];

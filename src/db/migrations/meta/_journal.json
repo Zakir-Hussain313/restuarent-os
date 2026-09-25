@@ -225,6 +225,34 @@
       "when": 1789189948815,
       "tag": "0031_fingerprint_attendance",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1790250428474,
+      "tag": "0032_daily_multiple_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1790312139218,
+      "tag": "0033_married_ego",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1790325247245,
+      "tag": "0034_last_talisman",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1790328268478,
+      "tag": "0035_jazzy_cyclops",
+      "breakpoints": true
     }
   ]
 }

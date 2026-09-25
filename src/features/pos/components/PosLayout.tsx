@@ -37,7 +37,7 @@ export function PosLayout({ branchId, showClockButton }: PosLayoutProps) {
         <div className="flex-3 overflow-hidden bg-background">
           <MenuPanel menu={menu} showSidebar showPills={false} />
         </div>
-        <div className="flex-2 overflow-hidden min-w-75 max-w-105">
+        <div className="flex-2 overflow-hidden min-w-72 max-w-92">
           <CartPanel
             branchId={branchId}
             posInit={posInit}

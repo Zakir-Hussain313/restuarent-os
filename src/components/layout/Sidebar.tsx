@@ -27,6 +27,9 @@ import {
   Building2,
   MapPin,
   Table2,
+  Boxes,
+  Wheat,
+  Truck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NAV_GROUPS } from "@/config/nav";
@@ -53,6 +56,9 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Building2,
   MapPin,
   Table2,
+  Boxes,
+  Wheat,
+  Truck,
 };
 
 function isChildActive(children: NavChild[], pathname: string): boolean {

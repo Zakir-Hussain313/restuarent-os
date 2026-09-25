@@ -41,7 +41,7 @@ export function MenuItemCard({ item, cartQuantity, categoryIcon }: MenuItemCardP
       onClick={handleClick}
       disabled={isUnavailable}
       className={cn(
-        "relative rounded-xl border bg-card text-left p-3 space-y-2 transition-all",
+        "relative rounded-xl border bg-card text-left p-2.5 space-y-1.5 transition-all",
         "hover:shadow-md hover:border-primary/40 active:scale-[0.98]",
         isInCart && "border-primary/50 bg-primary/5",
         isUnavailable && "opacity-50 cursor-not-allowed"

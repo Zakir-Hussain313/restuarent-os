@@ -20,6 +20,11 @@ export * from "./notifications";
 export * from "./notification_clears";
 export * from "./branch_devices";
 export * from "./staff_biometric_enrollments";
+export * from "./ingredients";
+export * from "./suppliers";
+export * from "./recipe_ingredients";
+export * from "./stock_receipts";
+export * from "./stock_movements";
 
 // Re-export all enums namespace for convenience when you need to
 // reference enum values directly (e.g. enums.staffRoleEnum).

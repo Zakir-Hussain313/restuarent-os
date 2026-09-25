@@ -10,6 +10,10 @@ export function formatCurrency(amount: number, symbol = RESTAURANT_CONFIG.curren
   return `${symbol} ${amount.toLocaleString(RESTAURANT_CONFIG.locale, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
+export function formatNumberWithCommas(amount: number): string {
+  return amount.toLocaleString(RESTAURANT_CONFIG.locale, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
 export function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString(RESTAURANT_CONFIG.locale, {
     day: "numeric",

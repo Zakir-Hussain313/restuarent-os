@@ -133,6 +133,23 @@ export const attendanceSourceEnum = pgEnum("attendance_source", [
   "biometric",
 ]);
 
+// ── Inventory ─────────────────────────────────────────────────────────────
+export const ingredientUnitEnum = pgEnum("ingredient_unit", [
+  "kg",
+  "g",
+  "l",
+  "ml",
+  "pcs",
+]);
+
+export const stockMovementReasonEnum = pgEnum("stock_movement_reason", [
+  "purchase",
+  "sale",
+  "wastage",
+  "correction",
+  "other",
+]);
+
 // ── Tenants ───────────────────────────────────────────────────────────────
 export const subscriptionStatusEnum = pgEnum("subscription_status", [
   "trialing",

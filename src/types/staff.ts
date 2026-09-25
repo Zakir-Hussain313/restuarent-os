@@ -17,7 +17,8 @@ export type Permission =
   | "manage_settings"
   | "view_audit_logs"
   | "manage_deliveries"
-  | "view_reports";
+  | "view_reports"
+  | "manage_inventory";
 
 const ALL_PERMISSIONS: Permission[] = [
   "view_dashboard",
@@ -35,6 +36,7 @@ const ALL_PERMISSIONS: Permission[] = [
   "view_audit_logs",
   "manage_deliveries",
   "view_reports",
+  "manage_inventory",
 ];
 
 export const ROLE_PERMISSIONS: Record<StaffRole, Permission[]> = {
@@ -42,7 +44,7 @@ export const ROLE_PERMISSIONS: Record<StaffRole, Permission[]> = {
   ADMIN: [
     "view_dashboard", "access_pos", "manage_orders", "manage_tables",
     "manage_menu", "manage_staff", "manage_attendance", "view_analytics", "manage_settings",
-    "view_reports", "view_audit_logs",
+    "view_reports", "view_audit_logs", "manage_inventory",
 ],
   STAFF: ["access_pos", "manage_orders", "manage_tables", "manage_menu"],
   RIDER: ["manage_deliveries"],

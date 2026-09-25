@@ -16,9 +16,13 @@ import {
     tableReservations,
     deliveries,
     payments,
+    ingredients,
+    recipeIngredients,
+    stockMovements,
+    notifications,
 } from "@/db/schema";
 import { getSupabaseServerClient } from "@/lib/supabase";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { eq, and, inArray, asc, sql, gte } from "drizzle-orm";
 import type { Order, OrderStatus, OrderType, PaymentMethod } from "@/types";
 import { hasPermission } from "@/types/staff";
 import { RESTAURANT_CONFIG } from "@/config/restaurant";
@@ -907,6 +911,147 @@ export async function markBillPrintedAction(
     return { success: true };
 }
 
+// ─── Inventory auto-deduction (runs inside completeBillAction's tx) ─────
+
+type QueryClient = Parameters<Parameters<typeof db.transaction>[0]>[0] | typeof db;
+
+const round3 = (n: number) => Math.round(n * 1000) / 1000;
+
+/**
+ * Deducts recipe ingredients for every item on an order once it's actually
+ * completed. Idempotent (skips if "sale" movements already exist for this
+ * order — guards the offline duplicate-completion path). Sale deductions
+ * are allowed to push stock negative and must never block/fail the order.
+ * Menu items with no recipe deduct nothing. Modifiers have no recipe
+ * support yet.
+ */
+interface LowStockAlert {
+    branchId: string;
+    ingredientId: string;
+    ingredientName: string;
+    currentStock: number;
+    unit: string;
+}
+
+async function deductInventoryForCompletedOrder(
+    tx: QueryClient,
+    params: { tenantId: string; branchId: string; orderId: string; staffId: string; staffName: string }
+): Promise<LowStockAlert[]> {
+    const lowStockAlerts: LowStockAlert[] = [];
+
+    const already = await tx.query.stockMovements.findFirst({
+        where: and(eq(stockMovements.orderId, params.orderId), eq(stockMovements.reason, "sale")),
+    });
+    if (already) return lowStockAlerts;
+
+    const items = await tx.query.orderItems.findMany({
+        where: eq(orderItems.orderId, params.orderId),
+    });
+    if (items.length === 0) return lowStockAlerts;
+
+    const menuItemIds = [...new Set(items.map((i) => i.menuItemId))];
+
+    const recipeRows = await tx.query.recipeIngredients.findMany({
+        where: and(
+            inArray(recipeIngredients.menuItemId, menuItemIds),
+            eq(recipeIngredients.tenantId, params.tenantId)
+        ),
+    });
+    if (recipeRows.length === 0) return lowStockAlerts;
+
+    const recipeByMenuItem = new Map<string, typeof recipeRows>();
+    for (const r of recipeRows) {
+        const list = recipeByMenuItem.get(r.menuItemId) ?? [];
+        list.push(r);
+        recipeByMenuItem.set(r.menuItemId, list);
+    }
+
+    // Aggregate quantity needed per ingredient across the whole order first.
+    const usage = new Map<string, number>();
+    for (const item of items) {
+        const lines = recipeByMenuItem.get(item.menuItemId);
+        if (!lines) continue;
+        const variantId = item.selectedVariant?.variantId ?? null;
+        for (const line of lines) {
+            // null = applies to every variant; otherwise only the matching one.
+            if (line.menuItemVariantId !== null && line.menuItemVariantId !== variantId) continue;
+            const qty = round3(line.quantityPerUnit * item.quantity);
+            usage.set(line.ingredientId, round3((usage.get(line.ingredientId) ?? 0) + qty));
+        }
+    }
+    if (usage.size === 0) return lowStockAlerts;
+
+    // Lock in a consistent (sorted) order to avoid deadlocks between
+    // concurrent completions touching overlapping ingredients.
+    const ingredientIds = [...usage.keys()].sort();
+    const locked = await tx
+        .select()
+        .from(ingredients)
+        .where(and(inArray(ingredients.id, ingredientIds), eq(ingredients.branchId, params.branchId)))
+        .orderBy(asc(ingredients.id))
+        .for("update");
+
+    const now = new Date();
+    for (const ing of locked) {
+        const qtyUsed = usage.get(ing.id);
+        if (!qtyUsed) continue;
+
+        const newStock = round3(ing.currentStock - qtyUsed);
+        const costImpact = -Math.round(qtyUsed * ing.avgCostPerUnit);
+        const wasAlreadyLow =
+            ing.lowStockThreshold !== null && ing.currentStock <= ing.lowStockThreshold;
+        const isNowLow =
+            ing.lowStockThreshold !== null && newStock <= ing.lowStockThreshold;
+
+        await tx
+            .update(ingredients)
+            .set({ currentStock: newStock, updatedAt: now })
+            .where(eq(ingredients.id, ing.id));
+
+        await tx.insert(stockMovements).values({
+            tenantId: params.tenantId,
+            branchId: ing.branchId,
+            ingredientId: ing.id,
+            reason: "sale",
+            quantityChange: -qtyUsed,
+            costImpact,
+            orderId: params.orderId,
+            createdBy: params.staffId,
+            createdByName: params.staffName,
+        });
+
+        if (isNowLow) {
+            // Notify on first crossing into low stock, and re-notify at
+            // most once per 24h while it stays low and unrestocked —
+            // never on every single sale once it's already low.
+            let shouldAlert = !wasAlreadyLow;
+            if (wasAlreadyLow) {
+                const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+                const recentAlert = await tx.query.notifications.findFirst({
+                    where: and(
+                        eq(notifications.type, "low_stock"),
+                        eq(notifications.resourceType, "ingredient"),
+                        eq(notifications.resourceId, ing.id),
+                        gte(notifications.createdAt, dayAgo)
+                    ),
+                });
+                shouldAlert = !recentAlert;
+            }
+            if (shouldAlert) {
+                lowStockAlerts.push({
+                    branchId: ing.branchId,
+                    ingredientId: ing.id,
+                    ingredientName: ing.name,
+                    currentStock: newStock,
+                    unit: ing.unit,
+                });
+            }
+        }
+    }
+
+    return lowStockAlerts;
+}
+
 // ─── Complete Bill (mark paid) ──────────────────────────────────────────
 
 export async function completeBillAction(
@@ -993,7 +1138,7 @@ export async function completeBillAction(
         }
 
         const now = new Date();
-        await db.transaction(async (tx) => {
+        const lowStockAlerts = await db.transaction(async (tx) => {
             await tx
                 .update(orders)
                 .set({ status: "completed", completedAt: now, updatedAt: now })
@@ -1005,6 +1150,14 @@ export async function completeBillAction(
                     .set({ status: "available", updatedAt: now })
                     .where(eq(restaurantTables.id, target.tableId));
             }
+
+            return deductInventoryForCompletedOrder(tx, {
+                tenantId: currentStaffRow.tenantId,
+                branchId: target.branchId,
+                orderId,
+                staffId: currentStaffRow.id,
+                staffName: `${currentStaffRow.firstName} ${currentStaffRow.lastName}`,
+            });
         });
 
         await logAudit(db, currentStaffRow, "order", orderId, "status_change", {
@@ -1016,6 +1169,17 @@ export async function completeBillAction(
         await broadcastChange(target.branchId, "orders");
         if (target.tableId) {
             await broadcastChange(target.branchId, "tables");
+        }
+        for (const alert of lowStockAlerts) {
+            await createNotification({
+                tenantId: currentStaffRow.tenantId,
+                branchId: alert.branchId,
+                type: "low_stock",
+                title: "Low stock",
+                message: `${alert.ingredientName} is low: ${alert.currentStock} ${alert.unit} left.`,
+                resourceType: "ingredient",
+                resourceId: alert.ingredientId,
+            });
         }
 
         return { success: true, fullyPaid: true };
@@ -1057,6 +1221,7 @@ export async function completeBillAction(
     }
 
     let paymentId = "";
+    let lowStockAlerts: LowStockAlert[] = [];
 
     await db.transaction(async (tx) => {
         const now = new Date();
@@ -1110,6 +1275,16 @@ export async function completeBillAction(
                 .set({ status: "available", updatedAt: now })
                 .where(eq(restaurantTables.id, target.tableId));
         }
+
+        if (willFullyPay) {
+            lowStockAlerts = await deductInventoryForCompletedOrder(tx, {
+                tenantId: currentStaffRow.tenantId,
+                branchId: target.branchId,
+                orderId,
+                staffId: currentStaffRow.id,
+                staffName: `${currentStaffRow.firstName} ${currentStaffRow.lastName}`,
+            });
+        }
     });
 
     if (deliveryNeedsAutoConfirm) {
@@ -1143,6 +1318,17 @@ export async function completeBillAction(
     await broadcastChange(target.branchId, "orders");
     if (target.tableId) {
         await broadcastChange(target.branchId, "tables");
+    }
+    for (const alert of lowStockAlerts) {
+        await createNotification({
+            tenantId: currentStaffRow.tenantId,
+            branchId: alert.branchId,
+            type: "low_stock",
+            title: "Low stock",
+            message: `${alert.ingredientName} is low: ${alert.currentStock} ${alert.unit} left.`,
+            resourceType: "ingredient",
+            resourceId: alert.ingredientId,
+        });
     }
 
     return { success: true, fullyPaid: willFullyPay };

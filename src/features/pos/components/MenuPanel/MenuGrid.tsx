@@ -32,8 +32,10 @@ export function MenuGrid({ items, categories = [], isLoading }: MenuGridProps) {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 min-[1000px]:grid-cols-3 gap-3 p-3">
-        {Array.from({ length: 12 }).map((_, i) => <SkeletonCard key={i} />)}
+      <div className="@container">
+        <div className="grid grid-cols-2 @min-[480px]:grid-cols-3 @min-[620px]:grid-cols-4 @min-[820px]:grid-cols-5 gap-3 p-3">
+          {Array.from({ length: 12 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
       </div>
     );
   }
@@ -49,8 +51,9 @@ export function MenuGrid({ items, categories = [], isLoading }: MenuGridProps) {
   }
 
   return (
-    <div className="grid grid-cols-2 min-[1000px]:grid-cols-3 gap-3 p-3">
-      {items.map((item) => {
+    <div className="@container">
+      <div className="grid grid-cols-2 @min-[420px]:grid-cols-3 @min-[560px]:grid-cols-4 @min-[750px]:grid-cols-5 gap-2 p-3">
+        {items.map((item) => {
         const cartItem = cartItems.find((ci) => ci.menuItem.id === item.id);
         return (
           <MenuItemCard
@@ -60,7 +63,8 @@ export function MenuGrid({ items, categories = [], isLoading }: MenuGridProps) {
             categoryIcon={categoryIconById.get(item.categoryId)}
           />
         );
-      })}
+        })}
+      </div>
     </div>
   );
 }

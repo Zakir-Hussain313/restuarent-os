@@ -26,7 +26,7 @@ export function MenuPanel({ menu, showSidebar, showPills }: MenuPanelProps) {
     return (
         <div className="flex h-full overflow-hidden">
             {showSidebar && (
-                <div className="w-44 shrink-0 border-r border-border overflow-y-auto">
+                <div className="w-40 shrink-0 border-r border-border overflow-y-auto">
                     <CategorySidebar
                         categories={categories}
                         selectedCategoryId={selectedCategoryId}

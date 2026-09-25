@@ -10,6 +10,7 @@ import { attendance } from "./schema/attendance";
 import { auditLogs } from "./schema/audit_logs";
 import { tenantSettings } from "./schema/tenant_settings";
 import { branchDevices, staffBiometricEnrollments } from "./schema";
+import { ingredients, suppliers, recipeIngredients, stockReceipts, stockMovements } from "./schema";
 
 // ── Tenants ───────────────────────────────────────────────────────────────
 
@@ -115,6 +116,7 @@ export const menuItemsRelations = relations(menuItems, ({ one, many }) => ({
     variants: many(menuItemVariants),
     modifierGroups: many(modifierGroups),
     orderItems: many(orderItems),
+    recipeIngredients: many(recipeIngredients),
 }));
 
 // ── Menu Item Variants ────────────────────────────────────────────────────
@@ -216,9 +218,10 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
         fields: [orders.id],
         references: [deliveries.orderId],
     }),
+    stockMovements: many(stockMovements),
 }));
 
-// ── Order Items ───────────────────────────────────────────────────────────
+// ── Order Items ────────────────────────────────────────────────────────────
 
 export const orderItemsRelations = relations(orderItems, ({ one }) => ({
     tenant: one(tenants, {
@@ -413,6 +416,103 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
     }),
     actor: one(staff, {
         fields: [auditLogs.actorId],
+        references: [staff.id],
+    }),
+}));
+
+// ── Ingredients ───────────────────────────────────────────────────────────
+
+export const ingredientsRelations = relations(ingredients, ({ one, many }) => ({
+    tenant: one(tenants, {
+        fields: [ingredients.tenantId],
+        references: [tenants.id],
+    }),
+    branch: one(branches, {
+        fields: [ingredients.branchId],
+        references: [branches.id],
+    }),
+    recipeIngredients: many(recipeIngredients),
+    stockReceipts: many(stockReceipts),
+    stockMovements: many(stockMovements),
+}));
+
+// ── Suppliers ─────────────────────────────────────────────────────────────
+
+export const suppliersRelations = relations(suppliers, ({ one, many }) => ({
+    tenant: one(tenants, {
+        fields: [suppliers.tenantId],
+        references: [tenants.id],
+    }),
+    stockReceipts: many(stockReceipts),
+}));
+
+// ── Recipe Ingredients ───────────────────────────────────────────────────────
+
+export const recipeIngredientsRelations = relations(recipeIngredients, ({ one }) => ({
+    tenant: one(tenants, {
+        fields: [recipeIngredients.tenantId],
+        references: [tenants.id],
+    }),
+    menuItem: one(menuItems, {
+        fields: [recipeIngredients.menuItemId],
+        references: [menuItems.id],
+    }),
+    menuItemVariant: one(menuItemVariants, {
+        fields: [recipeIngredients.menuItemVariantId],
+        references: [menuItemVariants.id],
+    }),
+    ingredient: one(ingredients, {
+        fields: [recipeIngredients.ingredientId],
+        references: [ingredients.id],
+    }),
+}));
+
+// ── Stock Receipts ───────────────────────────────────────────────────────────
+
+export const stockReceiptsRelations = relations(stockReceipts, ({ one }) => ({
+    tenant: one(tenants, {
+        fields: [stockReceipts.tenantId],
+        references: [tenants.id],
+    }),
+    branch: one(branches, {
+        fields: [stockReceipts.branchId],
+        references: [branches.id],
+    }),
+    ingredient: one(ingredients, {
+        fields: [stockReceipts.ingredientId],
+        references: [ingredients.id],
+    }),
+    supplier: one(suppliers, {
+        fields: [stockReceipts.supplierId],
+        references: [suppliers.id],
+    }),
+    receivedByStaff: one(staff, {
+        fields: [stockReceipts.receivedBy],
+        references: [staff.id],
+    }),
+}));
+
+// ── Stock Movements ───────────────────────────────────────────────────────────
+
+export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
+    tenant: one(tenants, {
+        fields: [stockMovements.tenantId],
+        references: [tenants.id],
+    }),
+    branch: one(branches, {
+        fields: [stockMovements.branchId],
+        references: [branches.id],
+    }),
+    ingredient: one(ingredients, {
+        fields: [stockMovements.ingredientId],
+        references: [ingredients.id],
+    }),
+    order: one(orders, {
+        fields: [stockMovements.orderId],
+        references: [orders.id],
+    }),
+    createdByStaff: one(staff, {
+        fields: [stockMovements.createdBy],
         references: [staff.id],
     }),
 }));

@@ -3,14 +3,14 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { db } from "@/db";
-import { staff, branches, menuItems } from "@/db/schema";
+import { staff, branches, menuItems, ingredients } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { hasPermission } from "@/types/staff";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
-type EntityType = "staff" | "branch" | "menu_item";
+type EntityType = "staff" | "branch" | "menu_item" | "ingredient";
 
 export async function uploadEntityImage(formData: FormData) {
   const entityType = formData.get("entityType") as EntityType | null;
@@ -62,6 +62,10 @@ export async function uploadEntityImage(formData: FormData) {
     if (!isSelf && !hasPermission(currentStaffRow.role, "manage_staff")) {
       return { error: "You don't have permission to upload this image." };
     }
+  } else if (entityType === "ingredient") {
+    if (!hasPermission(currentStaffRow.role, "manage_inventory")) {
+      return { error: "You don't have permission to upload this image." };
+    }
   } else {
     if (!hasPermission(currentStaffRow.role, "manage_branches")) {
       return { error: "You don't have permission to upload this image." };
@@ -100,6 +104,16 @@ export async function uploadEntityImage(formData: FormData) {
     }
     if (currentStaffRow.role === "ADMIN" && targetItem.branchId !== currentStaffRow.branchId) {
       return { error: "You can only upload images for your own branch's menu." };
+    }
+  } else if (entityType === "ingredient") {
+    const targetIngredient = await db.query.ingredients.findFirst({
+      where: eq(ingredients.id, entityId),
+    });
+    if (!targetIngredient || targetIngredient.tenantId !== currentStaffRow.tenantId) {
+      return { error: "Ingredient not found." };
+    }
+    if (currentStaffRow.role === "ADMIN" && targetIngredient.branchId !== currentStaffRow.branchId) {
+      return { error: "You can only upload images for your own branch's ingredients." };
     }
   }
 

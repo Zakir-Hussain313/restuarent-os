@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils";
 import { useAlertModal } from "@/components/providers/AlertModalProvider";
 import { ItemStatusToggle } from "./ItemStatusToggle";
+import { RecipeDialog } from "@/features/inventory/components/recipe-dialog";
 import type { MenuItem, MenuItemStatus } from "@/types";
 
 interface ItemCardProps {
@@ -82,6 +83,7 @@ export function ItemCard({
             >
               <Pencil className="w-3.5 h-3.5" />
             </button>
+            <RecipeDialog item={item} />
             <button
               onClick={handleDeleteClick}
               className="w-6 h-6 rounded-lg bg-card shadow-sm flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
