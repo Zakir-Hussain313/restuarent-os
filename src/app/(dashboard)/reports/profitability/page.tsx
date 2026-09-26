@@ -1,10 +1,10 @@
 import { resolveSettingsBranch } from "@/features/settings/lib/resolveSettingsBranch";
 import { SettingsBranchHeader } from "@/features/settings/components/SettingsBranchHeader";
 import { ReportPeriodFilter } from "@/features/reports/components/ReportPeriodFilter";
-import { MenuPerformanceReportView } from "@/features/reports/components/MenuPerformanceReportView";
+import { ProfitabilityReportView } from "@/features/reports/components/ProfitabilityReportView";
 import { ALL_REPORT_PERIODS, type ReportPeriod } from "@/features/reports/lib/getReportDateRange";
 
-export default async function MenuPerformanceReportPage({
+export default async function ProfitabilityReportPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -22,9 +22,9 @@ export default async function MenuPerformanceReportPage({
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Menu Performance</h2>
+          <h2 className="text-lg font-semibold text-foreground">Profitability</h2>
           <p className="text-sm text-[#8a8680] mt-1 hidden sm:block">
-            Best and worst selling items
+            Revenue, cost of goods sold, and inventory loss
           </p>
         </div>
         <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2">
@@ -33,7 +33,7 @@ export default async function MenuPerformanceReportPage({
         </div>
       </div>
 
-      <MenuPerformanceReportView branchId={context.branchId} period={period} />
+      <ProfitabilityReportView branchId={context.branchId} period={period} />
     </div>
   );
 }

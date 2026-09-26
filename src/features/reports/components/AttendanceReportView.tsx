@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   getAttendanceReportAction,
   exportAttendanceReportExcelAction,
@@ -25,6 +26,9 @@ const STAT_STYLES = [
 ];
 
 export function AttendanceReportView({ branchId, period }: AttendanceReportViewProps) {
+  const searchParams = useSearchParams();
+  const start = searchParams.get("start");
+  const end = searchParams.get("end");
   const [report, setReport] = useState<AttendanceReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +39,7 @@ export function AttendanceReportView({ branchId, period }: AttendanceReportViewP
     setIsLoading(true);
     setError(null);
 
-    getAttendanceReportAction(period, { branch: branchId }).then((result) => {
+    getAttendanceReportAction(period, { branch: branchId, ...(start && end ? { start, end } : {}) }).then((result) => {
       if (ignore) return;
       if (!result.data) {
         setError(result.error);
@@ -48,7 +52,7 @@ export function AttendanceReportView({ branchId, period }: AttendanceReportViewP
     return () => {
       ignore = true;
     };
-  }, [branchId, period]);
+  }, [branchId, period, start, end]);
 
   if (isLoading) {
     return (
@@ -81,8 +85,8 @@ export function AttendanceReportView({ branchId, period }: AttendanceReportViewP
   return (
     <div className="space-y-6">
       <ExportButtons
-        onExportExcel={() => exportAttendanceReportExcelAction(period, { branch: branchId })}
-        onExportPdf={() => exportAttendanceReportPdfAction(period, { branch: branchId })}
+        onExportExcel={() => exportAttendanceReportExcelAction(period, { branch: branchId, ...(start && end ? { start, end } : {}) })}
+        onExportPdf={() => exportAttendanceReportPdfAction(period, { branch: branchId, ...(start && end ? { start, end } : {}) })}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">

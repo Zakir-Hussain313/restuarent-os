@@ -63,6 +63,19 @@ export interface DashboardStats {
   totalTables: number;
 }
 
+export interface ProfitabilitySnapshot {
+  revenue: number;
+  cogs: number;
+  grossProfit: number;
+  wastageLoss: number;
+  correctionLoss: number;
+  inventoryLoss: number;
+  netProfit: number;
+  profitMarginPct: number;
+  foodCostPct: number;
+  lowStockCount: number;
+}
+
 export interface AnalyticsReport {
   dateRange: DateRange;
   stats: DashboardStats;

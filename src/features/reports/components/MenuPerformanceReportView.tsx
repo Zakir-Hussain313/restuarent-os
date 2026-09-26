@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   getMenuPerformanceReportAction,
   exportMenuPerformanceReportExcelAction,
@@ -17,6 +18,9 @@ interface MenuPerformanceReportViewProps {
 }
 
 export function MenuPerformanceReportView({ branchId, period }: MenuPerformanceReportViewProps) {
+  const searchParams = useSearchParams();
+  const start = searchParams.get("start");
+  const end = searchParams.get("end");
   const [report, setReport] = useState<MenuPerformanceReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +30,7 @@ export function MenuPerformanceReportView({ branchId, period }: MenuPerformanceR
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsLoading(true);
     setError(null);
-    getMenuPerformanceReportAction(period, { branch: branchId }).then((result) => {
+    getMenuPerformanceReportAction(period, { branch: branchId, ...(start && end ? { start, end } : {}) }).then((result) => {
       if (ignore) return;
       if (!result.data) {
         setError(result.error);
@@ -38,7 +42,7 @@ export function MenuPerformanceReportView({ branchId, period }: MenuPerformanceR
     return () => {
       ignore = true;
     };
-  }, [branchId, period]);
+  }, [branchId, period, start, end]);
 
   if (isLoading) {
     return (
@@ -63,8 +67,8 @@ export function MenuPerformanceReportView({ branchId, period }: MenuPerformanceR
   return (
     <div className="space-y-6">
       <ExportButtons
-        onExportExcel={() => exportMenuPerformanceReportExcelAction(period, { branch: branchId })}
-        onExportPdf={() => exportMenuPerformanceReportPdfAction(period, { branch: branchId })}
+        onExportExcel={() => exportMenuPerformanceReportExcelAction(period, { branch: branchId, ...(start && end ? { start, end } : {}) })}
+        onExportPdf={() => exportMenuPerformanceReportPdfAction(period, { branch: branchId, ...(start && end ? { start, end } : {}) })}
       />
 
       <div className="grid md:grid-cols-2 gap-4">
@@ -100,6 +104,23 @@ export function MenuPerformanceReportView({ branchId, period }: MenuPerformanceR
             </div>
           </div>
         )}
+      </div>
+
+      <div className="bg-card rounded-2xl border border-border p-5">
+        <h3 className="text-sm font-semibold text-foreground mb-3">By Category</h3>
+        <div className="divide-y divide-border">
+          {report.byCategory.map((c) => (
+            <div key={c.categoryName} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
+              <span className="text-sm text-muted-foreground">{c.categoryName}</span>
+              <span className="text-sm font-medium text-foreground">
+                {c.quantitySold} sold · {formatCurrency(c.revenue)}
+              </span>
+            </div>
+          ))}
+          {report.byCategory.length === 0 && (
+            <p className="text-sm text-muted-foreground py-2">No data for this period.</p>
+          )}
+        </div>
       </div>
     </div>
   );

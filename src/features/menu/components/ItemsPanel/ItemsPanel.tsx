@@ -116,9 +116,9 @@ export function ItemsPanel({
       </div>
 
       {/* ── Grid ─────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto min-h-0 p-6">
+      <div className="flex-1 overflow-y-auto min-h-0 p-6 @container">
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 @min-[300px]:grid-cols-2 @min-[540px]:grid-cols-3 @min-[760px]:grid-cols-4 @min-[980px]:grid-cols-5 gap-4">
             {Array.from({ length: 6 }).map((_, i) => (
               <SkeletonCard key={i} />
             ))}
@@ -143,7 +143,7 @@ export function ItemsPanel({
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 @min-[300px]:grid-cols-2 @min-[540px]:grid-cols-3 @min-[760px]:grid-cols-4 @min-[980px]:grid-cols-5 gap-4">
             {[...items]
             .sort((a, b) => a.sortOrder - b.sortOrder)
               .map((item) => (

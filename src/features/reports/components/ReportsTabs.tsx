@@ -6,19 +6,29 @@ import { cn } from "@/lib/utils";
 
 const TABS = [
   { href: "/reports/sales", label: "Sales" },
+  { href: "/reports/profitability", label: "Profitability" },
   { href: "/reports/orders", label: "Orders" },
   { href: "/reports/menu-performance", label: "Menu Performance" },
   { href: "/reports/attendance", label: "Staff & Attendance" },
 ];
 
-export function ReportsTabs() {
+const SUPER_ADMIN_ONLY_TABS = [
+  { href: "/reports/branch-comparison", label: "Branch Comparison" },
+];
+
+interface ReportsTabsProps {
+  isSuperAdmin: boolean;
+}
+
+export function ReportsTabs({ isSuperAdmin }: ReportsTabsProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const query = searchParams.toString();
+  const tabs = isSuperAdmin ? [...TABS, ...SUPER_ADMIN_ONLY_TABS] : TABS;
 
   return (
     <div className="border-b flex gap-1 overflow-x-auto scrollbar-hide flex-nowrap">
-      {TABS.map((tab) => {
+      {tabs.map((tab) => {
         const isActive = pathname === tab.href;
         return (
           <Link

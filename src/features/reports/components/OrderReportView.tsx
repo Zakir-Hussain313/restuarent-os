@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   getOrderReportAction,
   exportOrderReportExcelAction,
@@ -37,6 +38,9 @@ const STAT_STYLES = [
 ];
 
 export function OrderReportView({ branchId, period }: OrderReportViewProps) {
+  const searchParams = useSearchParams();
+  const start = searchParams.get("start");
+  const end = searchParams.get("end");
   const [report, setReport] = useState<OrderReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +50,7 @@ export function OrderReportView({ branchId, period }: OrderReportViewProps) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsLoading(true);
     setError(null);
-    getOrderReportAction(period, { branch: branchId }).then((result) => {
+    getOrderReportAction(period, { branch: branchId, ...(start && end ? { start, end } : {}) }).then((result) => {
       if (ignore) return;
       if (!result.data) {
         setError(result.error);
@@ -58,7 +62,7 @@ export function OrderReportView({ branchId, period }: OrderReportViewProps) {
     return () => {
       ignore = true;
     };
-  }, [branchId, period]);
+  }, [branchId, period, start, end]);
 
   if (isLoading) {
     return (
@@ -81,8 +85,8 @@ export function OrderReportView({ branchId, period }: OrderReportViewProps) {
   return (
     <div className="space-y-6">
       <ExportButtons
-        onExportExcel={() => exportOrderReportExcelAction(period, { branch: branchId })}
-        onExportPdf={() => exportOrderReportPdfAction(period, { branch: branchId })}
+        onExportExcel={() => exportOrderReportExcelAction(period, { branch: branchId, ...(start && end ? { start, end } : {}) })}
+        onExportPdf={() => exportOrderReportPdfAction(period, { branch: branchId, ...(start && end ? { start, end } : {}) })}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

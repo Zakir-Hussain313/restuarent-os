@@ -48,6 +48,46 @@ export async function getMenuItemPerformance(
   }));
 }
 
+export interface CategoryPerformance {
+  categoryName: string;
+  quantitySold: number;
+  revenue: number;
+}
+
+export async function getCategoryPerformance(
+  tenantId: string,
+  branchId: string,
+  start: Date,
+  end: Date
+): Promise<CategoryPerformance[]> {
+  const rows = await db
+    .select({
+      categoryName: orderItems.categoryName,
+      quantitySold: sql<number>`coalesce(sum(${orderItems.quantity}), 0)`,
+      revenue: sql<number>`coalesce(sum(${orderItems.itemTotal}), 0)`,
+    })
+    .from(orderItems)
+    .innerJoin(orders, eq(orderItems.orderId, orders.id))
+    .where(
+      and(
+        eq(orders.tenantId, tenantId),
+        eq(orders.branchId, branchId),
+        eq(orders.status, "completed"),
+        ne(orderItems.status, "cancelled"),
+        gte(orders.completedAt, start),
+        lt(orders.completedAt, end)
+      )
+    )
+    .groupBy(orderItems.categoryName)
+    .orderBy(sql`sum(${orderItems.itemTotal}) desc`);
+
+  return rows.map((r) => ({
+    categoryName: r.categoryName,
+    quantitySold: Number(r.quantitySold),
+    revenue: Number(r.revenue),
+  }));
+}
+
 export function splitTopAndBottom(
   items: MenuItemPerformance[],
   limit = 10

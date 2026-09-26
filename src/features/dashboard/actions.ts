@@ -3,23 +3,11 @@
 
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { db } from "@/db";
-import { eq, and, gte, lt, ne, sql, desc } from "drizzle-orm";
-import type { DashboardStats, RevenueDataPoint, TopMenuItem, OrderTypeBreakdown } from "@/types/analytics";
-import { staff, orders, orderItems, restaurantTables, tableReservations } from "@/db/schema";
-import type { OrderStatus, OrderType } from "@/types";
+import { eq, and, gte, lt, ne, sql } from "drizzle-orm";
+import type { DashboardStats, RevenueDataPoint, TopMenuItem, OrderTypeBreakdown, ProfitabilitySnapshot } from "@/types/analytics";
+import { staff, orders, orderItems, restaurantTables, tableReservations, stockMovements, ingredients } from "@/db/schema";
 import type { Table } from "@/types/table";
 import { getBranchListAction } from "@/features/branches/actions";
-
-export interface RecentOrder {
-  id: string;
-  orderNumber: string;
-  orderType: OrderType;
-  status: OrderStatus;
-  total: number;
-  createdAt: string;
-  itemsCount: number;
-  tableNumber: string | null;
-}
 
 function getMonthRange(offsetMonths: number) {
   const now = new Date();
@@ -280,58 +268,6 @@ export async function getTopDishesAction(
   return { data };
 }
 
-async function computeRecentOrders(
-  tenantId: string,
-  branchId: string | undefined
-): Promise<RecentOrder[]> {
-  const rows = await db
-    .select({
-      id: orders.id,
-      orderNumber: orders.orderNumber,
-      orderType: orders.orderType,
-      status: orders.status,
-      total: orders.total,
-      createdAt: orders.createdAt,
-      tableNumber: restaurantTables.tableNumber,
-      itemsCount: sql<number>`(
-        select count(*) from ${orderItems} where ${orderItems.orderId} = ${orders.id}
-      )`,
-    })
-    .from(orders)
-    .leftJoin(restaurantTables, eq(orders.tableId, restaurantTables.id))
-    .where(
-      and(
-        eq(orders.tenantId, tenantId),
-        branchId ? eq(orders.branchId, branchId) : undefined
-      )
-    )
-    .orderBy(desc(orders.createdAt))
-    .limit(6);
-
-  const data: RecentOrder[] = rows.map((r) => ({
-    id: r.id,
-    orderNumber: r.orderNumber,
-    orderType: r.orderType,
-    status: r.status,
-    total: r.total,
-    createdAt: r.createdAt.toISOString(),
-    tableNumber: r.tableNumber ?? null,
-    itemsCount: Number(r.itemsCount),
-  }));
-
-  return data;
-}
-
-export async function getRecentOrdersAction(
-  overrideBranchId?: string
-): Promise<{ data: RecentOrder[]; error?: undefined } | { data: null; error: string }> {
-  const auth = await resolveDashboardAuth(overrideBranchId);
-  if (!auth.ok) return { data: null, error: auth.error };
-
-  const data = await computeRecentOrders(auth.tenantId, auth.branchId);
-  return { data };
-}
-
 async function computeTableOccupancy(
   tenantId: string,
   branchId: string | undefined
@@ -531,11 +467,94 @@ export async function getReservationStatsAction(
   return { stats };
 }
 
+async function computeProfitabilitySnapshot(
+  tenantId: string,
+  branchId: string | undefined
+): Promise<ProfitabilitySnapshot> {
+  const { start: curStart, end: curEnd } = getMonthRange(0);
+
+  const [revenueAgg] = await db
+    .select({
+      revenue: sql<number>`coalesce(sum(${orders.total}), 0)`,
+    })
+    .from(orders)
+    .where(
+      and(
+        eq(orders.tenantId, tenantId),
+        ne(orders.status, "cancelled"),
+        gte(orders.createdAt, curStart),
+        lt(orders.createdAt, curEnd),
+        branchId ? eq(orders.branchId, branchId) : undefined
+      )
+    );
+
+  const [movementAgg] = await db
+    .select({
+      cogs: sql<number>`coalesce(sum(${stockMovements.costImpact}) filter (where ${stockMovements.reason} = 'sale'), 0)`,
+      wastage: sql<number>`coalesce(sum(${stockMovements.costImpact}) filter (where ${stockMovements.reason} = 'wastage'), 0)`,
+      correction: sql<number>`coalesce(sum(${stockMovements.costImpact}) filter (where ${stockMovements.reason} = 'correction'), 0)`,
+    })
+    .from(stockMovements)
+    .where(
+      and(
+        eq(stockMovements.tenantId, tenantId),
+        gte(stockMovements.createdAt, curStart),
+        lt(stockMovements.createdAt, curEnd),
+        branchId ? eq(stockMovements.branchId, branchId) : undefined
+      )
+    );
+
+  const [lowStockAgg] = await db
+    .select({
+      count: sql<number>`count(*)`,
+    })
+    .from(ingredients)
+    .where(
+      and(
+        eq(ingredients.tenantId, tenantId),
+        eq(ingredients.isActive, true),
+        sql`${ingredients.lowStockThreshold} is not null and ${ingredients.currentStock} <= ${ingredients.lowStockThreshold}`,
+        branchId ? eq(ingredients.branchId, branchId) : undefined
+      )
+    );
+
+  const revenue = Number(revenueAgg.revenue);
+  const cogs = Math.abs(Number(movementAgg.cogs));
+  const wastageLoss = Math.abs(Number(movementAgg.wastage));
+  const correctionLoss = Math.abs(Number(movementAgg.correction));
+  const inventoryLoss = wastageLoss + correctionLoss;
+  const grossProfit = revenue - cogs;
+  const netProfit = grossProfit - inventoryLoss;
+
+  return {
+    revenue,
+    cogs,
+    grossProfit,
+    wastageLoss,
+    correctionLoss,
+    inventoryLoss,
+    netProfit,
+    profitMarginPct: revenue > 0 ? Math.round((netProfit / revenue) * 100) : 0,
+    foodCostPct: revenue > 0 ? Math.round((cogs / revenue) * 100) : 0,
+    lowStockCount: Number(lowStockAgg.count),
+  };
+}
+
+export async function getProfitabilitySnapshotAction(
+  overrideBranchId?: string
+): Promise<{ data: ProfitabilitySnapshot; error?: undefined } | { data: null; error: string }> {
+  const auth = await resolveDashboardAuth(overrideBranchId);
+  if (!auth.ok) return { data: null, error: auth.error };
+
+  const data = await computeProfitabilitySnapshot(auth.tenantId, auth.branchId);
+  return { data };
+}
+
 export interface DashboardBundle {
   stats: DashboardStats;
   revenue: RevenueDataPoint[];
   topDishes: TopMenuItem[];
-  recentOrders: RecentOrder[];
+  profitability: ProfitabilitySnapshot;
   tableOccupancy: Table[];
   orderTypeBreakdown: OrderTypeBreakdown[];
   reservationStats: ReservationStats;
@@ -558,7 +577,7 @@ export async function getDashboardBundleAction(
     stats,
     revenue,
     topDishes,
-    recentOrders,
+    profitability,
     tableOccupancy,
     orderTypeBreakdown,
     reservationStats,
@@ -566,7 +585,7 @@ export async function getDashboardBundleAction(
     computeDashboardStats(tenantId, branchId),
     computeRevenueData(tenantId, branchId, range),
     computeTopDishes(tenantId, branchId),
-    computeRecentOrders(tenantId, branchId),
+    computeProfitabilitySnapshot(tenantId, branchId),
     computeTableOccupancy(tenantId, branchId),
     computeOrderTypeBreakdown(tenantId, branchId),
     computeReservationStats(tenantId, branchId),
@@ -583,7 +602,7 @@ export async function getDashboardBundleAction(
       stats,
       revenue,
       topDishes,
-      recentOrders,
+      profitability,
       tableOccupancy,
       orderTypeBreakdown,
       reservationStats,

@@ -2,9 +2,7 @@ import { resolveSettingsBranch } from "@/features/settings/lib/resolveSettingsBr
 import { SettingsBranchHeader } from "@/features/settings/components/SettingsBranchHeader";
 import { ReportPeriodFilter } from "@/features/reports/components/ReportPeriodFilter";
 import { SalesReportView } from "@/features/reports/components/SalesReportView";
-import type { ReportPeriod } from "@/features/reports/lib/getReportDateRange";
-
-const VALID_PERIODS: ReportPeriod[] = ["today", "week", "month", "last_month"];
+import { ALL_REPORT_PERIODS, type ReportPeriod } from "@/features/reports/lib/getReportDateRange";
 
 export default async function SalesReportPage({
   searchParams,
@@ -16,7 +14,7 @@ export default async function SalesReportPage({
 
   const requestedPeriod = resolvedSearchParams.period;
   const period: ReportPeriod =
-    typeof requestedPeriod === "string" && VALID_PERIODS.includes(requestedPeriod as ReportPeriod)
+    typeof requestedPeriod === "string" && ALL_REPORT_PERIODS.includes(requestedPeriod as ReportPeriod)
       ? (requestedPeriod as ReportPeriod)
       : "month";
 

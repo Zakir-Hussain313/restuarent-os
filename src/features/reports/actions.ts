@@ -7,8 +7,14 @@ import { resolveSettingsBranch } from "@/features/settings/lib/resolveSettingsBr
 import { getCurrentStaff } from "@/features/auth/actions";
 import { hasPermission } from "@/types";
 import { getOrderReportSummary, getOrdersByStatus, getOrdersByType } from "./lib/orderQueries";
-import { getMenuItemPerformance, splitTopAndBottom } from "./lib/menuPerformanceQueries";
+import { getMenuItemPerformance, splitTopAndBottom, getCategoryPerformance } from "./lib/menuPerformanceQueries";
 import { getStaffAttendanceBreakdown, getAttendanceTotals } from "./lib/attendanceQueries";
+import { getProfitabilitySummary } from "./lib/profitabilityQueries";
+import { getSalesTrendByDay, getPeakHourBreakdown } from "./lib/salesTrendsQueries";
+import { getBranchComparison } from "./lib/branchComparisonQueries";
+import { db } from "@/db";
+import { branches } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { createReportPdf, pdfBytesToBase64 } from "./lib/pdfBuilder";
 import { PAYMENT_METHOD_LABELS } from "@/config/restaurant";
 import { formatCurrency } from "@/lib/utils";
@@ -38,7 +44,7 @@ export async function getSalesReportAction(
   // checks fail, consistent with how the existing settings pages behave.
   const { branchId } = await resolveSettingsBranch(searchParams);
 
-  const { start, end } = getReportDateRange(period);
+  const { start, end } = getReportDateRange(period, searchParams);
 
   const [summary, byPaymentMethod, byOrderType] = await Promise.all([
     getSalesSummary(currentStaff.tenantId, branchId, start, end),
@@ -294,6 +300,7 @@ export interface MenuPerformanceReportData {
   rangeEnd: string;
   topSellers: Awaited<ReturnType<typeof getMenuItemPerformance>>;
   worstSellers: Awaited<ReturnType<typeof getMenuItemPerformance>>;
+  byCategory: Awaited<ReturnType<typeof getCategoryPerformance>>;
 }
 
 export async function getMenuPerformanceReportAction(
@@ -309,7 +316,10 @@ export async function getMenuPerformanceReportAction(
   const { branchId } = await resolveSettingsBranch(searchParams);
   const { start, end } = getReportDateRange(period);
 
-  const items = await getMenuItemPerformance(currentStaff.tenantId, branchId, start, end);
+  const [items, byCategory] = await Promise.all([
+    getMenuItemPerformance(currentStaff.tenantId, branchId, start, end),
+    getCategoryPerformance(currentStaff.tenantId, branchId, start, end),
+  ]);
   const { topSellers, worstSellers } = splitTopAndBottom(items);
 
   return {
@@ -320,6 +330,7 @@ export async function getMenuPerformanceReportAction(
       rangeEnd: end.toISOString(),
       topSellers,
       worstSellers,
+      byCategory,
     },
   };
 }
@@ -370,7 +381,7 @@ export async function exportMenuPerformanceReportExcelAction(
   const result = await getMenuPerformanceReportAction(period, searchParams);
   if (!result.data) return { data: null, error: result.error };
 
-  const { topSellers, worstSellers, rangeStart, rangeEnd } = result.data;
+  const { topSellers, worstSellers, byCategory, rangeStart, rangeEnd } = result.data;
 
   const workbook = await createReportWorkbook("Menu Performance Report", rangeStart, rangeEnd);
 
@@ -401,6 +412,13 @@ export async function exportMenuPerformanceReportExcelAction(
     );
   }
 
+  workbook.addTable(
+    "By Category",
+    ["Category", "Quantity Sold", "Revenue"],
+    byCategory.map((c) => [c.categoryName, c.quantitySold, formatCurrency(c.revenue)]),
+    { rightAlignCols: [1, 2] }
+  );
+
   return {
     data: await workbook.toBase64(),
     filename: `menu-performance-report-${period}-${new Date().toISOString().slice(0, 10)}.xlsx`,
@@ -414,7 +432,7 @@ export async function exportMenuPerformanceReportPdfAction(
   const result = await getMenuPerformanceReportAction(period, searchParams);
   if (!result.data) return { data: null, error: result.error };
 
-  const { topSellers, worstSellers, rangeStart, rangeEnd } = result.data;
+  const { topSellers, worstSellers, byCategory, rangeStart, rangeEnd } = result.data;
 
   const pdf = await createReportPdf("Menu Performance Report", rangeStart, rangeEnd);
 
@@ -444,6 +462,13 @@ export async function exportMenuPerformanceReportPdfAction(
       { rightAlignCols: [2, 3] }
     );
   }
+
+  pdf.drawTable(
+    "By Category",
+    ["Category", "Qty Sold", "Revenue"],
+    byCategory.map((c) => [c.categoryName, String(c.quantitySold), formatCurrency(c.revenue)]),
+    { rightAlignCols: [1, 2] }
+  );
 
   const pdfBytes = await pdf.save();
 
@@ -524,5 +549,312 @@ export async function exportAttendanceReportPdfAction(
   return {
     data: pdfBytesToBase64(pdfBytes),
     filename: `attendance-report-${period}-${new Date().toISOString().slice(0, 10)}.pdf`,
+  };
+}
+
+
+// ─── Profitability Report ───────────────────────────────────────────
+
+export interface ProfitabilityReportData {
+  period: ReportPeriod;
+  branchId: string;
+  rangeStart: string;
+  rangeEnd: string;
+  summary: Awaited<ReturnType<typeof getProfitabilitySummary>>;
+}
+
+export async function getProfitabilityReportAction(
+  period: ReportPeriod,
+  searchParams: Record<string, string | string[] | undefined>
+): Promise<{ data: ProfitabilityReportData; error?: undefined } | { data: null; error: string }> {
+  const currentStaff = await getCurrentStaff();
+  if (!currentStaff) return { data: null, error: "Not authenticated." };
+  if (!hasPermission(currentStaff.role, "view_reports")) {
+    return { data: null, error: "You don't have permission to view reports." };
+  }
+
+  const { branchId } = await resolveSettingsBranch(searchParams);
+  const { start, end } = getReportDateRange(period);
+
+  const summary = await getProfitabilitySummary(currentStaff.tenantId, branchId, start, end);
+
+  return {
+    data: {
+      period,
+      branchId,
+      rangeStart: start.toISOString(),
+      rangeEnd: end.toISOString(),
+      summary,
+    },
+  };
+}
+
+export async function exportProfitabilityReportExcelAction(
+  period: ReportPeriod,
+  searchParams: Record<string, string | string[] | undefined>
+): Promise<{ data: string; filename: string; error?: undefined } | { data: null; error: string }> {
+  const result = await getProfitabilityReportAction(period, searchParams);
+  if (!result.data) return { data: null, error: result.error };
+
+  const { summary, rangeStart, rangeEnd } = result.data;
+
+  const workbook = await createReportWorkbook("Profitability Report", rangeStart, rangeEnd);
+
+  workbook.addTable(
+    "Summary",
+    ["Revenue", "Ingredient Cost", "Gross Profit", "Wastage Loss", "Correction Loss", "Net Profit", "Profit Margin", "Food Cost %"],
+    [[
+      formatCurrency(summary.revenue),
+      formatCurrency(summary.cogs),
+      formatCurrency(summary.grossProfit),
+      formatCurrency(summary.wastageLoss),
+      formatCurrency(summary.correctionLoss),
+      formatCurrency(summary.netProfit),
+      `${summary.profitMarginPct}%`,
+      `${summary.foodCostPct}%`,
+    ]],
+    { rightAlignCols: [0, 1, 2, 3, 4, 5, 6, 7] }
+  );
+
+  return {
+    data: await workbook.toBase64(),
+    filename: `profitability-report-${period}-${new Date().toISOString().slice(0, 10)}.xlsx`,
+  };
+}
+
+export async function exportProfitabilityReportPdfAction(
+  period: ReportPeriod,
+  searchParams: Record<string, string | string[] | undefined>
+): Promise<{ data: string; filename: string; error?: undefined } | { data: null; error: string }> {
+  const result = await getProfitabilityReportAction(period, searchParams);
+  if (!result.data) return { data: null, error: result.error };
+
+  const { summary, rangeStart, rangeEnd } = result.data;
+
+  const pdf = await createReportPdf("Profitability Report", rangeStart, rangeEnd);
+
+  pdf.drawKeyValueSection("Summary", [
+    { label: "Revenue", value: formatCurrency(summary.revenue) },
+    { label: "Ingredient Cost", value: formatCurrency(summary.cogs) },
+    { label: "Gross Profit", value: formatCurrency(summary.grossProfit) },
+    { label: "Wastage Loss", value: formatCurrency(summary.wastageLoss) },
+    { label: "Correction Loss", value: formatCurrency(summary.correctionLoss) },
+    { label: "Net Profit", value: formatCurrency(summary.netProfit) },
+    { label: "Profit Margin", value: `${summary.profitMarginPct}%` },
+    { label: "Food Cost %", value: `${summary.foodCostPct}%` },
+  ]);
+
+  const pdfBytes = await pdf.save();
+
+  return {
+    data: pdfBytesToBase64(pdfBytes),
+    filename: `profitability-report-${period}-${new Date().toISOString().slice(0, 10)}.pdf`,
+  };
+}
+
+
+// ─── Sales Trends & Peak-Hour Report ────────────────────────────────
+
+export interface SalesTrendsReportData {
+  period: ReportPeriod;
+  branchId: string;
+  rangeStart: string;
+  rangeEnd: string;
+  dailyTrend: Awaited<ReturnType<typeof getSalesTrendByDay>>;
+  peakHours: Awaited<ReturnType<typeof getPeakHourBreakdown>>;
+}
+
+export async function getSalesTrendsReportAction(
+  period: ReportPeriod,
+  searchParams: Record<string, string | string[] | undefined>
+): Promise<{ data: SalesTrendsReportData; error?: undefined } | { data: null; error: string }> {
+  const currentStaff = await getCurrentStaff();
+  if (!currentStaff) return { data: null, error: "Not authenticated." };
+  if (!hasPermission(currentStaff.role, "view_reports")) {
+    return { data: null, error: "You don't have permission to view reports." };
+  }
+
+  const { branchId } = await resolveSettingsBranch(searchParams);
+  const { start, end } = getReportDateRange(period);
+
+  const [dailyTrend, peakHours] = await Promise.all([
+    getSalesTrendByDay(currentStaff.tenantId, branchId, start, end),
+    getPeakHourBreakdown(currentStaff.tenantId, branchId, start, end),
+  ]);
+
+  return {
+    data: {
+      period,
+      branchId,
+      rangeStart: start.toISOString(),
+      rangeEnd: end.toISOString(),
+      dailyTrend,
+      peakHours,
+    },
+  };
+}
+
+export async function exportSalesTrendsReportExcelAction(
+  period: ReportPeriod,
+  searchParams: Record<string, string | string[] | undefined>
+): Promise<{ data: string; filename: string; error?: undefined } | { data: null; error: string }> {
+  const result = await getSalesTrendsReportAction(period, searchParams);
+  if (!result.data) return { data: null, error: result.error };
+
+  const { dailyTrend, peakHours, rangeStart, rangeEnd } = result.data;
+
+  const workbook = await createReportWorkbook("Sales Trends Report", rangeStart, rangeEnd);
+
+  workbook.addTable(
+    "Daily Trend",
+    ["Date", "Revenue", "Orders"],
+    dailyTrend.map((r) => [r.date, formatCurrency(r.revenue), String(r.orderCount)]),
+    { rightAlignCols: [1, 2] }
+  );
+
+  workbook.addTable(
+    "Peak Hours",
+    ["Hour", "Revenue", "Orders"],
+    peakHours.map((r) => [`${r.hour}:00`, formatCurrency(r.revenue), String(r.orderCount)]),
+    { rightAlignCols: [1, 2] }
+  );
+
+  return {
+    data: await workbook.toBase64(),
+    filename: `sales-trends-report-${period}-${new Date().toISOString().slice(0, 10)}.xlsx`,
+  };
+}
+
+export async function exportSalesTrendsReportPdfAction(
+  period: ReportPeriod,
+  searchParams: Record<string, string | string[] | undefined>
+): Promise<{ data: string; filename: string; error?: undefined } | { data: null; error: string }> {
+  const result = await getSalesTrendsReportAction(period, searchParams);
+  if (!result.data) return { data: null, error: result.error };
+
+  const { dailyTrend, peakHours, rangeStart, rangeEnd } = result.data;
+
+  const pdf = await createReportPdf("Sales Trends Report", rangeStart, rangeEnd);
+
+  pdf.drawKeyValueSection(
+    "Daily Trend",
+    dailyTrend.map((r) => ({ label: r.date, value: `${formatCurrency(r.revenue)} · ${r.orderCount} orders` }))
+  );
+
+  pdf.drawKeyValueSection(
+    "Peak Hours",
+    peakHours.map((r) => ({ label: `${r.hour}:00`, value: `${formatCurrency(r.revenue)} · ${r.orderCount} orders` }))
+  );
+
+  const pdfBytes = await pdf.save();
+
+  return {
+    data: pdfBytesToBase64(pdfBytes),
+    filename: `sales-trends-report-${period}-${new Date().toISOString().slice(0, 10)}.pdf`,
+  };
+}
+
+
+// ─── Branch Comparison Report (SUPER_ADMIN only) ────────────────────
+
+export interface BranchComparisonReportData {
+  period: ReportPeriod;
+  rangeStart: string;
+  rangeEnd: string;
+  branches: Awaited<ReturnType<typeof getBranchComparison>>;
+}
+
+export async function getBranchComparisonReportAction(
+  period: ReportPeriod,
+  searchParams?: Record<string, string | string[] | undefined>
+): Promise<{ data: BranchComparisonReportData; error?: undefined } | { data: null; error: string }> {
+  const currentStaff = await getCurrentStaff();
+  if (!currentStaff) return { data: null, error: "Not authenticated." };
+  if (currentStaff.role !== "SUPER_ADMIN") {
+    return { data: null, error: "Branch comparison is only available to Super Admin." };
+  }
+
+  const { start, end } = getReportDateRange(period, searchParams);
+
+  const tenantBranches = await db.query.branches.findMany({
+    where: eq(branches.tenantId, currentStaff.tenantId),
+  });
+  const branchIds = tenantBranches.map((b) => b.id);
+
+  let rows = await getBranchComparison(currentStaff.tenantId, branchIds, start, end);
+  // Backfill names for zero-order branches — the join in getBranchComparison
+  // has nothing to name them from.
+  rows = rows.map((r) => ({
+    ...r,
+    branchName: r.branchName || tenantBranches.find((b) => b.id === r.branchId)?.name || "Unknown",
+  }));
+
+  return {
+    data: {
+      period,
+      rangeStart: start.toISOString(),
+      rangeEnd: end.toISOString(),
+      branches: rows,
+    },
+  };
+}
+
+export async function exportBranchComparisonReportExcelAction(
+  period: ReportPeriod,
+  searchParams?: Record<string, string | string[] | undefined>
+): Promise<{ data: string; filename: string; error?: undefined } | { data: null; error: string }> {
+  const result = await getBranchComparisonReportAction(period, searchParams);
+  if (!result.data) return { data: null, error: result.error };
+
+  const { branches: rows, rangeStart, rangeEnd } = result.data;
+
+  const workbook = await createReportWorkbook("Branch Comparison Report", rangeStart, rangeEnd);
+
+  workbook.addTable(
+    "By Branch",
+    ["Branch", "Revenue", "Orders", "Avg Order Value"],
+    rows.map((r) => [
+      r.branchName,
+      formatCurrency(r.revenue),
+      r.orderCount,
+      formatCurrency(r.averageOrderValue),
+    ]),
+    { rightAlignCols: [1, 2, 3] }
+  );
+
+  return {
+    data: await workbook.toBase64(),
+    filename: `branch-comparison-report-${period}-${new Date().toISOString().slice(0, 10)}.xlsx`,
+  };
+}
+
+export async function exportBranchComparisonReportPdfAction(
+  period: ReportPeriod,
+  searchParams?: Record<string, string | string[] | undefined>
+): Promise<{ data: string; filename: string; error?: undefined } | { data: null; error: string }> {
+  const result = await getBranchComparisonReportAction(period, searchParams);
+  if (!result.data) return { data: null, error: result.error };
+
+  const { branches: rows, rangeStart, rangeEnd } = result.data;
+
+  const pdf = await createReportPdf("Branch Comparison Report", rangeStart, rangeEnd);
+
+  pdf.drawTable(
+    "By Branch",
+    ["Branch", "Revenue", "Orders", "Avg Order Value"],
+    rows.map((r) => [
+      r.branchName,
+      formatCurrency(r.revenue),
+      String(r.orderCount),
+      formatCurrency(r.averageOrderValue),
+    ]),
+    { rightAlignCols: [1, 2, 3] }
+  );
+
+  const pdfBytes = await pdf.save();
+
+  return {
+    data: pdfBytesToBase64(pdfBytes),
+    filename: `branch-comparison-report-${period}-${new Date().toISOString().slice(0, 10)}.pdf`,
   };
 }

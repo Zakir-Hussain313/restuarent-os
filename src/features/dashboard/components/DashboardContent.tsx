@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useDashboardBundle } from "../hooks/useDashboardData";
 import { DashboardStats } from "./DashboardStats";
 import { TopDishesWidget } from "./TopDishesWidget";
-import { RecentOrdersWidget } from "./RecentOrdersWidget";
+import { ProfitabilitySnapshotWidget } from "./ProfitabilitySnapshotWidget";
 import { OrderTypeBreakdownWidget } from "./OrderTypeBreakdownWidget";
 import { ReservationStatsWidget } from "./ReservationStatsWidget";
 
@@ -29,14 +29,10 @@ export function DashboardContent() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 items-stretch">
-        <div className="xl:col-span-3 flex flex-col xl:h-full">
-          <RecentOrdersWidget orders={bundle?.recentOrders} isLoading={isLoading} />
-        </div>
-        <div className="xl:col-span-2 flex flex-col gap-6">
-          <OrderTypeBreakdownWidget breakdown={bundle?.orderTypeBreakdown} isLoading={isLoading} />
-          <ReservationStatsWidget stats={bundle?.reservationStats} isLoading={isLoading} />
-        </div>
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <ProfitabilitySnapshotWidget profitability={bundle?.profitability} isLoading={isLoading} />
+        <OrderTypeBreakdownWidget breakdown={bundle?.orderTypeBreakdown} isLoading={isLoading} />
+        <ReservationStatsWidget stats={bundle?.reservationStats} isLoading={isLoading} />
       </div>
     </div>
   );

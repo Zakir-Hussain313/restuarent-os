@@ -13,7 +13,6 @@ export default async function ReportsLayout({
   if (!currentStaff || !hasPermission(currentStaff.role, "view_reports")) {
     redirect("/dashboard");
   }
-
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -23,7 +22,7 @@ export default async function ReportsLayout({
         </p>
       </div>
 
-      <ReportsTabs />
+      <ReportsTabs isSuperAdmin={currentStaff.role === "SUPER_ADMIN"} />
 
       <div>{children}</div>
     </div>
