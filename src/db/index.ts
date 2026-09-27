@@ -16,12 +16,24 @@ if (!connectionString) {
   );
 }
 
+// Cached on globalThis in dev so Turbopack/webpack hot-reloads reuse the
+// same client instead of creating a fresh 30-connection pool on every file
+// edit — without this, the pool never closes its old connections and
+// eventually exhausts Supabase's pooler connection limit mid-session.
+const globalForDb = globalThis as unknown as {
+  postgresClient: ReturnType<typeof postgres> | undefined;
+};
+
 // `prepare: false` is required when using Supabase's transaction-mode
 // pooler (pgbouncer=true) — prepared statements aren't supported across
 // pooled connections in transaction mode.
-const client = postgres(connectionString, { prepare: false, max: 30 });
+const client =
+  globalForDb.postgresClient ?? postgres(connectionString, { prepare: false, max: 30 });
+
+if (process.env.NODE_ENV !== "production") {
+  globalForDb.postgresClient = client;
+}
 
 export const db = drizzle(client, {
   schema: { ...schema, ...relations },
 });
-

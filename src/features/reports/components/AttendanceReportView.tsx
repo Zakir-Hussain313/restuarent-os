@@ -11,6 +11,7 @@ import {
 import type { ReportPeriod } from "@/features/reports/lib/getReportDateRange";
 import { Loader2, UserCheck, UserX, Clock, CalendarOff, Timer } from "lucide-react";
 import { ExportButtons } from "./ExportButtons";
+import { formatCurrency } from "@/lib/utils";
 
 interface AttendanceReportViewProps {
   branchId: string;
@@ -66,10 +67,10 @@ export function AttendanceReportView({ branchId, period }: AttendanceReportViewP
     return <p className="text-sm text-destructive py-8 text-center">{error}</p>;
   }
 
-  if (report.byStaff.length === 0) {
+  if (report.byStaff.length === 0 && report.salesByStaff.length === 0) {
     return (
       <p className="text-sm text-muted-foreground py-8 text-center">
-        No attendance records in this period yet.
+        No attendance or order records in this period yet.
       </p>
     );
   }
@@ -111,35 +112,74 @@ export function AttendanceReportView({ branchId, period }: AttendanceReportViewP
         })}
       </div>
 
-      <div className="bg-card rounded-2xl border border-border overflow-hidden">
-        <h3 className="text-sm font-semibold text-foreground px-5 pt-5 pb-3">By Staff</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-muted-foreground border-b border-border">
-                <th className="py-2.5 pl-5 pr-4 font-medium">Name</th>
-                <th className="py-2.5 px-4 font-medium text-right">Present</th>
-                <th className="py-2.5 px-4 font-medium text-right">Absent</th>
-                <th className="py-2.5 px-4 font-medium text-right">Late</th>
-                <th className="py-2.5 px-4 font-medium text-right">Leave</th>
-                <th className="py-2.5 pl-4 pr-5 font-medium text-right">Half Day</th>
-              </tr>
-            </thead>
-            <tbody>
-              {report.byStaff.map((s) => (
-                <tr key={s.staffId} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
-                  <td className="py-2.5 pl-5 pr-4 text-foreground font-medium">{s.name}</td>
-                  <td className="py-2.5 px-4 text-right text-foreground">{s.present}</td>
-                  <td className="py-2.5 px-4 text-right text-foreground">{s.absent}</td>
-                  <td className="py-2.5 px-4 text-right text-foreground">{s.late}</td>
-                  <td className="py-2.5 px-4 text-right text-foreground">{s.leave}</td>
-                  <td className="py-2.5 pl-4 pr-5 text-right text-foreground">{s.halfDay}</td>
+      {report.byStaff.length > 0 && (
+        <div className="bg-card rounded-2xl border border-border overflow-hidden">
+          <h3 className="text-sm font-semibold text-foreground px-5 pt-5 pb-3">By Staff</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-muted-foreground border-b border-border">
+                  <th className="py-2.5 pl-5 pr-4 font-medium">Name</th>
+                  <th className="py-2.5 px-4 font-medium text-right">Present</th>
+                  <th className="py-2.5 px-4 font-medium text-right">Absent</th>
+                  <th className="py-2.5 px-4 font-medium text-right">Late</th>
+                  <th className="py-2.5 px-4 font-medium text-right">Leave</th>
+                  <th className="py-2.5 pl-4 pr-5 font-medium text-right">Half Day</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {report.byStaff.map((s) => (
+                  <tr key={s.staffId} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
+                    <td className="py-2.5 pl-5 pr-4 text-foreground font-medium">{s.name}</td>
+                    <td className="py-2.5 px-4 text-right text-foreground">{s.present}</td>
+                    <td className="py-2.5 px-4 text-right text-foreground">{s.absent}</td>
+                    <td className="py-2.5 px-4 text-right text-foreground">{s.late}</td>
+                    <td className="py-2.5 px-4 text-right text-foreground">{s.leave}</td>
+                    <td className="py-2.5 pl-4 pr-5 text-right text-foreground">{s.halfDay}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
+
+      {report.salesByStaff.length > 0 && (
+        <div className="bg-card rounded-2xl border border-border overflow-hidden">
+          <h3 className="text-sm font-semibold text-foreground px-5 pt-5 pb-3">Sales Performance By Staff</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-muted-foreground border-b border-border">
+                  <th className="py-2.5 pl-5 pr-4 font-medium">Name</th>
+                  <th className="py-2.5 px-4 font-medium text-right">Orders</th>
+                  <th className="py-2.5 px-4 font-medium text-right">Revenue</th>
+                  <th className="py-2.5 pl-4 pr-5 font-medium text-right">Avg Order Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.salesByStaff.map((s, i) => (
+                  <tr key={s.staffId ?? `deleted-${i}`} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
+                    <td className="py-2.5 pl-5 pr-4 text-foreground font-medium">
+                      <span className="inline-flex items-center gap-2">
+                        {s.name}
+                        {s.isDeleted && (
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive">
+                            Deleted
+                          </span>
+                        )}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-4 text-right text-foreground">{s.orderCount}</td>
+                    <td className="py-2.5 px-4 text-right text-foreground">{formatCurrency(s.revenue)}</td>
+                    <td className="py-2.5 pl-4 pr-5 text-right text-foreground">{formatCurrency(s.averageOrderValue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

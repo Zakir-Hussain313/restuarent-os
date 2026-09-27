@@ -9,9 +9,11 @@ import { hasPermission } from "@/types";
 import { getOrderReportSummary, getOrdersByStatus, getOrdersByType } from "./lib/orderQueries";
 import { getMenuItemPerformance, splitTopAndBottom, getCategoryPerformance } from "./lib/menuPerformanceQueries";
 import { getStaffAttendanceBreakdown, getAttendanceTotals } from "./lib/attendanceQueries";
-import { getProfitabilitySummary } from "./lib/profitabilityQueries";
+import { getProfitabilitySummary, getProfitabilityTrend } from "./lib/profitabilityQueries";
+import { getWastageTrend, getWastageByIngredient } from "./lib/wastageQueries";
 import { getSalesTrendByDay, getPeakHourBreakdown } from "./lib/salesTrendsQueries";
 import { getBranchComparison } from "./lib/branchComparisonQueries";
+import { getStaffPerformance } from "./lib/staffPerformanceQueries";
 import { db } from "@/db";
 import { branches } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -86,7 +88,7 @@ export async function getOrderReportAction(
   }
 
   const { branchId } = await resolveSettingsBranch(searchParams);
-  const { start, end } = getReportDateRange(period);
+  const { start, end } = getReportDateRange(period, searchParams);
 
   const [summary, byStatus, byType] = await Promise.all([
     getOrderReportSummary(currentStaff.tenantId, branchId, start, end),
@@ -314,7 +316,7 @@ export async function getMenuPerformanceReportAction(
   }
 
   const { branchId } = await resolveSettingsBranch(searchParams);
-  const { start, end } = getReportDateRange(period);
+  const { start, end } = getReportDateRange(period, searchParams);
 
   const [items, byCategory] = await Promise.all([
     getMenuItemPerformance(currentStaff.tenantId, branchId, start, end),
@@ -342,6 +344,7 @@ export interface AttendanceReportData {
   rangeEnd: string;
   byStaff: Awaited<ReturnType<typeof getStaffAttendanceBreakdown>>;
   totals: ReturnType<typeof getAttendanceTotals>;
+  salesByStaff: Awaited<ReturnType<typeof getStaffPerformance>>;
 }
 
 export async function getAttendanceReportAction(
@@ -355,9 +358,12 @@ export async function getAttendanceReportAction(
   }
 
   const { branchId } = await resolveSettingsBranch(searchParams);
-  const { start, end } = getReportDateRange(period);
+  const { start, end } = getReportDateRange(period, searchParams);
 
-  const byStaff = await getStaffAttendanceBreakdown(currentStaff.tenantId, branchId, start, end);
+  const [byStaff, salesByStaff] = await Promise.all([
+    getStaffAttendanceBreakdown(currentStaff.tenantId, branchId, start, end),
+    getStaffPerformance(currentStaff.tenantId, branchId, start, end),
+  ]);
   const totals = getAttendanceTotals(byStaff);
 
   return {
@@ -368,6 +374,7 @@ export async function getAttendanceReportAction(
       rangeEnd: end.toISOString(),
       byStaff,
       totals,
+      salesByStaff,
     },
   };
 }
@@ -387,28 +394,34 @@ export async function exportMenuPerformanceReportExcelAction(
 
   workbook.addTable(
     "Top Sellers",
-    ["Rank", "Item", "Category", "Quantity Sold", "Revenue"],
+    ["Rank", "Item", "Category", "Quantity Sold", "Revenue", "Ingredient Cost", "Margin", "Margin %"],
     topSellers.map((item, i) => [
       i + 1,
       item.name,
       item.categoryName,
       item.quantitySold,
       formatCurrency(item.revenue),
+      formatCurrency(item.cost),
+      formatCurrency(item.margin),
+      `${item.marginPercent}%`,
     ]),
-    { rightAlignCols: [0, 3, 4] }
+    { rightAlignCols: [0, 3, 4, 5, 6, 7] }
   );
 
   if (worstSellers.length > 0) {
     workbook.addTable(
       "Worst Sellers",
-      ["Item", "Category", "Quantity Sold", "Revenue"],
+      ["Item", "Category", "Quantity Sold", "Revenue", "Ingredient Cost", "Margin", "Margin %"],
       worstSellers.map((item) => [
         item.name,
         item.categoryName,
         item.quantitySold,
         formatCurrency(item.revenue),
+        formatCurrency(item.cost),
+        formatCurrency(item.margin),
+        `${item.marginPercent}%`,
       ]),
-      { rightAlignCols: [2, 3] }
+      { rightAlignCols: [2, 3, 4, 5, 6] }
     );
   }
 
@@ -438,28 +451,34 @@ export async function exportMenuPerformanceReportPdfAction(
 
   pdf.drawTable(
     "Top Sellers",
-    ["Rank", "Item", "Category", "Qty Sold", "Revenue"],
+    ["Rank", "Item", "Category", "Qty Sold", "Revenue", "Ingredient Cost", "Margin", "Margin %"],
     topSellers.map((item, i) => [
       String(i + 1),
       item.name,
       item.categoryName,
       String(item.quantitySold),
       formatCurrency(item.revenue),
+      formatCurrency(item.cost),
+      formatCurrency(item.margin),
+      `${item.marginPercent}%`,
     ]),
-    { rightAlignCols: [0, 3, 4] }
+    { rightAlignCols: [0, 3, 4, 5, 6, 7] }
   );
 
   if (worstSellers.length > 0) {
     pdf.drawTable(
       "Worst Sellers",
-      ["Item", "Category", "Qty Sold", "Revenue"],
+      ["Item", "Category", "Qty Sold", "Revenue", "Ingredient Cost", "Margin", "Margin %"],
       worstSellers.map((item) => [
         item.name,
         item.categoryName,
         String(item.quantitySold),
         formatCurrency(item.revenue),
+        formatCurrency(item.cost),
+        formatCurrency(item.margin),
+        `${item.marginPercent}%`,
       ]),
-      { rightAlignCols: [2, 3] }
+      { rightAlignCols: [2, 3, 4, 5, 6] }
     );
   }
 
@@ -487,7 +506,7 @@ export async function exportAttendanceReportExcelAction(
   const result = await getAttendanceReportAction(period, searchParams);
   if (!result.data) return { data: null, error: result.error };
 
-  const { totals, byStaff, rangeStart, rangeEnd } = result.data;
+  const { totals, byStaff, salesByStaff, rangeStart, rangeEnd } = result.data;
 
   const workbook = await createReportWorkbook("Staff & Attendance Report", rangeStart, rangeEnd);
 
@@ -505,6 +524,18 @@ export async function exportAttendanceReportExcelAction(
     { rightAlignCols: [1, 2, 3, 4, 5] }
   );
 
+  workbook.addTable(
+    "Sales Performance By Staff",
+    ["Name", "Orders", "Revenue", "Avg Order Value"],
+    salesByStaff.map((s) => [
+      s.isDeleted ? `${s.name} (Deleted)` : s.name,
+      s.orderCount,
+      formatCurrency(s.revenue),
+      formatCurrency(s.averageOrderValue),
+    ]),
+    { rightAlignCols: [1, 2, 3] }
+  );
+
   return {
     data: await workbook.toBase64(),
     filename: `attendance-report-${period}-${new Date().toISOString().slice(0, 10)}.xlsx`,
@@ -518,7 +549,7 @@ export async function exportAttendanceReportPdfAction(
   const result = await getAttendanceReportAction(period, searchParams);
   if (!result.data) return { data: null, error: result.error };
 
-  const { totals, byStaff, rangeStart, rangeEnd } = result.data;
+  const { totals, byStaff, salesByStaff, rangeStart, rangeEnd } = result.data;
 
   const pdf = await createReportPdf("Staff & Attendance Report", rangeStart, rangeEnd);
 
@@ -544,6 +575,18 @@ export async function exportAttendanceReportPdfAction(
     { rightAlignCols: [1, 2, 3, 4, 5] }
   );
 
+  pdf.drawTable(
+    "Sales Performance By Staff",
+    ["Name", "Orders", "Revenue", "Avg Order Value"],
+    salesByStaff.map((s) => [
+      s.isDeleted ? `${s.name} (Deleted)` : s.name,
+      String(s.orderCount),
+      formatCurrency(s.revenue),
+      formatCurrency(s.averageOrderValue),
+    ]),
+    { rightAlignCols: [1, 2, 3] }
+  );
+
   const pdfBytes = await pdf.save();
 
   return {
@@ -561,6 +604,9 @@ export interface ProfitabilityReportData {
   rangeStart: string;
   rangeEnd: string;
   summary: Awaited<ReturnType<typeof getProfitabilitySummary>>;
+  trend: Awaited<ReturnType<typeof getProfitabilityTrend>>;
+  wastageTrend: Awaited<ReturnType<typeof getWastageTrend>>;
+  wastageByIngredient: Awaited<ReturnType<typeof getWastageByIngredient>>;
 }
 
 export async function getProfitabilityReportAction(
@@ -574,9 +620,14 @@ export async function getProfitabilityReportAction(
   }
 
   const { branchId } = await resolveSettingsBranch(searchParams);
-  const { start, end } = getReportDateRange(period);
+  const { start, end } = getReportDateRange(period, searchParams);
 
-  const summary = await getProfitabilitySummary(currentStaff.tenantId, branchId, start, end);
+  const [summary, trend, wastageTrend, wastageByIngredient] = await Promise.all([
+    getProfitabilitySummary(currentStaff.tenantId, branchId, start, end),
+    getProfitabilityTrend(currentStaff.tenantId, branchId, start, end),
+    getWastageTrend(currentStaff.tenantId, branchId, start, end),
+    getWastageByIngredient(currentStaff.tenantId, branchId, start, end),
+  ]);
 
   return {
     data: {
@@ -585,6 +636,9 @@ export async function getProfitabilityReportAction(
       rangeStart: start.toISOString(),
       rangeEnd: end.toISOString(),
       summary,
+      trend,
+      wastageTrend,
+      wastageByIngredient,
     },
   };
 }
@@ -596,7 +650,7 @@ export async function exportProfitabilityReportExcelAction(
   const result = await getProfitabilityReportAction(period, searchParams);
   if (!result.data) return { data: null, error: result.error };
 
-  const { summary, rangeStart, rangeEnd } = result.data;
+  const { summary, trend, rangeStart, rangeEnd } = result.data;
 
   const workbook = await createReportWorkbook("Profitability Report", rangeStart, rangeEnd);
 
@@ -616,6 +670,41 @@ export async function exportProfitabilityReportExcelAction(
     { rightAlignCols: [0, 1, 2, 3, 4, 5, 6, 7] }
   );
 
+  if (trend.points.length > 0) {
+    workbook.addTable(
+      trend.granularity === "month" ? "Profit Trend (By Month)" : "Profit Trend (By Day)",
+      ["Period", "Revenue", "Total Cost", "Net Profit", "Margin %"],
+      trend.points.map((p) => [
+        p.bucket,
+        formatCurrency(p.revenue),
+        formatCurrency(p.totalCost),
+        formatCurrency(p.netProfit),
+        `${p.profitMarginPct}%`,
+      ]),
+      { rightAlignCols: [1, 2, 3, 4] }
+    );
+  }
+
+  const { wastageTrend, wastageByIngredient } = result.data;
+
+  if (wastageTrend.points.length > 0) {
+    workbook.addTable(
+      wastageTrend.granularity === "month" ? "Wastage Trend (By Month)" : "Wastage Trend (By Day)",
+      ["Period", "Quantity Wasted", "Cost"],
+      wastageTrend.points.map((p) => [p.bucket, p.quantity, formatCurrency(p.cost)]),
+      { rightAlignCols: [1, 2] }
+    );
+  }
+
+  if (wastageByIngredient.length > 0) {
+    workbook.addTable(
+      "Top Wasted Ingredients",
+      ["Ingredient", "Quantity Wasted", "Cost"],
+      wastageByIngredient.map((w) => [w.name, `${w.quantity} ${w.unit}`, formatCurrency(w.cost)]),
+      { rightAlignCols: [2] }
+    );
+  }
+
   return {
     data: await workbook.toBase64(),
     filename: `profitability-report-${period}-${new Date().toISOString().slice(0, 10)}.xlsx`,
@@ -629,7 +718,7 @@ export async function exportProfitabilityReportPdfAction(
   const result = await getProfitabilityReportAction(period, searchParams);
   if (!result.data) return { data: null, error: result.error };
 
-  const { summary, rangeStart, rangeEnd } = result.data;
+  const { summary, trend, rangeStart, rangeEnd } = result.data;
 
   const pdf = await createReportPdf("Profitability Report", rangeStart, rangeEnd);
 
@@ -643,6 +732,41 @@ export async function exportProfitabilityReportPdfAction(
     { label: "Profit Margin", value: `${summary.profitMarginPct}%` },
     { label: "Food Cost %", value: `${summary.foodCostPct}%` },
   ]);
+
+  if (trend.points.length > 0) {
+    pdf.drawTable(
+      trend.granularity === "month" ? "Profit Trend (By Month)" : "Profit Trend (By Day)",
+      ["Period", "Revenue", "Total Cost", "Net Profit", "Margin %"],
+      trend.points.map((p) => [
+        p.bucket,
+        formatCurrency(p.revenue),
+        formatCurrency(p.totalCost),
+        formatCurrency(p.netProfit),
+        `${p.profitMarginPct}%`,
+      ]),
+      { rightAlignCols: [1, 2, 3, 4] }
+    );
+  }
+
+  const { wastageTrend, wastageByIngredient } = result.data;
+
+  if (wastageTrend.points.length > 0) {
+    pdf.drawTable(
+      wastageTrend.granularity === "month" ? "Wastage Trend (By Month)" : "Wastage Trend (By Day)",
+      ["Period", "Quantity Wasted", "Cost"],
+      wastageTrend.points.map((p) => [p.bucket, String(p.quantity), formatCurrency(p.cost)]),
+      { rightAlignCols: [1, 2] }
+    );
+  }
+
+  if (wastageByIngredient.length > 0) {
+    pdf.drawTable(
+      "Top Wasted Ingredients",
+      ["Ingredient", "Quantity Wasted", "Cost"],
+      wastageByIngredient.map((w) => [w.name, `${w.quantity} ${w.unit}`, formatCurrency(w.cost)]),
+      { rightAlignCols: [2] }
+    );
+  }
 
   const pdfBytes = await pdf.save();
 
@@ -675,7 +799,7 @@ export async function getSalesTrendsReportAction(
   }
 
   const { branchId } = await resolveSettingsBranch(searchParams);
-  const { start, end } = getReportDateRange(period);
+  const { start, end } = getReportDateRange(period, searchParams);
 
   const [dailyTrend, peakHours] = await Promise.all([
     getSalesTrendByDay(currentStaff.tenantId, branchId, start, end),

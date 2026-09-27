@@ -82,6 +82,9 @@ export function MenuPerformanceReportView({ branchId, period }: MenuPerformanceR
                 </span>
                 <span className="text-sm font-medium text-foreground shrink-0">
                   {item.quantitySold} sold · {formatCurrency(item.revenue)}
+                  {item.cost > 0 && (
+                    <span className="text-xs text-muted-foreground"> · {formatCurrency(item.margin)} margin ({item.marginPercent}%)</span>
+                  )}
                 </span>
               </div>
             ))}
@@ -98,6 +101,9 @@ export function MenuPerformanceReportView({ branchId, period }: MenuPerformanceR
                   </span>
                   <span className="text-sm font-medium text-foreground shrink-0">
                     {item.quantitySold} sold · {formatCurrency(item.revenue)}
+                    {item.cost > 0 && (
+                      <span className="text-xs text-muted-foreground"> · {formatCurrency(item.margin)} margin ({item.marginPercent}%)</span>
+                    )}
                   </span>
                 </div>
               ))}

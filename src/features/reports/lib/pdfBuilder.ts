@@ -164,11 +164,26 @@ export async function createReportPdf(title: string, rangeStart: string, rangeEn
     y -= 10;
   }
 
+  function computeAutoColWidths(headers: string[], rows: string[][], tableWidth: number): number[] {
+    const PADDING = 16;
+    const rawWidths = headers.map((h, i) => {
+      const headerW = boldFont.widthOfTextAtSize(h, 9);
+      const maxCellW = rows.reduce((max, r) => Math.max(max, font.widthOfTextAtSize(r[i] ?? "", 9)), 0);
+      return Math.max(headerW, maxCellW) + PADDING;
+    });
+    const totalRaw = rawWidths.reduce((a, b) => a + b, 0);
+    if (totalRaw === 0) return headers.map(() => tableWidth / headers.length);
+    // Scale to exactly fill the page width, whether that means shrinking
+    // an over-wide table or stretching a narrow one to avoid a lopsided gap.
+    const scale = tableWidth / totalRaw;
+    return rawWidths.map((w) => w * scale);
+  }
+
   function drawTable(heading: string, headers: string[], rows: string[][], opts: PdfTableOptions = {}) {
     drawSectionHeading(heading);
 
     const tableWidth = PAGE_WIDTH - MARGIN * 2;
-    const colWidths = opts.colWidths ?? headers.map(() => tableWidth / headers.length);
+    const colWidths = opts.colWidths ?? computeAutoColWidths(headers, rows, tableWidth);
     const rightAlign = new Set(opts.rightAlignCols ?? []);
 
     function drawHeaderRow() {

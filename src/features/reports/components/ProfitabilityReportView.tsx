@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer,
+} from "recharts";
+import {
   getProfitabilityReportAction,
   exportProfitabilityReportExcelAction,
   exportProfitabilityReportPdfAction,
@@ -11,6 +15,7 @@ import {
 import type { ReportPeriod } from "@/features/reports/lib/getReportDateRange";
 import { Loader2, DollarSign, TrendingDown, TrendingUp, PieChart } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { RESTAURANT_CONFIG } from "@/config/restaurant";
 import { ExportButtons } from "./ExportButtons";
 
 interface ProfitabilityReportViewProps {
@@ -122,6 +127,103 @@ export function ProfitabilityReportView({ branchId, period }: ProfitabilityRepor
               <span className="text-sm font-medium text-foreground">{r.value}</span>
             </div>
           ))}
+        </div>
+      </div>
+
+      <div className="bg-card rounded-2xl border border-border p-5">
+        <h3 className="text-sm font-semibold text-foreground mb-3">
+          Net Profit Trend ({report.trend.granularity === "month" ? "By Month" : "By Day"})
+        </h3>
+        {report.trend.points.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-8 text-center">No data for this period.</p>
+        ) : (
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={report.trend.points} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#edebf4" vertical={false} />
+                <XAxis
+                  dataKey="bucket"
+                  tick={{ fontSize: 11, fill: "#9c96a8" }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(val: string) =>
+                    report.trend.granularity === "month"
+                      ? new Date(`${val}-01`).toLocaleDateString(RESTAURANT_CONFIG.locale, { month: "short", year: "numeric" })
+                      : new Date(val).toLocaleDateString(RESTAURANT_CONFIG.locale, { month: "short", day: "numeric" })
+                  }
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: "#9c96a8" }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`}
+                />
+                <Tooltip
+                  formatter={(value, name, props) =>
+                    name === "netProfit"
+                      ? [`${formatCurrency(Number(value))} (${props.payload.profitMarginPct}% margin)`, "Net Profit"]
+                      : [formatCurrency(Number(value)), name]
+                  }
+                />
+                <Line type="monotone" dataKey="netProfit" stroke="#5B21B6" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="bg-card rounded-2xl border border-border p-5">
+          <h3 className="text-sm font-semibold text-foreground mb-3">
+            Wastage Trend ({report.wastageTrend.granularity === "month" ? "By Month" : "By Day"})
+          </h3>
+          {report.wastageTrend.points.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">No wastage recorded this period.</p>
+          ) : (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={report.wastageTrend.points} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#edebf4" vertical={false} />
+                  <XAxis
+                    dataKey="bucket"
+                    tick={{ fontSize: 11, fill: "#9c96a8" }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(val: string) =>
+                      report.wastageTrend.granularity === "month"
+                        ? new Date(`${val}-01`).toLocaleDateString(RESTAURANT_CONFIG.locale, { month: "short", year: "numeric" })
+                        : new Date(val).toLocaleDateString(RESTAURANT_CONFIG.locale, { month: "short", day: "numeric" })
+                    }
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: "#9c96a8" }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`}
+                  />
+                  <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                  <Bar dataKey="cost" fill="#F97362" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+
+        <div className="bg-card rounded-2xl border border-border p-5">
+          <h3 className="text-sm font-semibold text-foreground mb-3">Top Wasted Ingredients</h3>
+          <div className="divide-y divide-border">
+            {report.wastageByIngredient.slice(0, 10).map((w) => (
+              <div key={w.ingredientId} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
+                <span className="text-sm text-muted-foreground">{w.name}</span>
+                <span className="text-sm font-medium text-foreground">
+                  {w.quantity} {w.unit} · {formatCurrency(w.cost)}
+                </span>
+              </div>
+            ))}
+            {report.wastageByIngredient.length === 0 && (
+              <p className="text-sm text-muted-foreground py-2">No wastage recorded this period.</p>
+            )}
+          </div>
         </div>
       </div>
     </div>
