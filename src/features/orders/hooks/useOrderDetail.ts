@@ -10,14 +10,23 @@ import {
   refundPaymentAction,
   markBillPrintedAction,
   recordSplitPaymentAction,
+  updateOrderItemsAction,
   type SplitPaymentLine,
 } from "@/features/orders/actions";
+import type { UpdateOrderItemsInput } from "@/features/orders/schemas";
 import { markOrderReadyAction } from "@/features/deliveries/actions";
 import type { Order, PaymentMethod } from "@/types";
 import { useAlertModal } from "@/components/providers/AlertModalProvider";
 import { enqueuePendingPayment } from "@/lib/offlinePaymentQueue";
 import { useAuthStore } from "@/store/useAuthStore";
-import { withTimeout } from "@/lib/withTimeout";
+import { withTimeout, TimeoutError } from "@/lib/withTimeout";
+
+// What the edit dialog sends — orderId and expectedRevision are filled in by the hook.
+export type UpdateItemsDraft = Omit<UpdateOrderItemsInput, "orderId" | "expectedRevision">;
+export type UpdateItemsSuccess = Extract<
+  Awaited<ReturnType<typeof updateOrderItemsAction>>,
+  { success: true }
+>;
 
 interface UseOrderDetailReturn {
   order: Order | undefined;
@@ -41,6 +50,9 @@ interface UseOrderDetailReturn {
   canSplitPayment: boolean;
   splitPayment: (lines: SplitPaymentLine[]) => void;
   isRecordingSplitPayment: boolean;
+  canEditItems: boolean;
+  updateItems: (draft: UpdateItemsDraft) => Promise<UpdateItemsSuccess>;
+  isUpdatingItems: boolean;
 }
 
 export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
@@ -202,6 +214,27 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
     onError: (err: Error) => showAlert(err.message),
   });
 
+  // Edit items on an existing order. Exposed as a promise (mutateAsync) so
+  // the edit dialog can show errors inline and keep the draft on failure,
+  // instead of a global alert. networkMode "always": while offline the
+  // request fails fast instead of silently pausing.
+  const { mutateAsync: mutateUpdateItems, isPending: isUpdatingItems } = useMutation({
+    networkMode: "always",
+    mutationFn: async (input: UpdateOrderItemsInput) => {
+      try {
+        const result = await withTimeout(updateOrderItemsAction(input), 20000);
+        if (!result.success) throw new Error(result.error);
+        return result;
+      } catch (err) {
+        if (err instanceof TimeoutError) {
+          throw new Error("Saving took too long. Check the order to see whether your changes went through.");
+        }
+        throw err;
+      }
+    },
+    onSuccess: (_result, input) => invalidateOrderQueries(input.orderId),
+  });
+
   const canPrintKitchenTicket = !!order && order.status === "pending";
   const canMarkReady =
     !!order && order.orderType === "delivery" && order.status === "confirmed";
@@ -218,6 +251,8 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
   const canCancel =
     !!order &&
     (order.status === "pending" || order.status === "confirmed" || order.status === "ready_for_delivery");
+  // Mirrors isOrderEditable() + the refunded check in updateOrderItemsAction.
+  const canEditItems = !!order && canCancel && order.paymentStatus !== "refunded";
   // Broader than canPrintBill on purpose — a split payment (e.g. a deposit,
   // or a dine-in customer paying across two methods) can happen at any
   // point before the order is completed or cancelled. Whether it can
@@ -238,6 +273,7 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
     canPrintBill,
     canCompleteBill,
     canCancel,
+    canEditItems,
     printKitchenTicket: () => {
       if (!orderId || !canPrintKitchenTicket) return;
       mutateKitchenTicket(orderId);
@@ -278,5 +314,12 @@ export function useOrderDetail(orderId: string | null): UseOrderDetailReturn {
       mutateSplitPayment({ id: orderId, lines });
     },
     isRecordingSplitPayment,
+    updateItems: (draft: UpdateItemsDraft) => {
+      if (!orderId || !order || !canEditItems) {
+        return Promise.reject(new Error("This order can't be edited right now."));
+      }
+      return mutateUpdateItems({ ...draft, orderId, expectedRevision: order.revision });
+    },
+    isUpdatingItems,
   };
 }

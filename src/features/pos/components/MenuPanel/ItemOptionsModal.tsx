@@ -13,9 +13,16 @@ interface ItemOptionsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: (unitPrice: number, selection: ItemSelection) => void;
+  confirmLabel?: string;
 }
 
-export function ItemOptionsModal({ item, open, onOpenChange, onConfirm }: ItemOptionsModalProps) {
+export function ItemOptionsModal({
+  item,
+  open,
+  onOpenChange,
+  onConfirm,
+  confirmLabel = "Add to Cart",
+}: ItemOptionsModalProps) {
   const {
     selectedVariantId,
     setSelectedVariantId,
@@ -129,7 +136,7 @@ export function ItemOptionsModal({ item, open, onOpenChange, onConfirm }: ItemOp
             disabled={!canConfirm}
             onClick={handleConfirm}
           >
-            Add to Cart · {formatCurrency(unitPrice)}
+            {confirmLabel} · {formatCurrency(unitPrice)}
           </Button>
         </DialogFooter>
       </DialogContent>

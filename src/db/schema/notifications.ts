@@ -16,7 +16,8 @@ export type NotificationType =
     | "device_pending_approval"
     | "coupon_overuse"
     | "order_completion_conflict"
-    | "low_stock";
+    | "low_stock"
+    | "order_updated";
 
 export const notifications = pgTable(
     "notifications",

@@ -3,10 +3,11 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { db } from "@/db";
-import { staff, orders, orderDiscounts, payments, coupons, attendance } from "@/db/schema";
+import { staff, orders, orderDiscounts, orderRevisions, payments, coupons, attendance } from "@/db/schema";
 import { eq, and, inArray, isNull } from "drizzle-orm";
 import { hasPermission } from "@/types/staff";
 import { logAudit } from "@/lib/audit";
+import { syncStaffNameSnapshots } from "@/lib/staffNameSync";
 import {
   createAdminSchema,
   type CreateAdminInput,
@@ -258,6 +259,11 @@ export async function updateAdminAction(
     .where(eq(staff.id, adminId))
     .returning();
 
+  // Keep every history row's name snapshot in step with the live name.
+  if (parsed.data.firstName !== undefined || parsed.data.lastName !== undefined) {
+    await syncStaffNameSnapshots(adminId, `${updated.firstName} ${updated.lastName}`);
+  }
+
   if (emailChanged) {
     const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
       adminId,
@@ -449,6 +455,7 @@ export async function deleteAdminAction(adminId: string) {
       await tx.update(orderDiscounts).set({ appliedByName: fullName }).where(and(eq(orderDiscounts.appliedBy, adminId), isNull(orderDiscounts.appliedByName)));
       await tx.update(payments).set({ processedByName: fullName }).where(and(eq(payments.processedBy, adminId), isNull(payments.processedByName)));
       await tx.update(coupons).set({ createdByName: fullName }).where(and(eq(coupons.createdBy, adminId), isNull(coupons.createdByName)));
+      await tx.update(orderRevisions).set({ editedByName: fullName }).where(and(eq(orderRevisions.editedBy, adminId), isNull(orderRevisions.editedByName)));
       await tx
         .update(attendance)
         .set({ staffName: fullName, staffIdSnapshot: idSnapshot })

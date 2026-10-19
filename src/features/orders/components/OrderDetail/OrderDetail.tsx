@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { RiderAssignment } from "./RiderAssignment";
+import { OrderEditHistory } from "./OrderEditHistory";
 import { queryKeys } from "@/hooks/useMockQuery";
 import { useAlertModal } from "@/components/providers/AlertModalProvider";
 
@@ -94,6 +95,9 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
     canSplitPayment,
     splitPayment,
     isRecordingSplitPayment,
+    canEditItems,
+    updateItems,
+    isUpdatingItems,
   } = useOrderDetail(orderId);
 
   if (isLoading) {
@@ -387,6 +391,13 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
           </>
         )}
 
+        {order.revision > 0 && (
+          <>
+            <Separator className="mx-5" />
+            <OrderEditHistory order={order} />
+          </>
+        )}
+
         <div className="h-4" />
       </ScrollArea>
 
@@ -412,6 +423,9 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
           canSplitPayment={canSplitPayment}
           onSplitPayment={splitPayment}
           isRecordingSplitPayment={isRecordingSplitPayment}
+          canEditItems={canEditItems}
+          onEditItems={updateItems}
+          isUpdatingItems={isUpdatingItems}
         />
       </div>
     </div>

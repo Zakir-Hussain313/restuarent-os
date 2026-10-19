@@ -49,7 +49,7 @@ const TICKET_STYLES = `
 // ignored, with no error, which is why sequencing (not just delaying) matters.
 // Falls back to a fixed timeout if 'afterprint' never fires, so a single
 // print job can never hang the caller indefinitely.
-function printHtmlDocument(title: string, bodyHtml: string): Promise<void> {
+export function printHtmlDocument(title: string, bodyHtml: string): Promise<void> {
   return new Promise((resolve) => {
     const iframe = document.createElement("iframe");
     iframe.style.position = "fixed";
@@ -108,13 +108,13 @@ export function getOfflineRef(idempotencyKey: string): string {
   return `OFF-${idempotencyKey.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
 }
 
-const ORDER_TYPE_LABELS: Record<string, string> = {
+export const ORDER_TYPE_LABELS: Record<string, string> = {
   dine_in: "Dine In",
   takeaway: "Takeaway",
   delivery: "Delivery",
 };
 
-function formatTime(dateStr: string): string {
+export function formatTime(dateStr: string): string {
   return new Date(dateStr).toLocaleTimeString(RESTAURANT_CONFIG.locale, {
     hour: "2-digit",
     minute: "2-digit",
@@ -122,7 +122,7 @@ function formatTime(dateStr: string): string {
   });
 }
 
-function formatDate(dateStr: string): string {
+export function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString(RESTAURANT_CONFIG.locale, {
     day: "2-digit",
     month: "short",

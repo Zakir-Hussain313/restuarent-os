@@ -236,6 +236,7 @@ async function computeTopDishes(
       and(
         eq(orders.tenantId, tenantId),
         ne(orders.status, "cancelled"),
+        ne(orderItems.status, "cancelled"),
         gte(orders.createdAt, monthStart),
         lt(orders.createdAt, monthEnd),
         branchId ? eq(orders.branchId, branchId) : undefined

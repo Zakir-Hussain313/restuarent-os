@@ -110,6 +110,10 @@ export const orders = pgTable(
         // component state alone (dismissedAutoPrintFor) doesn't survive
         // a remount, which was the root cause of the bill re-popping bug.
         billPrintedAt: timestamp("bill_printed_at", { withTimezone: true }),
+        // Bumped once per item edit (0 = never edited). Used for optimistic
+        // concurrency: an edit carries the revision it was based on and is
+        // rejected if the order has moved on since.
+        revision: integer("revision").notNull().default(0),
     },
     (t) => [
         // RLS + all tenant-scoped queries
@@ -445,6 +449,61 @@ export const paymentRefunds = pgTable(
         index("payment_refunds_tenant_id_idx").on(t.tenantId),
     ]
 );
+
+export type OrderRevisionLine = {
+    itemId: string;
+    menuItemName: string;
+    variantName: string | null;
+    modifiers: string[];
+    notes: string | null;
+    quantity: number;
+    unitPrice: number;
+};
+
+export type OrderRevisionChanges = {
+    added: OrderRevisionLine[];
+    cancelled: OrderRevisionLine[];
+    // `quantity` is the NEW quantity, `fromQuantity` is what it was before.
+    quantityChanged: (OrderRevisionLine & { fromQuantity: number })[];
+};
+
+// One row per saved item edit. Snapshots everything needed to reprint an
+// "order update" ticket later, even if the menu changes afterwards.
+export const orderRevisions = pgTable(
+    "order_revisions",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        tenantId: uuid("tenant_id")
+            .notNull()
+            .references(() => tenants.id, { onDelete: "cascade" }),
+        orderId: uuid("order_id")
+            .notNull()
+            .references(() => orders.id, { onDelete: "cascade" }),
+
+        // 1, 2, 3... matches orders.revision after this edit was applied.
+        revision: integer("revision").notNull(),
+
+        editedBy: uuid("edited_by")
+            .references(() => staff.id, { onDelete: "set null" }),
+        editedByName: text("edited_by_name"),
+        reason: text("reason"),
+
+        totalBefore: integer("total_before").notNull(),
+        totalAfter: integer("total_after").notNull(),
+        changes: jsonb("changes").$type<OrderRevisionChanges>().notNull(),
+
+        createdAt: timestamp("created_at", { withTimezone: true })
+            .notNull()
+            .defaultNow(),
+    },
+    (t) => [
+        uniqueIndex("order_revisions_order_revision_udx").on(t.orderId, t.revision),
+        index("order_revisions_tenant_id_idx").on(t.tenantId),
+    ]
+);
+
+export type OrderRevision = typeof orderRevisions.$inferSelect;
+export type NewOrderRevision = typeof orderRevisions.$inferInsert;
 
 export type Order = typeof orders.$inferSelect;
 export type NewOrder = typeof orders.$inferInsert;

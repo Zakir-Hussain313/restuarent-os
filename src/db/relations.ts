@@ -4,7 +4,7 @@ import { branches } from "./schema/branches";
 import { staff } from "./schema/staff";
 import { menuCategories, menuItems, menuItemVariants, modifierGroups, modifierOptions } from "./schema/menu";
 import { tableSections, restaurantTables } from "./schema/tables";
-import { orders, orderItems, orderDiscounts, coupons, couponBranchAllocations, payments } from "./schema/orders";
+import { orders, orderItems, orderDiscounts, orderRevisions, coupons, couponBranchAllocations, payments } from "./schema/orders";
 import { deliveries } from "./schema/deliveries";
 import { attendance } from "./schema/attendance";
 import { auditLogs } from "./schema/audit_logs";
@@ -212,6 +212,7 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
     items: many(orderItems),
     discounts: many(orderDiscounts),
     payments: many(payments),
+    revisions: many(orderRevisions),
 
     // 1:1 — only exists if orderType is "delivery"
     delivery: one(deliveries, {
@@ -235,6 +236,21 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
     menuItem: one(menuItems, {
         fields: [orderItems.menuItemId],
         references: [menuItems.id],
+    }),
+}));
+
+export const orderRevisionsRelations = relations(orderRevisions, ({ one }) => ({
+    tenant: one(tenants, {
+        fields: [orderRevisions.tenantId],
+        references: [tenants.id],
+    }),
+    order: one(orders, {
+        fields: [orderRevisions.orderId],
+        references: [orders.id],
+    }),
+    editor: one(staff, {
+        fields: [orderRevisions.editedBy],
+        references: [staff.id],
     }),
 }));
 

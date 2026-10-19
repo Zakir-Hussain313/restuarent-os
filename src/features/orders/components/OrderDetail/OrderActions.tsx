@@ -1,17 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Printer, Receipt, XCircle, Loader2, Bike, Layers } from "lucide-react";
+import { Printer, Receipt, XCircle, Loader2, Bike, Layers, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { KitchenTicketModal } from "../modals/KitchenTicketModal";
 import { BillModal } from "../modals/BillModal";
 import { CancelConfirmModal } from "../modals/CancelConfirmModal";
 import { MarkReadyModal } from "../modals/MarkReadyModal";
 import { SplitPaymentModal } from "../modals/SplitPaymentModal";
+import { EditOrderItemsModal } from "../modals/EditOrderItemsModal";
 import { getBranchesAction } from "@/features/staff/actions";
 import type { Branch } from "@/db/schema";
 import type { Order, PaymentMethod } from "@/types";
 import type { SplitPaymentLine } from "@/features/orders/actions";
+import type { UpdateItemsDraft, UpdateItemsSuccess } from "@/features/orders/hooks/useOrderDetail";
 import { useAlertModal } from "@/components/providers/AlertModalProvider";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
@@ -34,6 +36,9 @@ interface OrderActionsProps {
   canSplitPayment: boolean;
   onSplitPayment: (lines: SplitPaymentLine[]) => void;
   isRecordingSplitPayment: boolean;
+  canEditItems: boolean;
+  onEditItems: (draft: UpdateItemsDraft) => Promise<UpdateItemsSuccess>;
+  isUpdatingItems: boolean;
 }
 
 interface ActionButtonProps {
@@ -105,6 +110,9 @@ export function OrderActions({
   canSplitPayment,
   onSplitPayment,
   isRecordingSplitPayment,
+  canEditItems,
+  onEditItems,
+  isUpdatingItems,
 }: OrderActionsProps) {
   const { showConfirm } = useAlertModal();
   const [kitchenTicketOpen, setKitchenTicketOpen] = useState(false);
@@ -114,6 +122,10 @@ export function OrderActions({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [branch, setBranch] = useState<Branch | undefined>(undefined);
   const [splitModalOpen, setSplitModalOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  // Bumped on every open/reload so the edit dialog remounts with a fresh
+  // draft built from the latest order (same pattern as the split modal).
+  const [editInstance, setEditInstance] = useState(0);
   // Bumped every time the split modal opens — passed as the modal's `key`
   // so it fully remounts (and its internal draft lines reset) instead of
   // needing a setState-in-effect to clear stale state from last time.
@@ -150,13 +162,14 @@ export function OrderActions({
   }, [order.branchId]);
 
   const isDelivery = order.orderType === "delivery";
-  const hasActions = canPrintKitchenTicket || canMarkReady || canPrintBill || canCancel || canSplitPayment;
+  const hasActions =
+    canPrintKitchenTicket || canMarkReady || canPrintBill || canCancel || canSplitPayment || canEditItems;
   // A split payment can complete the order in the same tick this renders,
   // flipping every can* flag above to false before the post-split print
   // modal gets a chance to show. Stay mounted whenever any modal is open,
   // regardless of whether new actions are currently available.
   const anyModalOpen =
-    kitchenTicketOpen || markReadyOpen || billOpen || cancelOpen || splitModalOpen;
+    kitchenTicketOpen || markReadyOpen || billOpen || cancelOpen || splitModalOpen || editOpen;
 
   // Auto-open + auto-print the bill the moment a delivery order first
   // reaches "ready_for_delivery" — derived at render time, no effect needed.
@@ -214,6 +227,20 @@ export function OrderActions({
             onClick={() => setMarkReadyOpen(true)}
             isLoading={isMarkingReady}
             variant="primary"
+          />
+        )}
+
+        {canEditItems && (
+          <ActionButton
+            label="Edit Items"
+            icon={<Pencil className="w-3.5 h-3.5" />}
+            onClick={() => {
+              setEditInstance((n) => n + 1);
+              setEditOpen(true);
+            }}
+            isLoading={false}
+            variant="secondary"
+            disabled={!isOnline}
           />
         )}
 
@@ -316,6 +343,16 @@ export function OrderActions({
           setMarkReadyOpen(false);
         }}
         onClose={() => setMarkReadyOpen(false)}
+      />
+
+      <EditOrderItemsModal
+        key={`edit-${editInstance}`}
+        open={editOpen}
+        order={order}
+        isSaving={isUpdatingItems}
+        onSave={onEditItems}
+        onReload={() => setEditInstance((n) => n + 1)}
+        onClose={() => setEditOpen(false)}
       />
 
       <SplitPaymentModal

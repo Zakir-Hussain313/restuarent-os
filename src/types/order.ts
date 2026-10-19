@@ -101,6 +101,8 @@ export interface Order {
   updatedAt: string;
   completedAt?: string;
   billPrintedAt?: string;
+  // Bumped on every item edit; sent back as `expectedRevision` when editing.
+  revision: number;
 }
 
 export type OrderSummary = Pick<Order, "id" | "orderNumber" | "orderType" | "status" | "paymentStatus" | "total" | "tableNumber" | "items" | "staffId" | "createdAt" | "wasOfflineOrder" | "offlineRef">;

@@ -6,11 +6,10 @@ import {
     orderItems,
     orderCounters,
     orderDiscounts,
+    orderRevisions,
     coupons,
     couponBranchAllocations,
     tenantSettings,
-    menuItems,
-    menuCategories,
     staff,
     restaurantTables,
     tableReservations,
@@ -22,7 +21,7 @@ import {
     notifications,
 } from "@/db/schema";
 import { getSupabaseServerClient } from "@/lib/supabase";
-import { eq, and, inArray, asc, sql, gte } from "drizzle-orm";
+import { eq, and, ne, inArray, asc, sql, gte } from "drizzle-orm";
 import type { Order, OrderStatus, OrderType, PaymentMethod } from "@/types";
 import { hasPermission } from "@/types/staff";
 import { RESTAURANT_CONFIG } from "@/config/restaurant";
@@ -31,6 +30,17 @@ import { getOfflineRef } from "@/features/orders/lib/printKitchenTicket";
 import { broadcastChange } from "@/lib/realtime/broadcast";
 import { createNotification } from "../notifications/actions";
 import { PaymentService } from "@/lib/payments/PaymentService";
+import { buildPricedOrderLines, calculateCouponDiscount } from "@/features/orders/lib/orderPricing";
+import {
+    OrderEditError,
+    isOrderEditable,
+    planOrderEdit,
+    recalculateDiscounts,
+    derivePaymentStatus,
+    toOrderRevisionDTO,
+    type OrderRevisionDTO,
+} from "@/features/orders/lib/orderEditing";
+import { updateOrderItemsSchema, type UpdateOrderItemsInput } from "@/features/orders/schemas";
 
 // ─── Input shape ────────────────────────────────────────────────────────
 
@@ -127,6 +137,7 @@ function buildOrderResponse(
         createdAt: order.createdAt.toISOString(),
         updatedAt: order.updatedAt.toISOString(),
         billPrintedAt: order.billPrintedAt?.toISOString(),
+        revision: order.revision,
     };
 }
 
@@ -191,21 +202,13 @@ export async function createOrderAction(
     try {
         console.time(`[createOrderAction] transaction ${timerId}`);
         const result = await db.transaction(async (tx) => {
-            // ── 1. Fetch real menu items for every line in the cart ──────
-            // Runs in parallel with the table lookup below — independent
-            // queries, no reason to wait for one before starting the other.
-            const menuItemIds = [...new Set(input.items.map((i) => i.menuItemId))];
-            const [realMenuItems, preloadedTable] = await Promise.all([
-                tx.query.menuItems.findMany({
-                    where: and(
-                        inArray(menuItems.id, menuItemIds),
-                        eq(menuItems.tenantId, currentStaffRow.tenantId),
-                        eq(menuItems.branchId, branchId)
-                    ),
-                    with: {
-                        variants: true,
-                        modifierGroups: { with: { options: true } },
-                    },
+            // ── 1-3. Price every cart line from real DB data ─────────────
+            // Runs in parallel with the table lookup — independent queries.
+            const [builtItems, preloadedTable] = await Promise.all([
+                buildPricedOrderLines(tx, {
+                    tenantId: currentStaffRow.tenantId,
+                    branchId,
+                    lines: input.items,
                 }),
                 input.tableId
                     ? tx.query.restaurantTables.findFirst({
@@ -213,75 +216,6 @@ export async function createOrderAction(
                     })
                     : Promise.resolve(null),
             ]);
-
-            const menuItemMap = new Map(realMenuItems.map((m) => [m.id, m]));
-
-            // ── 2. Build each order item from real DB prices ─────────────
-            const builtItems = input.items.map((line) => {
-                const menuItem = menuItemMap.get(line.menuItemId);
-                if (!menuItem) {
-                    throw new Error(`Menu item not found or unavailable: ${line.menuItemId}`);
-                }
-                if (menuItem.status !== "available") {
-                    throw new Error(`"${menuItem.name}" is not currently available.`);
-                }
-
-                let unitPrice = menuItem.basePrice;
-                let selectedVariant = null;
-
-                if (line.variantId) {
-                    const variant = menuItem.variants.find((v) => v.id === line.variantId);
-                    if (!variant) throw new Error(`Invalid variant for "${menuItem.name}".`);
-                    unitPrice = variant.price;
-                    selectedVariant = {
-                        variantId: variant.id,
-                        variantName: variant.name,
-                        priceAdjustment: 0,
-                    };
-                }
-
-                const allOptions = menuItem.modifierGroups.flatMap((g) =>
-                    g.options.map((o) => ({ ...o, groupId: g.id, groupName: g.name }))
-                );
-                const selectedModifiers = line.modifierOptionIds.map((optId) => {
-                    const opt = allOptions.find((o) => o.id === optId);
-                    if (!opt) throw new Error(`Invalid modifier option for "${menuItem.name}".`);
-                    unitPrice += opt.priceAdjustment;
-                    return {
-                        groupId: opt.groupId,
-                        groupName: opt.groupName,
-                        optionId: opt.id,
-                        optionName: opt.name,
-                        priceAdjustment: opt.priceAdjustment,
-                    };
-                });
-
-                const itemTotal = unitPrice * line.quantity;
-
-                return {
-                    menuItemId: menuItem.id,
-                    menuItemName: menuItem.name,
-                    menuItemImage: menuItem.image ?? null,
-                    categoryId: menuItem.categoryId,
-                    categoryName: "", // filled below
-                    quantity: line.quantity,
-                    unitPrice,
-                    itemTotal,
-                    selectedVariant,
-                    selectedModifiers,
-                    notes: line.notes ?? null,
-                };
-            });
-
-            // ── 3. Look up category names for the snapshot ───────────────
-            const categoryIds = [...new Set(builtItems.map((i) => i.categoryId))];
-            const categories = await tx.query.menuCategories.findMany({
-                where: inArray(menuCategories.id, categoryIds),
-            });
-            const categoryNameMap = new Map(categories.map((c) => [c.id, c.name]));
-            for (const item of builtItems) {
-                item.categoryName = categoryNameMap.get(item.categoryId) ?? "Uncategorized";
-            }
 
             // ── 4. Compute totals server-side ─────────────────────────────
             const subtotal = builtItems.reduce((sum, i) => sum + i.itemTotal, 0);
@@ -332,26 +266,11 @@ export async function createOrderAction(
                     throw new Error(`Coupon "${coupon.name}" is not valid at this branch.`);
                 }
 
-                if (coupon.menuItemIds || coupon.categoryIds) {
-                    const eligibleSubtotal = builtItems.reduce((sum, i) => {
-                        const itemEligible =
-                            (coupon.menuItemIds?.includes(i.menuItemId) ?? false) ||
-                            (coupon.categoryIds?.includes(i.categoryId) ?? false);
-                        return itemEligible ? sum + i.itemTotal : sum;
-                    }, 0);
-                    if (eligibleSubtotal === 0) {
-                        throw new Error(`Coupon "${coupon.name}" doesn't apply to any items in this order.`);
-                    }
-                    totalDiscount =
-                        coupon.discountType === "percentage"
-                            ? Math.round(eligibleSubtotal * (Math.min(coupon.discountValue, 100) / 100))
-                            : Math.min(coupon.discountValue, eligibleSubtotal);
-                } else {
-                    totalDiscount =
-                        coupon.discountType === "percentage"
-                            ? Math.round(subtotal * (Math.min(coupon.discountValue, 100) / 100))
-                            : Math.min(coupon.discountValue, subtotal);
+                const { amount, hasEligibleItems } = calculateCouponDiscount(coupon, builtItems, subtotal);
+                if (!hasEligibleItems) {
+                    throw new Error(`Coupon "${coupon.name}" doesn't apply to any items in this order.`);
                 }
+                totalDiscount = amount;
 
                 appliedCoupon = coupon;
             }
@@ -743,6 +662,7 @@ export async function getOrdersAction(
         updatedAt: o.updatedAt.toISOString(),
         completedAt: o.completedAt?.toISOString(),
         billPrintedAt: o.billPrintedAt?.toISOString(),
+        revision: o.revision,
     }));
 
     return { data };
@@ -845,6 +765,7 @@ export async function getOrderByIdAction(
             updatedAt: row.updatedAt.toISOString(),
             completedAt: row.completedAt?.toISOString(),
             billPrintedAt: row.billPrintedAt?.toISOString(),
+            revision: row.revision,
         },
     };
 }
@@ -915,6 +836,31 @@ export async function markBillPrintedAction(
 
 type QueryClient = Parameters<Parameters<typeof db.transaction>[0]>[0] | typeof db;
 
+const ORDER_CHANGED_MESSAGE = "This order was just changed on another terminal. Reload it and try again.";
+
+// Payment guard: re-reads the order under a row lock inside the payment's
+// own transaction and confirms the numbers the payment was calculated from
+// (total, amount already paid, status) are still current. An item edit, a
+// cancel or another payment landing between the pre-transaction read and
+// this lock makes it return false — the caller must write nothing then.
+async function lockOrderUnchanged(
+    tx: QueryClient,
+    orderId: string,
+    expected: { total: number; totalPaid: number; status: string }
+): Promise<boolean> {
+    const [locked] = await tx
+        .select({ total: orders.total, totalPaid: orders.totalPaid, status: orders.status })
+        .from(orders)
+        .where(eq(orders.id, orderId))
+        .for("update");
+    return (
+        !!locked &&
+        locked.total === expected.total &&
+        locked.totalPaid === expected.totalPaid &&
+        locked.status === expected.status
+    );
+}
+
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
 /**
@@ -945,7 +891,7 @@ async function deductInventoryForCompletedOrder(
     if (already) return lowStockAlerts;
 
     const items = await tx.query.orderItems.findMany({
-        where: eq(orderItems.orderId, params.orderId),
+        where: and(eq(orderItems.orderId, params.orderId), ne(orderItems.status, "cancelled")),
     });
     if (items.length === 0) return lowStockAlerts;
 
@@ -1139,6 +1085,8 @@ export async function completeBillAction(
 
         const now = new Date();
         const lowStockAlerts = await db.transaction(async (tx) => {
+            if (!(await lockOrderUnchanged(tx, orderId, target))) return null;
+
             await tx
                 .update(orders)
                 .set({ status: "completed", completedAt: now, updatedAt: now })
@@ -1159,6 +1107,8 @@ export async function completeBillAction(
                 staffName: `${currentStaffRow.firstName} ${currentStaffRow.lastName}`,
             });
         });
+
+        if (lowStockAlerts === null) return { error: ORDER_CHANGED_MESSAGE };
 
         await logAudit(db, currentStaffRow, "order", orderId, "status_change", {
             branchId: target.branchId,
@@ -1223,7 +1173,13 @@ export async function completeBillAction(
     let paymentId = "";
     let lowStockAlerts: LowStockAlert[] = [];
 
+    let orderChanged = false;
     await db.transaction(async (tx) => {
+        if (!(await lockOrderUnchanged(tx, orderId, target))) {
+            orderChanged = true;
+            return;
+        }
+
         const now = new Date();
         const newTotalPaid = target.totalPaid + paymentAmount;
 
@@ -1286,6 +1242,8 @@ export async function completeBillAction(
             });
         }
     });
+
+    if (orderChanged) return { error: ORDER_CHANGED_MESSAGE };
 
     if (deliveryNeedsAutoConfirm) {
         await Promise.all([
@@ -1391,7 +1349,13 @@ export async function recordSplitPaymentAction(
 
     const paymentIds: string[] = [];
 
+    let orderChanged = false;
     await db.transaction(async (tx) => {
+        if (!(await lockOrderUnchanged(tx, orderId, target))) {
+            orderChanged = true;
+            return;
+        }
+
         const now = new Date();
         const newTotalPaid = target.totalPaid + linesTotal;
 
@@ -1432,6 +1396,8 @@ export async function recordSplitPaymentAction(
                 .where(eq(restaurantTables.id, target.tableId));
         }
     });
+
+    if (orderChanged) return { error: ORDER_CHANGED_MESSAGE };
 
     await logAudit(db, currentStaffRow, "order", orderId, "status_change", {
         branchId: target.branchId,
@@ -1578,4 +1544,252 @@ export async function refundPaymentAction(
     }
 
     return { success: true };
+}
+
+
+// ─── Update Order Items (add / remove / change quantity) ────────────────
+
+export async function updateOrderItemsAction(
+    input: UpdateOrderItemsInput
+): Promise<
+    | { success: true; order: Order; revision: OrderRevisionDTO }
+    | { success?: undefined; error: string }
+> {
+    const parsed = updateOrderItemsSchema.safeParse(input);
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    const data = parsed.data;
+
+    const auth = await getCurrentStaff();
+    if (!auth.ok) return { error: auth.error };
+    const { staff: currentStaffRow } = auth;
+
+    if (!["STAFF", "ADMIN", "SUPER_ADMIN"].includes(currentStaffRow.role)) {
+        return { error: "You don't have permission to edit orders." };
+    }
+    const editorName = `${currentStaffRow.firstName} ${currentStaffRow.lastName}`;
+
+    try {
+        const result = await db.transaction(async (tx) => {
+            // Row lock: serializes this edit against any other edit (and,
+            // once the payment actions lock too, against payments).
+            const [locked] = await tx
+                .select()
+                .from(orders)
+                .where(and(eq(orders.id, data.orderId), eq(orders.tenantId, currentStaffRow.tenantId)))
+                .for("update");
+
+            if (!locked) throw new OrderEditError("Order not found.");
+            if (currentStaffRow.role !== "SUPER_ADMIN" && locked.branchId !== currentStaffRow.branchId) {
+                throw new OrderEditError("You can only manage your own branch's orders.");
+            }
+            if (!isOrderEditable(locked.status)) {
+                throw new OrderEditError(
+                    locked.status === "out_for_delivery" || locked.status === "delivered"
+                        ? "This delivery is already out with the rider and can't be edited."
+                        : `This order is already "${locked.status}" and can't be edited.`
+                );
+            }
+            if (locked.paymentStatus === "refunded") {
+                throw new OrderEditError("This order has been refunded and can't be edited.");
+            }
+            if (locked.revision !== data.expectedRevision) {
+                throw new OrderEditError("This order was changed on another terminal. Reload it and try again.");
+            }
+
+            const currentItems = await tx.query.orderItems.findMany({
+                where: eq(orderItems.orderId, locked.id),
+            });
+            const addedLines = await buildPricedOrderLines(tx, {
+                tenantId: currentStaffRow.tenantId,
+                branchId: locked.branchId,
+                lines: data.add,
+            }).catch((e: Error) => {
+                throw new OrderEditError(e.message);
+            });
+            const plan = planOrderEdit({
+                items: currentItems,
+                add: addedLines,
+                setQuantity: data.setQuantity,
+                cancel: data.cancel,
+            });
+
+            const discountRows = await tx.query.orderDiscounts.findMany({
+                where: eq(orderDiscounts.orderId, locked.id),
+            });
+            const couponIds = discountRows.map((d) => d.couponId).filter((id): id is string => id !== null);
+            const couponRows = couponIds.length
+                ? await tx.query.coupons.findMany({ where: inArray(coupons.id, couponIds) })
+                : [];
+            const couponScopes = new Map(
+                couponRows.map((c) => [c.id, { menuItemIds: c.menuItemIds, categoryIds: c.categoryIds }])
+            );
+            const { perDiscount, totalDiscount } = recalculateDiscounts(
+                discountRows,
+                couponScopes,
+                plan.activeLines,
+                plan.subtotal
+            );
+
+            const newTotal = plan.subtotal - totalDiscount + locked.deliveryFee;
+            if (newTotal < locked.totalPaid) {
+                throw new OrderEditError(
+                    `Rs. ${locked.totalPaid.toLocaleString()} has already been paid on this order, which is more than the new total of Rs. ${newTotal.toLocaleString()}. Refund the difference first.`
+                );
+            }
+
+            for (const update of plan.quantityUpdates) {
+                await tx
+                    .update(orderItems)
+                    .set({ quantity: update.quantity, itemTotal: update.itemTotal })
+                    .where(and(eq(orderItems.id, update.id), eq(orderItems.orderId, locked.id)));
+            }
+            if (plan.cancelIds.length > 0) {
+                await tx
+                    .update(orderItems)
+                    .set({ status: "cancelled" })
+                    .where(and(inArray(orderItems.id, plan.cancelIds), eq(orderItems.orderId, locked.id)));
+            }
+            if (plan.newLines.length > 0) {
+                await tx.insert(orderItems).values(
+                    plan.newLines.map((l) => ({
+                        id: l.id,
+                        tenantId: currentStaffRow.tenantId,
+                        orderId: locked.id,
+                        menuItemId: l.menuItemId,
+                        menuItemName: l.menuItemName,
+                        menuItemImage: l.menuItemImage,
+                        categoryId: l.categoryId,
+                        categoryName: l.categoryName,
+                        quantity: l.quantity,
+                        unitPrice: l.unitPrice,
+                        itemTotal: l.itemTotal,
+                        selectedVariant: l.selectedVariant,
+                        selectedModifiers: l.selectedModifiers,
+                        notes: l.notes,
+                    }))
+                );
+            }
+            for (const d of perDiscount) {
+                await tx
+                    .update(orderDiscounts)
+                    .set({ appliedAmount: d.appliedAmount })
+                    .where(eq(orderDiscounts.id, d.id));
+            }
+
+            const newRevision = locked.revision + 1;
+            await tx
+                .update(orders)
+                .set({
+                    subtotal: plan.subtotal,
+                    totalDiscount,
+                    total: newTotal,
+                    balance: newTotal - locked.totalPaid,
+                    paymentStatus: derivePaymentStatus(newTotal, locked.totalPaid),
+                    revision: newRevision,
+                    updatedAt: new Date(),
+                })
+                .where(eq(orders.id, locked.id));
+
+            const [revisionRow] = await tx
+                .insert(orderRevisions)
+                .values({
+                    tenantId: currentStaffRow.tenantId,
+                    orderId: locked.id,
+                    revision: newRevision,
+                    editedBy: currentStaffRow.id,
+                    editedByName: editorName,
+                    reason: data.reason ?? null,
+                    totalBefore: locked.total,
+                    totalAfter: newTotal,
+                    changes: plan.changes,
+                })
+                .returning();
+
+            return { locked, newTotal, plan, revisionRow };
+        });
+
+        const { locked, newTotal, plan, revisionRow } = result;
+        const { added, cancelled, quantityChanged } = plan.changes;
+        const summary = [
+            added.length > 0 ? `${added.length} added` : null,
+            cancelled.length > 0 ? `${cancelled.length} removed` : null,
+            quantityChanged.length > 0 ? `${quantityChanged.length} changed` : null,
+        ]
+            .filter(Boolean)
+            .join(", ");
+
+        await Promise.all([
+            logAudit(db, currentStaffRow, "order", locked.id, "update", {
+                branchId: locked.branchId,
+                oldValue: { total: locked.total, revision: locked.revision },
+                newValue: {
+                    total: newTotal,
+                    revision: revisionRow.revision,
+                    orderNumber: locked.orderNumber,
+                    changes: plan.changes,
+                    reason: data.reason ?? null,
+                },
+                description: `Order ${locked.orderNumber} items edited (${summary}).`,
+            }),
+            broadcastChange(locked.branchId, "orders"),
+            createNotification({
+                tenantId: locked.tenantId,
+                branchId: locked.branchId,
+                type: "order_updated",
+                title: "Order updated",
+                message: `Order ${locked.orderNumber} was updated by ${editorName} (${summary}).`,
+                resourceType: "order",
+                resourceId: locked.id,
+            }),
+        ]);
+
+        const fresh = await db.query.orders.findFirst({
+            where: eq(orders.id, locked.id),
+            with: { items: true, table: true, discounts: true },
+        });
+        if (!fresh) return { error: "Order saved, but it could not be reloaded." };
+
+        return {
+            success: true,
+            order: buildOrderResponse(fresh, fresh.items, fresh.table?.tableNumber, fresh.discounts),
+            revision: toOrderRevisionDTO(revisionRow),
+        };
+    } catch (err) {
+        if (err instanceof OrderEditError) return { error: err.message };
+        return { error: `Failed to update order: ${(err as Error).message}` };
+    }
+}
+
+
+// ─── Order edit history ──────────────────────────────────────────────────
+
+export async function getOrderRevisionsAction(
+    orderId: string
+): Promise<{ data: OrderRevisionDTO[]; error?: undefined } | { data: null; error: string }> {
+    const auth = await getCurrentStaff();
+    if (!auth.ok) return { data: null, error: auth.error };
+    const { staff: currentStaffRow } = auth;
+
+    if (currentStaffRow.role === "RIDER") {
+        return { data: null, error: "You don't have permission to view order edit history." };
+    }
+
+    const order = await db.query.orders.findFirst({
+        where: and(eq(orders.id, orderId), eq(orders.tenantId, currentStaffRow.tenantId)),
+        columns: { id: true, branchId: true },
+    });
+    if (!order) return { data: null, error: "Order not found." };
+    if (currentStaffRow.role !== "SUPER_ADMIN" && order.branchId !== currentStaffRow.branchId) {
+        return { data: null, error: "You can only view your own branch's orders." };
+    }
+
+    const rows = await db.query.orderRevisions.findMany({
+        where: and(
+            eq(orderRevisions.orderId, order.id),
+            eq(orderRevisions.tenantId, currentStaffRow.tenantId)
+        ),
+        orderBy: (r, { desc }) => [desc(r.revision)],
+    });
+
+    return { data: rows.map(toOrderRevisionDTO) };
 }

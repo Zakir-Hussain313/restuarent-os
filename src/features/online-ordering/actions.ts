@@ -483,6 +483,7 @@ export async function createPublicOrderAction(
                 staffId: result.order.staffId,
                 createdAt: result.order.createdAt.toISOString(),
                 updatedAt: result.order.updatedAt.toISOString(),
+                revision: result.order.revision,
             },
         };
     } catch (err) {
