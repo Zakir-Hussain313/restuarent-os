@@ -238,7 +238,7 @@ export function EditOrderItemsModal({
         if (!next && !isSaving) onClose();
       }}
     >
-      <DialogContent className="flex h-[85vh] flex-col gap-0 p-0 sm:max-w-5xl">
+      <DialogContent className="flex h-[85dvh] flex-col gap-0 p-0 sm:max-w-5xl">
         <DialogHeader className="shrink-0 border-b border-border px-5 pb-3 pt-5">
           <DialogTitle>Edit items · {order.orderNumber}</DialogTitle>
         </DialogHeader>
@@ -342,7 +342,7 @@ export function EditOrderItemsModal({
             </div>
           )}
 
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             <div className="min-w-0 text-xs">
               <p className="tabular-nums">
                 <span className="text-muted-foreground">Items subtotal </span>
@@ -358,11 +358,11 @@ export function EditOrderItemsModal({
                 Discounts and the final total are recalculated when you save.
               </p>
             </div>
-            <div className="flex shrink-0 gap-2">
-              <Button variant="outline" size="lg" onClick={onClose} disabled={isSaving}>
+            <div className="flex gap-2 sm:shrink-0">
+              <Button variant="outline" size="lg" className="flex-1 sm:flex-none" onClick={onClose} disabled={isSaving}>
                 Cancel
               </Button>
-              <Button size="lg" onClick={handleSave} disabled={!canSave}>
+              <Button size="lg" className="flex-1 sm:flex-none" onClick={handleSave} disabled={!canSave}>
                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save changes"}
               </Button>
             </div>
